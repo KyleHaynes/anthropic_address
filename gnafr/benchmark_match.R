@@ -7,7 +7,8 @@
 library(data.table)
 library(gnafr)
 
-benchmark_sizes <- c(100L, 1000L, 10000L, 100000L)
+benchmark_sizes <- c(100000L)
+# benchmark_sizes <- c(100L, 1000L, 10000L, 100000L)
 
 # ---- Simulate benchmark inputs ----
 
@@ -47,3 +48,4 @@ benchmark_results <- rbindlist(lapply(benchmark_sizes, function(n_rows) {
 # ---- Inspect results ----
 
 benchmark_results[]
+

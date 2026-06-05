@@ -109,6 +109,10 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
   total <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM gnaf_addresses")$n
   message(sprintf("Total GNAF addresses in database: %s",
                   format(total, big.mark = ",")))
+
+  message("Rebuilding locality index ...")
+  gnaf_rebuild_locality_index(con)
+
   invisible(total)
 }
 

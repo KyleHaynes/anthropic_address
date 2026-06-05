@@ -71,7 +71,61 @@ gnaf_init <- function(con) {
   DBI::dbExecute(con,
     "CREATE INDEX IF NOT EXISTS idx_cust_pcnum ON custom_addresses(postcode, number_first)")
 
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS gnaf_locality_index (
+      locality_name VARCHAR,
+      postcode      INTEGER,
+      state         VARCHAR,
+      UNIQUE (locality_name, postcode, state)
+    )
+  ")
+
+  # Migration: rebuild locality index if address data exists but the index is empty
+  # (databases initialised before this feature was added)
+  n_addr <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM gnaf_addresses")$n
+  n_idx  <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM gnaf_locality_index")$n
+  if (n_addr > 0L && n_idx == 0L) gnaf_rebuild_locality_index(con)
+
   invisible(con)
+}
+
+#' Rebuild the locality search index
+#'
+#' Rebuilds \code{gnaf_locality_index} from the current contents of
+#' \code{gnaf_addresses} and \code{custom_addresses}.  The index is a compact
+#' table of distinct \code{(locality_name, postcode, state)} tuples (~3 000 rows
+#' for QLD) used by \code{gnaf_match}'s locality-fallback path to run
+#' Jaro-Winkler suburb searches without scanning the full address table.
+#'
+#' The index is rebuilt automatically by \code{gnaf_load}, \code{gnaf_load_psv},
+#' and \code{gnaf_add}.  Call this manually after bulk deletions or after
+#' migrating a database created before this feature existed.
+#'
+#' @param con DBI connection from \code{gnaf_connect}.
+#' @return Invisibly, the number of unique locality rows now in the index.
+#' @export
+gnaf_rebuild_locality_index <- function(con) {
+  DBI::dbExecute(con, "DELETE FROM gnaf_locality_index")
+  DBI::dbExecute(con, "
+    INSERT INTO gnaf_locality_index
+    SELECT DISTINCT locality_name, postcode, state
+    FROM gnaf_addresses
+    WHERE locality_name IS NOT NULL
+    ON CONFLICT DO NOTHING
+  ")
+  if (DBI::dbExistsTable(con, "custom_addresses")) {
+    n_cust <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM custom_addresses")$n
+    if (n_cust > 0L)
+      DBI::dbExecute(con, "
+        INSERT INTO gnaf_locality_index
+        SELECT DISTINCT locality_name, postcode, state
+        FROM custom_addresses
+        WHERE locality_name IS NOT NULL
+        ON CONFLICT DO NOTHING
+      ")
+  }
+  n <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM gnaf_locality_index")$n
+  invisible(n)
 }
 
 #' Report row counts for gnafr tables

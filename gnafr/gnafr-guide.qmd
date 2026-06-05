@@ -1,0 +1,346 @@
+---
+title: "gnafr guide"
+format:
+    html:
+        toc: true
+        toc-depth: 3
+execute:
+    echo: true
+---
+
+## Overview
+
+This guide covers the main `gnafr` workflows:
+
+- creating a DuckDB-backed G-NAF database
+- loading G-NAF data
+- adding custom addresses
+- matching addresses with small and larger examples
+- using the main tuning parameters
+- exploring other features such as the Shiny app, database sampling, and synthetic address generation
+
+For the setup section below, the code is shown as a reference only.
+It is not intended to be executed as part of this document.
+
+## Creating the database
+
+### Create the DuckDB file and schema
+
+```{r}
+#| eval: false
+
+# ---- Load package ----
+library(gnafr)
+
+# ---- Create or open the DuckDB database ----
+con <- gnaf_connect("C:/temp/gnaf.duckdb")
+
+# ---- Create the gnafr tables and indexes ----
+gnaf_init(con)
+
+# ---- Inspect table counts ----
+gnaf_status(con)
+```
+
+### Load a G-NAF Core CSV export
+
+Use `gnaf_load()` when you already have a CSV extract ready to load.
+
+```{r}
+#| eval: false
+
+# ---- Load one or more G-NAF Core CSV files ----
+gnaf_load(con, "C:/temp/gnaf.qld.csv")
+
+# ---- Or load multiple state files in sequence ----
+gnaf_load(con, c(
+    "C:/temp/gnaf.qld.csv",
+    "C:/temp/gnaf.nsw.csv"
+))
+
+# ---- Confirm row counts ----
+gnaf_status(con)
+```
+
+### Load the raw G-NAF Standard PSV directory
+
+Use `gnaf_load_psv()` when working directly from the Geoscape G-NAF Standard distribution.
+
+```{r}
+#| eval: false
+
+# ---- Load directly from the Standard directory ----
+gnaf_load_psv(
+    con,
+    gnaf_dir = "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard"
+)
+
+# ---- Confirm row counts after load ----
+gnaf_status(con)
+```
+
+### Add custom addresses
+
+Custom addresses are stored in `custom_addresses` and are matched alongside G-NAF records.
+
+```{r}
+#| eval: false
+
+# ---- Load data.table for convenient input creation ----
+library(data.table)
+
+# ---- Define one or more custom addresses ----
+custom_addresses <- data.table(
+    address_label = "LEVEL 2 123 CUSTOM STREET, BRISBANE QLD 4000",
+    flat_type = "LEVEL",
+    flat_number = "2",
+    number_first = 123L,
+    street_name = "CUSTOM",
+    street_type = "STREET",
+    locality_name = "BRISBANE",
+    state = "QLD",
+    postcode = 4000L,
+    longitude = 153.0234,
+    latitude = -27.4698
+)
+
+# ---- Insert custom addresses into the database ----
+gnaf_add(con, custom_addresses)
+
+# ---- Review table counts ----
+gnaf_status(con)
+```
+
+## Function usage
+
+The remaining examples assume the database has already been set up and that you have reconnected with:
+
+```{r}
+# ---- Reconnect to an existing database ----
+library(gnafr)
+con <- gnaf_connect("C:/temp/gnaf.duckdb")
+```
+
+### Small example with `n = 1`
+
+This is the simplest production-style call: one input, one best match.
+
+```{r}
+# ---- Match a single address and return the top result ----
+one_result <- gnaf_match(
+    con,
+    addresses = "10 St James Ct, Tamborine Mountain QLD 4272",
+    max_results = 1
+)
+
+# ---- Keep the most useful output columns ----
+one_result[, .(
+    input_raw,
+    input_standardised,
+    matched,
+    match_status,
+    total_score,
+    address_label,
+    longitude,
+    latitude
+)]
+```
+
+### Larger example with several inputs
+
+```{r}
+# ---- Define a batch of addresses ----
+addresses <- c(
+    "unit 110 120 musgrave Road red hill 4000 QLD",
+    "U110 1120 musgrave rd red hill 4000",
+    "Cambridge on the hill 110/120 musgrave road red hill QLD 4000",
+    "18-20 drift cl goldsborough QLD 4865",
+    "77 broadwater rd mount gravatt east 4122"
+)
+
+# ---- Match all addresses and keep the top two candidates per input ----
+batch_results <- gnaf_match(
+    con,
+    addresses,
+    max_results = 2,
+    min_score = 40,
+    verbose = TRUE
+)
+
+# ---- Inspect the main match columns ----
+batch_results[, .(
+    input_id,
+    input_raw,
+    input_standardised,
+    matched,
+    match_status,
+    match_rank,
+    total_score,
+    address_label,
+    alias_type,
+    source
+)]
+```
+
+### Different parameters
+
+`gnaf_match()` is intended to be tuned depending on whether you want strict production matching or broader audit-style review.
+
+```{r}
+# ---- Strict matching with only the best candidate ----
+strict_results <- gnaf_match(
+    con,
+    addresses,
+    max_results = 1,
+    min_score = 70
+)
+
+# ---- Broader auditing with more candidates and a lower threshold ----
+audit_results <- gnaf_match(
+    con,
+    addresses,
+    max_results = 5,
+    min_score = 20
+)
+
+# ---- Exclude custom addresses from matching ----
+gnaf_only_results <- gnaf_match(
+    con,
+    addresses,
+    include_custom = FALSE
+)
+
+# ---- Disable locality fallback if you only want postcode and state paths ----
+no_fallback_results <- gnaf_match(
+    con,
+    addresses,
+    locality_fallback = FALSE
+)
+
+# ---- Trigger fallback sooner for poor initial matches ----
+fallback_results <- gnaf_match(
+    con,
+    addresses,
+    fallback_threshold = 85
+)
+
+# ---- Change score weights for a number-sensitive workflow ----
+weighted_results <- gnaf_match(
+    con,
+    addresses,
+    weights = list(
+        postcode = 20,
+        suburb = 18,
+        street_name = 25,
+        street_type = 10,
+        number = 20,
+        flat = 7
+    )
+)
+
+# ---- Show progress and summary output ----
+verbose_results <- gnaf_match(
+    con,
+    addresses,
+    verbose = TRUE
+)
+```
+
+## Other features
+
+### Shiny app
+
+The package includes an interactive Shiny geocoder. You can either point it at a DuckDB file or reuse an existing connection.
+
+```{r}
+#| eval: false
+
+# ---- Launch the app from a database path ----
+gnaf_app(db_path = "C:/temp/gnaf.duckdb")
+
+# ---- Or reuse an existing connection ----
+gnaf_app(con = con)
+```
+
+The app lets you paste one address per line, run `gnaf_match()`, inspect match scores, and review full-string Jaro-Winkler and Jaccard diagnostics in a `reactable` table.
+
+### Sample the database
+
+Use `sample_gnaf()` to pull a quick sample from the connected database. If there is one user table it returns a `data.table`. If there are multiple tables it returns a named list of `data.table`s.
+
+```{r}
+# ---- Sample ten rows per table from the connected database ----
+sample_rows <- sample_gnaf(con, n = 10)
+
+# ---- Inspect the object shape ----
+class(sample_rows)
+names(sample_rows)
+```
+
+### Create synthetic test data
+
+`address_perturb_sample()` is useful when you want realistic-but-messy inputs for benchmarking or QA.
+
+```{r}
+# ---- Take a sample from the database ----
+sample_rows <- sample_gnaf(con, n = 100)
+
+# ---- Choose the G-NAF address table regardless of return shape ----
+sample_source <- if (is.list(sample_rows)) sample_rows$gnaf_addresses else sample_rows
+
+# ---- Perturb the sampled labels to create realistic test inputs ----
+synthetic_addresses <- address_perturb_sample(
+    sample_source,
+    n = 25,
+    seed = 42,
+    max_changes = 2L
+)
+
+# ---- Match the simulated strings back against the database ----
+synthetic_results <- gnaf_match(
+    con,
+    synthetic_addresses$simulated_address,
+    max_results = 1,
+    verbose = TRUE
+)
+
+# ---- Compare original and simulated labels ----
+synthetic_addresses[, .(
+    address_label,
+    simulated_address,
+    perturbations
+)]
+```
+
+### Parse addresses without matching
+
+Use `address_parse()` when you want to inspect how free-text addresses are being interpreted before they ever hit the database.
+
+```{r}
+# ---- Parse addresses into structured components ----
+parsed_addresses <- address_parse(c(
+    "unit 110 120 musgrave Road red hill 4000 QLD",
+    "Cambridge on the hill 110/120 musgrave road red hill QLD 4000"
+))
+
+parsed_addresses
+```
+
+### Inspect and rebuild the locality index
+
+The locality index supports the locality-fallback search path in `gnaf_match()`. It is normally maintained automatically, but it can also be rebuilt manually after bulk maintenance work.
+
+```{r}
+# ---- Review current table counts ----
+gnaf_status(con)
+
+# ---- Rebuild the locality index if needed ----
+gnaf_rebuild_locality_index(con)
+```
+
+### Close the connection when finished
+
+```{r}
+# ---- Disconnect cleanly when your work is done ----
+gnaf_disconnect(con)
+```

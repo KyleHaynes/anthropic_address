@@ -59,5 +59,7 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
 
   n <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM gnaf_addresses")$n
   message("Total GNAF addresses in database: ", format(n, big.mark = ","))
+  message("Rebuilding locality index ...")
+  gnaf_rebuild_locality_index(con)
   invisible(n)
 }

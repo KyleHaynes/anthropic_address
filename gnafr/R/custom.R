@@ -93,6 +93,15 @@ gnaf_add <- function(con, addresses, upsert = FALSE) {
     conflict_clause
   ))
 
+  if (DBI::dbExistsTable(con, "gnaf_locality_index")) {
+    DBI::dbExecute(con, "
+      INSERT INTO gnaf_locality_index
+      SELECT DISTINCT locality_name, postcode, state FROM __gnafr_insert__
+      WHERE locality_name IS NOT NULL
+      ON CONFLICT DO NOTHING
+    ")
+  }
+
   n_after <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM custom_addresses")$n
   n_changed <- n_after - n_before
   message(sprintf("Inserted %d custom address(es). Total custom: %d.",

@@ -77,7 +77,13 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
         postcode_word
       )
     )
-    cands <- .fetch_by_postcode(con, pcs, include_custom)
+    nfs   <- unique(na.omit(has_pc$in_number_first))
+    cands <- .fetch_by_postcode(
+      con, pcs, include_custom,
+      # Targeted fetch when every input has a parseable street number; falls back
+      # to a full postcode fetch for batches that include numberless addresses.
+      number_firsts = if (!anyNA(has_pc$in_number_first)) nfs else NULL
+    )
     candidate_word <- if (nrow(cands) == 1L) "row" else "rows"
     .cli_match_detail(
       verbose,
@@ -210,10 +216,11 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     sprintf("AND g.state IN (%s)", paste0("'", states, "'", collapse = ","))
   else ""
 
-  # DuckDB UNNEST to create a row per query locality, then cross-join with GNAF
+  # DuckDB UNNEST to create a row per query locality, then cross-join with the
+  # compact locality index (~3 000 rows for QLD vs the full address table).
   sql <- sprintf("
     SELECT DISTINCT locs.q AS in_locality, g.postcode
-    FROM gnaf_addresses g
+    FROM gnaf_locality_index g
     CROSS JOIN (SELECT unnest([%s]) AS q) locs
     WHERE jaro_winkler_similarity(g.locality_name, locs.q) >= 0.85
     %s
@@ -238,9 +245,13 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   # After join: in_locality (key), postcode (alt from loc_map), + all in_* from parsed_sub
   if (nrow(i_expanded) == 0L) return(.empty_path_result())
 
-  # Fetch GNAF candidates for all discovered alt postcodes
-  alt_pcs <- unique(i_expanded$postcode)
-  cands   <- .fetch_by_postcode(con, alt_pcs, include_custom)
+  # Fetch GNAF candidates for all discovered alt postcodes, targeted by number
+  alt_pcs  <- unique(i_expanded$postcode)
+  nfs_loc  <- unique(na.omit(i_expanded$in_number_first))
+  cands    <- .fetch_by_postcode(
+    con, alt_pcs, include_custom,
+    number_firsts = if (!anyNA(i_expanded$in_number_first)) nfs_loc else NULL
+  )
   if (nrow(cands) == 0L) return(.empty_path_result())
 
   # Tight join on (alt postcode, number_first)
@@ -273,8 +284,8 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   all_pairs <- rbindlist(list(tight, broad), fill = TRUE, use.names = TRUE)
   if (nrow(all_pairs) == 0L) return(.empty_path_result())
 
-  diagnostic_dt <- .build_path_diagnostics(all_pairs, min_score, weights)
   all_pairs <- .score_pairs(all_pairs, weights = weights)
+  diagnostic_dt <- .build_path_diagnostics(all_pairs, min_score)
   all_pairs <- all_pairs[total_score >= min_score]
   if (nrow(all_pairs) == 0L) {
     return(list(matches = NULL, diagnostics = diagnostic_dt))
@@ -291,9 +302,21 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
 # Existing internal helpers (unchanged)
 # ---------------------------------------------------------------------------
 
-.fetch_by_postcode <- function(con, postcodes, include_custom) {
+.fetch_by_postcode <- function(con, postcodes, include_custom, number_firsts = NULL) {
   pc_csv <- paste(postcodes, collapse = ",")
-  .fetch_sql(con, include_custom, sprintf("postcode IN (%s)", pc_csv))
+  where <- if (!is.null(number_firsts) && length(number_firsts) > 0L) {
+    nf_csv <- paste(number_firsts, collapse = ",")
+    # Fetch only rows whose number_first matches a query number, plus all range
+    # records (number_last IS NOT NULL) which are needed for the range join.
+    # This avoids pulling every alias variant for every address in the postcode.
+    sprintf(
+      "postcode IN (%s) AND (number_first IN (%s) OR number_last IS NOT NULL)",
+      pc_csv, nf_csv
+    )
+  } else {
+    sprintf("postcode IN (%s)", pc_csv)
+  }
+  .fetch_sql(con, include_custom, where)
 }
 
 .fetch_by_state <- function(con, states, include_custom) {
@@ -358,8 +381,8 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     return(NULL)
   }
 
-  diagnostic_dt <- if (isTRUE(diagnostics)) .build_path_diagnostics(all_pairs, min_score, weights) else NULL
   all_pairs <- .score_pairs(all_pairs, weights = weights)
+  diagnostic_dt <- if (isTRUE(diagnostics)) .build_path_diagnostics(all_pairs, min_score) else NULL
   all_pairs <- all_pairs[total_score >= min_score]
   if (nrow(all_pairs) == 0L) {
     if (isTRUE(diagnostics)) return(list(matches = NULL, diagnostics = diagnostic_dt))
@@ -391,8 +414,8 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   pairs <- cands[i_all, on = "state", allow.cartesian = TRUE, nomatch = 0L]
   if (nrow(pairs) == 0L) return(.empty_path_result())
 
-  diagnostic_dt <- .build_path_diagnostics(pairs, min_score, weights)
   pairs <- .score_pairs(pairs, weights = weights)
+  diagnostic_dt <- .build_path_diagnostics(pairs, min_score)
   pairs <- pairs[total_score >= min_score]
   if (nrow(pairs) == 0L) return(list(matches = NULL, diagnostics = diagnostic_dt))
 
@@ -432,15 +455,13 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   list(matches = NULL, diagnostics = NULL)
 }
 
-.build_path_diagnostics <- function(pairs, min_score, weights) {
-  if (nrow(pairs) == 0L) return(NULL)
-
-  scored <- .score_pairs(copy(pairs), weights = weights)
-  candidate_counts <- scored[, .(candidate_count = .N), by = input_id]
-  retained_counts <- scored[total_score >= min_score,
-                            .(retained_count = .N, best_score = max(total_score)),
-                            by = input_id]
-  candidate_counts[retained_counts, on = "input_id"]
+.build_path_diagnostics <- function(scored_pairs, min_score) {
+  if (nrow(scored_pairs) == 0L) return(NULL)
+  cc <- scored_pairs[, .(candidate_count = .N), by = input_id]
+  rc <- scored_pairs[total_score >= min_score,
+                     .(retained_count = .N, best_score = max(total_score)),
+                     by = input_id]
+  cc[rc, on = "input_id"]
 }
 
 .standardise_input <- function(parsed) {
