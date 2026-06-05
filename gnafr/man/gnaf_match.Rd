@@ -5,21 +5,23 @@
 \title{Match a vector of address strings against the GNAF database}
 \usage{
 gnaf_match(
-  con,
   addresses,
+  con,
   max_results = 3L,
   min_score = 40L,
   include_custom = TRUE,
   locality_fallback = TRUE,
   fallback_threshold = 80L,
   weights = .default_match_weights(),
-  verbose = FALSE
+  cache = TRUE,
+  cache_threshold = 95L,
+  verbose = TRUE
 )
 }
 \arguments{
-\item{con}{DBI connection from \code{gnaf_connect}.}
-
 \item{addresses}{Character vector of address strings.}
+
+\item{con}{DBI connection from \code{gnaf_connect}.}
 
 \item{max_results}{Maximum number of matches to return per input.}
 
@@ -37,6 +39,12 @@ Default 80: a correct match with a matching postcode will typically score
 \item{weights}{Named list of score weights. Defaults to postcode = 25,
 suburb = 20, street_name = 25, street_type = 10, number = 12, flat = 8.
 Weights must sum to 100.}
+
+\item{cache}{If \code{TRUE} (default), checks \code{gnaf_match_cache} for
+previously matched addresses and stores new high-confidence results.}
+
+\item{cache_threshold}{Minimum score for a new result to be cached.
+Default 95.}
 
 \item{verbose}{If \code{TRUE}, prints colored progress, timings, and match
 summary information using the \pkg{cli} package.}

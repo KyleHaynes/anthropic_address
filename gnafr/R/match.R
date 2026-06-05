@@ -23,18 +23,24 @@
 #' @param weights Named list of score weights. Defaults to postcode = 25,
 #'   suburb = 20, street_name = 25, street_type = 10, number = 12, flat = 8.
 #'   Weights must sum to 100.
+#' @param cache If \code{TRUE} (default), checks \code{gnaf_match_cache} for
+#'   previously matched addresses and stores new high-confidence results.
+#' @param cache_threshold Minimum score for a new result to be cached.
+#'   Default 95.
 #' @param verbose If \code{TRUE}, prints colored progress, timings, and match
 #'   summary information using the \pkg{cli} package.
 #' @return A \code{data.table} ordered by \code{input_id} then descending
 #'   \code{total_score}. Includes a standardised input string for every row and
 #'   retains unmatched inputs with missing match columns.
 #' @export
-gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
+gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
                        include_custom = TRUE,
                        locality_fallback = TRUE,
                        fallback_threshold = 80L,
                        weights = .default_match_weights(),
-                       verbose = FALSE) {
+                       cache = TRUE,
+                       cache_threshold = 95L,
+                       verbose = TRUE) {
 
   if (!is.character(addresses) || length(addresses) == 0L)
     stop("'addresses' must be a non-empty character vector")
@@ -54,14 +60,93 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   )
   parse_timer <- proc.time()[["elapsed"]]
   parsed <- address_parse(addresses)
-  parsed[, input_standardised := .standardise_input(parsed)]
   parse_elapsed <- proc.time()[["elapsed"]] - parse_timer
 
-  has_pc <- parsed[!is.na(in_postcode)]
-  no_pc  <- parsed[is.na(in_postcode)]
+  .cli_match_step(verbose, "Standardising parsed input addresses.")
+  standardise_timer <- proc.time()[["elapsed"]]
+  parsed[, input_standardised := .standardise_input(parsed)]
+  standardise_elapsed <- proc.time()[["elapsed"]] - standardise_timer
+  .cli_match_detail(verbose, sprintf(
+    "Input standardisation completed in %s.",
+    cli::col_cyan(sprintf("%.2fs", standardise_elapsed))
+  ))
 
-  results <- list()
+  verbose_stats <- list(
+    parse_elapsed = parse_elapsed,
+    standardise_elapsed = standardise_elapsed,
+    exact_inputs = 0L,
+    exact_elapsed = 0,
+    cache_inputs = 0L,
+    cache_elapsed = 0,
+    slow_inputs = 0L,
+    slow_elapsed = 0,
+    wrangle_elapsed = 0
+  )
+
+  results    <- list()
   diagnostics <- list()
+  skip_ids   <- integer(0L)
+
+  # ------------------------------------------------------------------
+  # Fast path 1: exact address_label match
+  # Fires when input_raw (uppercased) equals a GNAF address_label exactly.
+  # Ideal for re-processing previously matched/standardised output.
+  # ------------------------------------------------------------------
+  exact_timer <- proc.time()[["elapsed"]]
+  exact_path <- .exact_label_match(con, parsed, include_custom)
+  verbose_stats$exact_elapsed <- proc.time()[["elapsed"]] - exact_timer
+  if (!is.null(exact_path) && nrow(exact_path) > 0L) {
+    results[["exact"]] <- exact_path
+    skip_ids <- unique(exact_path$input_id)
+    verbose_stats$exact_inputs <- length(skip_ids)
+    .cli_match_detail(verbose, sprintf(
+      "%s input(s) matched via exact label lookup in %s.",
+      cli::col_green(format(length(skip_ids), big.mark = ",")),
+      cli::col_cyan(sprintf("%.2fs", verbose_stats$exact_elapsed))
+    ))
+  } else {
+    .cli_match_detail(verbose, sprintf(
+      "%s input(s) matched via exact label lookup in %s.",
+      cli::col_green("0"),
+      cli::col_cyan(sprintf("%.2fs", verbose_stats$exact_elapsed))
+    ))
+  }
+
+  # ------------------------------------------------------------------
+  # Fast path 2: match cache
+  # Previously matched addresses above cache_threshold skip the full pipeline.
+  # ------------------------------------------------------------------
+  cache_timer <- proc.time()[["elapsed"]]
+  if (isTRUE(cache) && DBI::dbExistsTable(con, "gnaf_match_cache")) {
+    remaining_stds <- unique(na.omit(
+      parsed[!input_id %in% skip_ids, input_standardised]
+    ))
+    if (length(remaining_stds) > 0L) {
+      cache_raw <- .cache_lookup(con, remaining_stds, include_custom)
+      if (nrow(cache_raw) > 0L) {
+        cache_hits <- cache_raw[
+          parsed[!input_id %in% skip_ids, .(input_id, input_standardised)],
+          on = "input_standardised", nomatch = 0L
+        ]
+        if (nrow(cache_hits) > 0L) {
+          cache_hits[, match_rank := 1L]
+          results[["cache"]] <- cache_hits
+          verbose_stats$cache_inputs <- uniqueN(cache_hits$input_id)
+          skip_ids <- unique(c(skip_ids, cache_hits$input_id))
+        }
+      }
+    }
+  }
+  verbose_stats$cache_elapsed <- proc.time()[["elapsed"]] - cache_timer
+  .cli_match_detail(verbose, sprintf(
+    "%s input(s) served from match cache in %s.",
+    cli::col_green(format(verbose_stats$cache_inputs, big.mark = ",")),
+    cli::col_cyan(sprintf("%.2fs", verbose_stats$cache_elapsed))
+  ))
+
+  has_pc <- parsed[!input_id %in% skip_ids & !is.na(in_postcode)]
+  no_pc  <- parsed[!input_id %in% skip_ids & is.na(in_postcode)]
+  slow_timer <- proc.time()[["elapsed"]]
 
   # ------------------------------------------------------------------
   # Path 1: postcode-blocked matching
@@ -167,9 +252,13 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     }
   }
 
+  verbose_stats$slow_elapsed <- proc.time()[["elapsed"]] - slow_timer
+
   # ------------------------------------------------------------------
   # Combine paths, deduplicate, re-rank
   # ------------------------------------------------------------------
+  .cli_match_step(verbose, "Wrangling final match output.")
+  wrangle_timer <- proc.time()[["elapsed"]]
   out <- rbindlist(results, fill = TRUE, use.names = TRUE)
   if (nrow(out) > 0L) {
     # Deduplicate: same GNAF record may appear from multiple paths; keep higher score
@@ -197,7 +286,26 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
                   "score_flat")
   setcolorder(out, c(cols_first, setdiff(names(out), cols_first)))
   setorder(out, input_id, -matched, match_rank)
-  .cli_match_summary(verbose, parsed, out, total_timer, parse_elapsed)
+  # Store newly matched high-confidence results in the cache.
+  # ON CONFLICT DO NOTHING means cache/exact-path hits are silently skipped.
+  if (isTRUE(cache) && DBI::dbExistsTable(con, "gnaf_match_cache") && nrow(out) > 0L)
+    .cache_store(con, out[matched == TRUE], cache_threshold)
+
+  verbose_stats$wrangle_elapsed <- proc.time()[["elapsed"]] - wrangle_timer
+  slow_path_matches <- out[
+    matched == TRUE & !input_id %in% unique(c(
+      results[["exact"]]$input_id %||% integer(0L),
+      results[["cache"]]$input_id %||% integer(0L)
+    )),
+    uniqueN(input_id)
+  ]
+  verbose_stats$slow_inputs <- slow_path_matches
+  .cli_match_detail(verbose, sprintf(
+    "Final output wrangling completed in %s.",
+    cli::col_cyan(sprintf("%.2fs", verbose_stats$wrangle_elapsed))
+  ))
+
+  .cli_match_summary(verbose, parsed, out, total_timer, verbose_stats)
   out[]
 }
 
@@ -541,6 +649,32 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   out
 }
 
+# Exact address_label pass: returns scored candidate pairs for any input whose
+# raw text (uppercased) matches a GNAF address_label exactly.
+.exact_label_match <- function(con, parsed, include_custom) {
+  raw_upper <- unique(toupper(trimws(parsed$input_raw)))
+  raw_upper <- raw_upper[nzchar(raw_upper) & !is.na(raw_upper)]
+  if (length(raw_upper) == 0L) return(NULL)
+
+  raw_esc   <- gsub("'", "''", raw_upper)
+  in_clause <- paste0("'", raw_esc, "'", collapse = ",")
+  cands     <- .fetch_sql(con, include_custom,
+                          sprintf("UPPER(TRIM(address_label)) IN (%s)", in_clause))
+  if (nrow(cands) == 0L) return(NULL)
+
+  cands[, lbl_key := toupper(trimws(address_label))]
+  pi <- copy(parsed)
+  pi[, lbl_key := toupper(trimws(input_raw))]
+
+  joined <- cands[pi, on = "lbl_key", nomatch = 0L, allow.cartesian = TRUE]
+  joined[, lbl_key := NULL]
+  if (nrow(joined) == 0L) return(NULL)
+
+  joined <- .score_pairs(joined, weights = .default_match_weights())
+  joined[, match_rank := 1L]
+  joined
+}
+
 .cli_match_step <- function(verbose, text) {
   if (isTRUE(verbose)) cli::cli_alert_info(text)
 }
@@ -561,7 +695,8 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   )
 }
 
-.cli_match_summary <- function(verbose, parsed, out, total_timer, parse_elapsed) {
+.cli_match_summary <- function(verbose, parsed, out, total_timer,
+                               verbose_stats = NULL) {
   if (!isTRUE(verbose)) return(invisible(NULL))
 
   total_elapsed <- proc.time()[["elapsed"]] - total_timer
@@ -600,13 +735,39 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
       cli::col_yellow(format(unmatched_inputs, big.mark = ","))
     )
   )
+  if (!is.null(verbose_stats)) {
+    cli::cli_li(
+      sprintf(
+        "Exact label matches: %s in %s.",
+        cli::col_green(format(verbose_stats$exact_inputs, big.mark = ",")),
+        cli::col_cyan(sprintf("%.2fs", verbose_stats$exact_elapsed))
+      )
+    )
+    cli::cli_li(
+      sprintf(
+        "Cache matches: %s in %s.",
+        cli::col_green(format(verbose_stats$cache_inputs, big.mark = ",")),
+        cli::col_cyan(sprintf("%.2fs", verbose_stats$cache_elapsed))
+      )
+    )
+    cli::cli_li(
+      sprintf(
+        "Slow-path matches: %s in %s.",
+        cli::col_green(format(verbose_stats$slow_inputs, big.mark = ",")),
+        cli::col_cyan(sprintf("%.2fs", verbose_stats$slow_elapsed))
+      )
+    )
+  }
   if (!is.na(avg_best)) {
     cli::cli_li(sprintf("Average top-match score: %s.", cli::col_magenta(sprintf("%.1f", avg_best))))
   }
   cli::cli_text(
     sprintf(
-      "Timings: parse %s, total %s.",
-      cli::col_cyan(sprintf("%.2fs", parse_elapsed)),
+      "Timings: parse %s, standardise %s, slow path %s, wrangle %s, total %s.",
+      cli::col_cyan(sprintf("%.2fs", verbose_stats$parse_elapsed %||% 0)),
+      cli::col_cyan(sprintf("%.2fs", verbose_stats$standardise_elapsed %||% 0)),
+      cli::col_cyan(sprintf("%.2fs", verbose_stats$slow_elapsed %||% 0)),
+      cli::col_cyan(sprintf("%.2fs", verbose_stats$wrangle_elapsed %||% 0)),
       cli::col_cyan(sprintf("%.2fs", total_elapsed))
     )
   )

@@ -1,12 +1,15 @@
 # Weights must sum to 100
-.WEIGHTS <- list(
-  postcode     = 25L,
-  suburb       = 20L,
-  street_name  = 25L,
-  street_type  = 10L,
-  number       = 12L,
-  flat         = 8L
-)
+# .WEIGHTS <- list(
+#   postcode     = 25L,
+#   suburb       = 20L,
+#   street_name  = 25L,
+#   street_type  = 10L,
+#   number       = 12L,
+#   flat         = 8L
+# )
+
+.WEIGHTS <- list(postcode = 20L, suburb = 15L, street_name = 40L, street_type = 10L, number = 10L, flat = 5L)
+
 
 .default_match_weights <- function() {
   as.list(.WEIGHTS)

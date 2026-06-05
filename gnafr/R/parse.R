@@ -77,22 +77,27 @@ address_parse <- function(addresses) {
     addr <- gsub("\\s+", " ", addr)
   }
 
-  # 3. Street type — rightmost match with word boundaries
+  # 3. Street type — rightmost exact match with word boundaries, with fuzzy
+  # fallback for common misspellings (e.g. RODE → ROAD, STEET → STREET).
   st_all <- gregexpr(st_regex, addr, perl = TRUE)[[1L]]
   if (st_all[1L] <= 0L) {
-    # No street type found — store whole remaining as locality
-    out$in_locality <- trimws(addr)
-    return(out)
+    fuzzy <- .parse_fuzzy_street(addr, st_map)
+    if (is.null(fuzzy)) {
+      out$in_locality <- trimws(addr)
+      return(out)
+    }
+    out$in_street_type <- fuzzy$canonical
+    before    <- fuzzy$before
+    after_raw <- fuzzy$after
+  } else {
+    last <- length(st_all)
+    st_start  <- st_all[last]
+    st_len    <- attr(st_all, "match.length")[last]
+    st_raw    <- substr(addr, st_start, st_start + st_len - 1L)
+    out$in_street_type <- unname(st_map[st_raw])
+    before    <- trimws(substr(addr, 1L, st_start - 1L))
+    after_raw <- trimws(substr(addr, st_start + st_len, nchar(addr)))
   }
-
-  last <- length(st_all)
-  st_start  <- st_all[last]
-  st_len    <- attr(st_all, "match.length")[last]
-  st_raw    <- substr(addr, st_start, st_start + st_len - 1L)
-  out$in_street_type <- unname(st_map[st_raw])
-
-  before    <- trimws(substr(addr, 1L, st_start - 1L))
-  after_raw <- trimws(substr(addr, st_start + st_len, nchar(addr)))
 
   # 4. Street suffix (NORTH/SOUTH/EAST/WEST immediately after street type)
   sfx_re <- "^(NORTH|SOUTH|EAST|WEST|UPPER|LOWER|INNER|OUTER)\\b"

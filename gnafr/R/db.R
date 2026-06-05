@@ -86,6 +86,28 @@ gnaf_init <- function(con) {
   n_idx  <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM gnaf_locality_index")$n
   if (n_addr > 0L && n_idx == 0L) gnaf_rebuild_locality_index(con)
 
+  # Match cache
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS gnaf_match_cache (
+      input_standardised VARCHAR PRIMARY KEY,
+      address_detail_pid VARCHAR NOT NULL,
+      total_score        INTEGER NOT NULL,
+      score_postcode     INTEGER,
+      score_suburb       INTEGER,
+      score_street_name  INTEGER,
+      score_street_type  INTEGER,
+      score_number       INTEGER,
+      score_flat         INTEGER,
+      cached_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
+  # Address label indexes — used by the exact-label first-pass in gnaf_match()
+  DBI::dbExecute(con,
+    "CREATE INDEX IF NOT EXISTS idx_gnaf_label ON gnaf_addresses(address_label)")
+  DBI::dbExecute(con,
+    "CREATE INDEX IF NOT EXISTS idx_cust_label ON custom_addresses(address_label)")
+
   invisible(con)
 }
 
