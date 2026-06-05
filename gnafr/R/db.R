@@ -45,11 +45,22 @@ gnaf_init <- function(con) {
     postcode           INTEGER,
     longitude          DOUBLE,
     latitude           DOUBLE,
-    source             VARCHAR
+    source             VARCHAR,
+    alias_type         VARCHAR
   "
 
   DBI::dbExecute(con, sprintf("CREATE TABLE IF NOT EXISTS gnaf_addresses (%s)", col_ddl))
   DBI::dbExecute(con, sprintf("CREATE TABLE IF NOT EXISTS custom_addresses (%s)", col_ddl))
+
+  # Migration: add alias_type to tables created before this column existed
+  for (tbl in c("gnaf_addresses", "custom_addresses")) {
+    tryCatch(
+      DBI::dbExecute(con, sprintf(
+        "ALTER TABLE %s ADD COLUMN IF NOT EXISTS alias_type VARCHAR", tbl
+      )),
+      error = function(e) NULL
+    )
+  }
 
   DBI::dbExecute(con,
     "CREATE INDEX IF NOT EXISTS idx_gnaf_pc    ON gnaf_addresses(postcode)")

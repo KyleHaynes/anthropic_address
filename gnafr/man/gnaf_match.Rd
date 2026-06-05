@@ -9,7 +9,10 @@ gnaf_match(
   addresses,
   max_results = 3L,
   min_score = 40L,
-  include_custom = TRUE
+  include_custom = TRUE,
+  locality_fallback = TRUE,
+  fallback_threshold = 80L,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -19,21 +22,32 @@ gnaf_match(
 
 \item{max_results}{Maximum number of matches to return per input.}
 
-\item{min_score}{Minimum total score (0-100) to include in results.}
+\item{min_score}{Minimum total score (0–100) to include in results.}
 
-\item{include_custom}{If \code{TRUE} (default), custom addresses are included.}
+\item{include_custom}{Include custom addresses in matching.}
+
+\item{locality_fallback}{If \code{TRUE} (default), re-searches by locality
+name for inputs whose best score is below \code{fallback_threshold}.}
+
+\item{fallback_threshold}{Total score below which locality fallback fires.
+Default 80: a correct match with a matching postcode will typically score
+85+, so 80 catches wrong-postcode and genuinely poor matches.}
+
+\item{verbose}{If \code{TRUE}, prints colored progress, timings, and match
+summary information using the \pkg{cli} package.}
 }
 \value{
-A \code{data.table} with one or more rows per input (ordered by
-  \code{input_id} then descending \code{total_score}).
+A \code{data.table} ordered by \code{input_id} then descending
+  \code{total_score}.
 }
 \description{
-Two-stage matching for efficiency at scale:
+Uses a three-path strategy:
 \enumerate{
-  \item \strong{Tight join}: postcode + street number — very selective.
-  \item \strong{Postcode fallback}: for inputs where the tight join finds no
-        candidates (e.g. number parsing failed or number is absent in GNAF).
+  \item \strong{Postcode path} — primary, blocks on the parsed postcode.
+  \item \strong{State path} — for inputs with no parseable postcode.
+  \item \strong{Locality fallback} — for inputs whose best postcode result is
+        weak (score below \code{fallback_threshold}). Uses DuckDB's built-in
+        \code{jaro_winkler_similarity} to find the correct postcode from the
+        parsed suburb name, then re-scores. Handles wrong or missing postcodes.
 }
-Scoring uses Jaro-Winkler similarity for suburb and street name, and exact
-or range matching for postcode, street type, street number, and flat number.
 }

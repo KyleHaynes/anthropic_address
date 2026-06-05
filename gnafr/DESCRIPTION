@@ -13,11 +13,14 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: false
 Imports:
+    cli,
     data.table (>= 1.14.0),
     DBI (>= 1.1.0),
     duckdb (>= 0.9.0),
     stringdist (>= 0.9.0)
 Suggests:
+    reactable,
+    shiny,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2

@@ -39,6 +39,9 @@ install.packages(c("data.table", "DBI", "duckdb", "stringdist"))
 devtools::install_local("gnafr")
 # or from within the gnafr directory:
 devtools::load_all()
+
+# Optional app dependencies
+install.packages(c("shiny", "reactable"))
 ```
 
 ---
@@ -134,6 +137,23 @@ library(gnafr)
 con <- gnaf_connect("C:/temp/gnaf.duckdb")
 ```
 
+### Shiny geocoder
+
+You can launch an interactive geocoding app against the same DuckDB database:
+
+```r
+library(gnafr)
+
+gnaf_app(db_path = "C:/temp/gnaf.duckdb")
+# or reuse an existing connection:
+gnaf_app(con = con)
+```
+
+The app accepts one address per line, runs `gnaf_match()`, and shows the output
+in a `reactable` table. It also adds full-string `Jaro-Winkler` and `Jaccard`
+similarity scores between the input string and the matched `address_label`, with
+gradient highlighting so low-confidence lexical matches stand out immediately.
+
 ### Basic match
 
 ```r
@@ -146,7 +166,41 @@ addresses <- c(
   "77 broadwater rd mount gravatt east 4122"
 )
 
-gnaf_match(con, addresses, max_results = 1)
+gnaf_match(con, c("10 110-120 musgrave Road red hill 4000 QLD", "unit 10a 110-120 musgrave Road red hill 4000 QLD", "unit 10 120 musgrave Road red hill 4059 QLD", "10 120 musgrave Road red hill 4059 QLD"), max_results = 2)
+gnaf_match(con, c("10 St James Ct, Tamborine Mountain QLD 4272"), max_results = 2)
+Parsing 4 addresses ...
+Fetching GNAF candidates for 2 unique postcode(s) ...
+Running locality fallback for 1 input(s) ...
+   input_id                                        input_raw match_rank total_score score_postcode score_suburb score_street_name score_street_type score_number score_flat address_detail_pid                            address_label building_name flat_type flat_number
+      <int>                                           <char>      <int>       <int>          <int>        <int>             <int>             <int>        <int>      <int>             <char>                                   <char>        <char>    <char>      <char>
+1:        1       10 110-120 musgrave Road red hill 4000 QLD          1          80             25           14                11                10           12          8     GAQLD155826761 10 BOWEN BRIDGE RD, SPRING HILL QLD 4000          <NA>      <NA>        <NA>
+2:        1       10 110-120 musgrave Road red hill 4000 QLD          2          71             25           14                12                 0           12          8     GAQLD162887088     10 COBURG LANE, SPRING HILL QLD 4000          <NA>      <NA>        <NA>
+3:        2 unit 10a 110-120 musgrave Road red hill 4000 QLD          1          75              0           20                25                10           12          8     GAQLD162996148       110 MUSGRAVE RD, RED HILL QLD 4059          <NA>      <NA>        <NA>
+4:        2 unit 10a 110-120 musgrave Road red hill 4000 QLD          2          75              0           20                25                10           12          8     GAQLD159161400   110-120 MUSGRAVE RD, RED HILL QLD 4059          <NA>      <NA>        <NA>
+5:        3      unit 10 120 musgrave Road red hill 4059 QLD          1          80             25           20                13                10           12          0     GAQLD157003425        120 WINDSOR RD, RED HILL QLD 4059          <NA>      <NA>        <NA>
+6:        3      unit 10 120 musgrave Road red hill 4059 QLD          2          72             25           20                15                 0           12          0     GAQLD155732648       120 COCHRANE ST, RED HILL QLD 4059          <NA>      <NA>        <NA>
+7:        4           10 120 musgrave Road red hill 4059 QLD          1          90             25           20                15                10           12          8     GAQLD162900261    10 KELVIN GROVE RD, RED HILL QLD 4059          <NA>      <NA>        <NA>
+8:        4           10 120 musgrave Road red hill 4059 QLD          2          86             25           20                11                10           12          8     GAQLD155732693        10 GLENROSA RD, RED HILL QLD 4059          <NA>      <NA>        <NA>
+   number_first number_last  street_name street_type street_suffix locality_name  state postcode longitude  latitude source in_postcode in_state in_locality   in_street_name in_street_type in_street_suffix in_number_last in_flat_type in_flat_number in_building_name
+          <int>       <int>       <char>      <char>        <char>        <char> <char>    <int>     <num>     <num> <char>       <int>   <char>      <char>           <char>         <char>           <char>          <int>       <char>         <char>           <char>
+1:           10          NA BOWEN BRIDGE        ROAD          <NA>   SPRING HILL    QLD     4000  153.0280 -27.45205   gnaf        4000      QLD    RED HILL 110-120 MUSGRAVE           ROAD             <NA>             NA         <NA>           <NA>             <NA>
+2:           10          NA       COBURG        LANE          <NA>   SPRING HILL    QLD     4000  153.0243 -27.45871   gnaf        4000      QLD    RED HILL 110-120 MUSGRAVE           ROAD             <NA>             NA         <NA>           <NA>             <NA>
+3:          110          NA     MUSGRAVE        ROAD          <NA>      RED HILL    QLD     4059  153.0084 -27.45681   gnaf        4000      QLD    RED HILL         MUSGRAVE           ROAD             <NA>            120         <NA>           <NA>         UNIT 10A
+4:          110         120     MUSGRAVE        ROAD          <NA>      RED HILL    QLD     4059  153.0083 -27.45704   gnaf        4000      QLD    RED HILL         MUSGRAVE           ROAD             <NA>            120         <NA>           <NA>         UNIT 10A
+5:          120          NA      WINDSOR        ROAD          <NA>      RED HILL    QLD     4059  153.0053 -27.44821   gnaf        4059      QLD    RED HILL         MUSGRAVE           ROAD             <NA>             NA         UNIT             10             <NA>
+6:          120          NA     COCHRANE      STREET          <NA>      RED HILL    QLD     4059  153.0051 -27.45357   gnaf        4059      QLD    RED HILL         MUSGRAVE           ROAD             <NA>             NA         UNIT             10             <NA>
+7:           10          NA KELVIN GROVE        ROAD          <NA>      RED HILL    QLD     4059  153.0143 -27.45919   gnaf        4059      QLD    RED HILL     120 MUSGRAVE           ROAD             <NA>             NA         <NA>           <NA>             <NA>
+8:           10          NA     GLENROSA        ROAD          <NA>      RED HILL    QLD     4059  153.0030 -27.45061   gnaf        4059      QLD    RED HILL     120 MUSGRAVE           ROAD             <NA>             NA         <NA>           <NA>             <NA>
+   in_number_first
+             <int>
+1:              10
+2:              10
+3:             110
+4:             110
+5:             120
+6:             120
+7:              10
+8:              10
 ```
 
 By default `gnaf_match` returns up to **3 matches** per input with a **minimum score of 40**. Both are adjustable:

@@ -16,7 +16,7 @@ address_parse <- function(addresses) {
   st_regex  <- .build_street_type_regex(st_map)
   ft_map    <- .get_flat_type_map()
   ft_re     <- paste0(
-    "^(", paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|"), ")\\s+(\\d+)\\s+"
+    "^(", paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|"), ")\\s+(\\d+[A-Z]?)\\s+"
   )
 
   normalized <- .normalize_addr(addresses)
@@ -186,13 +186,32 @@ address_parse <- function(addresses) {
       if (nzchar(bld)) out$building_name <- bld
     }
 
-    num_str   <- trimws(substr(s, m_num, num_end))
-    num_parts <- strsplit(num_str, "-", fixed = TRUE)[[1L]]
-    out$number_first <- as.integer(num_parts[1L])
-    if (length(num_parts) > 1L) out$number_last <- as.integer(num_parts[2L])
+    num_str <- trimws(substr(s, m_num, num_end))
+    rest    <- trimws(substr(s, num_end + 1L, nchar(s)))
 
-    out$street_name <- trimws(substr(s, num_end + 1L, nchar(s)))
-    if (!nzchar(out$street_name)) out$street_name <- NA_character_
+    # Implied flat: no flat number found yet and rest begins with another numeric token.
+    # "10 120 MUSGRAVE" and "10 110-120 MUSGRAVE" follow Australian convention where
+    # the first bare number is the unit/flat and the second is the street number.
+    m_num2 <- if (is.na(out$flat_number) && nzchar(rest))
+      regexpr("^(\\d+(?:-\\d+)?)\\s+", rest, perl = TRUE)
+    else -1L
+
+    if (m_num2 > 0L) {
+      num2_end  <- m_num2 + attr(m_num2, "match.length") - 1L
+      out$flat_type   <- "UNIT"
+      out$flat_number <- num_str
+      num2_str  <- trimws(substr(rest, 1L, num2_end))
+      rest      <- trimws(substr(rest, num2_end + 1L, nchar(rest)))
+      num_parts <- strsplit(num2_str, "-", fixed = TRUE)[[1L]]
+      out$number_first <- as.integer(num_parts[1L])
+      out$number_last  <- if (length(num_parts) > 1L) as.integer(num_parts[2L]) else NA_integer_
+    } else {
+      num_parts <- strsplit(num_str, "-", fixed = TRUE)[[1L]]
+      out$number_first <- as.integer(num_parts[1L])
+      if (length(num_parts) > 1L) out$number_last <- as.integer(num_parts[2L])
+    }
+
+    out$street_name <- if (nzchar(rest)) rest else NA_character_
   } else {
     # No numeric token — entire remaining is street name (or building name fallback)
     out$street_name <- if (nzchar(s)) s else NA_character_

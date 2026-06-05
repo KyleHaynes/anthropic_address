@@ -20,19 +20,34 @@
 #' @param fallback_threshold Total score below which locality fallback fires.
 #'   Default 80: a correct match with a matching postcode will typically score
 #'   85+, so 80 catches wrong-postcode and genuinely poor matches.
+#' @param verbose If \code{TRUE}, prints colored progress, timings, and match
+#'   summary information using the \pkg{cli} package.
 #' @return A \code{data.table} ordered by \code{input_id} then descending
 #'   \code{total_score}.
 #' @export
 gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
                        include_custom = TRUE,
                        locality_fallback = TRUE,
-                       fallback_threshold = 80L) {
+                       fallback_threshold = 80L,
+                       verbose = TRUE) {
 
   if (!is.character(addresses) || length(addresses) == 0L)
     stop("'addresses' must be a non-empty character vector")
 
-  message(sprintf("Parsing %s addresses ...", format(length(addresses), big.mark = ",")))
+  total_timer <- proc.time()[["elapsed"]]
+  address_count <- length(addresses)
+  address_word <- if (address_count == 1L) "address" else "addresses"
+  .cli_match_step(
+    verbose,
+    sprintf(
+      "Parsing {cli::col_blue(%s)} %s.",
+      format(address_count, big.mark = ","),
+      address_word
+    )
+  )
+  parse_timer <- proc.time()[["elapsed"]]
   parsed <- address_parse(addresses)
+  parse_elapsed <- proc.time()[["elapsed"]] - parse_timer
 
   has_pc <- parsed[!is.na(in_postcode)]
   no_pc  <- parsed[is.na(in_postcode)]
@@ -44,8 +59,25 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   # ------------------------------------------------------------------
   if (nrow(has_pc) > 0L) {
     pcs <- unique(has_pc$in_postcode)
-    message(sprintf("Fetching GNAF candidates for %d unique postcode(s) ...", length(pcs)))
+    postcode_word <- if (length(pcs) == 1L) "postcode" else "postcodes"
+    .cli_match_step(
+      verbose,
+      sprintf(
+        "Fetching postcode candidates for {cli::col_cyan(%s)} unique %s.",
+        length(pcs),
+        postcode_word
+      )
+    )
     cands <- .fetch_by_postcode(con, pcs, include_custom)
+    candidate_word <- if (nrow(cands) == 1L) "row" else "rows"
+    .cli_match_detail(
+      verbose,
+      sprintf(
+        "Postcode path loaded {cli::col_green(%s)} candidate %s.",
+        format(nrow(cands), big.mark = ","),
+        candidate_word
+      )
+    )
 
     if (nrow(cands) > 0L)
       results[["postcode"]] <- .match_postcode(has_pc, cands, max_results, min_score)
@@ -55,10 +87,18 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   # Path 2: no-postcode inputs — try state-level fallback
   # ------------------------------------------------------------------
   if (nrow(no_pc) > 0L) {
-    message(sprintf(
-      "%d input(s) have no postcode; attempting state-level fallback ...", nrow(no_pc)
-    ))
-    results[["no_postcode"]] <- .match_state(con, no_pc, max_results, min_score, include_custom)
+    input_word <- if (nrow(no_pc) == 1L) "row" else "rows"
+    .cli_match_step(
+      verbose,
+      sprintf(
+        "Attempting state fallback for {cli::col_yellow(%s)} input %s without a postcode.",
+        nrow(no_pc),
+        input_word
+      )
+    )
+    results[["no_postcode"]] <- .match_state(
+      con, no_pc, max_results, min_score, include_custom, verbose = verbose
+    )
   }
 
   # ------------------------------------------------------------------
@@ -85,9 +125,18 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     fallback_parse <- parsed[input_id %in% fallback_ids & !is.na(in_locality)]
 
     if (nrow(fallback_parse) > 0L) {
-      message(sprintf("Running locality fallback for %d input(s) ...", nrow(fallback_parse)))
+      fallback_word <- if (nrow(fallback_parse) == 1L) "row" else "rows"
+      .cli_match_step(
+        verbose,
+        sprintf(
+          "Running locality fallback for {cli::col_magenta(%s)} input %s.",
+          nrow(fallback_parse),
+          fallback_word
+        )
+      )
       results[["locality"]] <- .match_locality_fallback(
-        con, fallback_parse, max_results, min_score, include_custom
+        con, fallback_parse, max_results, min_score, include_custom,
+        verbose = verbose
       )
     }
   }
@@ -96,7 +145,10 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   # Combine paths, deduplicate, re-rank
   # ------------------------------------------------------------------
   out <- rbindlist(results, fill = TRUE, use.names = TRUE)
-  if (nrow(out) == 0L) return(.empty_result())
+  if (nrow(out) == 0L) {
+    .cli_match_summary(verbose, parsed, .empty_result(), total_timer, parse_elapsed)
+    return(.empty_result())
+  }
 
   # Deduplicate: same GNAF record may appear from multiple paths; keep higher score
   setorder(out, input_id, -total_score)
@@ -111,6 +163,7 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
                   "score_postcode", "score_suburb", "score_street_name",
                   "score_street_type", "score_number", "score_flat")
   setcolorder(out, c(cols_first, setdiff(names(out), cols_first)))
+  .cli_match_summary(verbose, parsed, out, total_timer, parse_elapsed)
   out[]
 }
 
@@ -118,7 +171,8 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
 # Locality fallback: discover correct postcodes via DuckDB jaro_winkler_similarity
 # ---------------------------------------------------------------------------
 
-.match_locality_fallback <- function(con, parsed_sub, max_results, min_score, include_custom) {
+.match_locality_fallback <- function(con, parsed_sub, max_results, min_score,
+                                     include_custom, verbose = FALSE) {
   locs   <- parsed_sub[!is.na(in_locality), unique(in_locality)]
   states <- parsed_sub[!is.na(in_state),    unique(in_state)]
   if (length(locs) == 0L) return(NULL)
@@ -140,7 +194,11 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   loc_map <- tryCatch(
     setDT(DBI::dbGetQuery(con, sql)),
     error = function(e) {
-      message("Locality fallback query failed: ", conditionMessage(e))
+      .cli_match_alert(
+        verbose,
+        "warning",
+        "Locality fallback query failed: {conditionMessage(e)}"
+      )
       NULL
     }
   )
@@ -169,6 +227,13 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     r[, in_number_first := number_first]  # restore consumed join key
     r
   } else cands[0L]
+
+  range_cands <- cands[!is.na(number_last)]
+  if (nrow(range_cands) > 0L && nrow(i_tight) > 0L) {
+    rj <- range_cands[i_tight, on = "postcode", allow.cartesian = TRUE, nomatch = 0L]
+    rj <- rj[in_number_first > number_first & in_number_first <= number_last]
+    if (nrow(rj) > 0L) tight <- rbindlist(list(tight, rj), fill = TRUE, use.names = TRUE)
+  }
 
   tight_ids   <- if (nrow(tight) > 0L) unique(tight$input_id) else integer(0L)
   i_unmatched <- i_expanded[!input_id %in% tight_ids]
@@ -235,6 +300,16 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     r
   } else cands[0L]
 
+  # Range join: catch GNAF range records (e.g. 110-120 MUSGRAVE) where
+  # in_number_first falls strictly inside the range [number_first, number_last].
+  # The strict > avoids re-adding records already captured by the exact tight join.
+  range_cands <- cands[!is.na(number_last)]
+  if (nrow(range_cands) > 0L && nrow(i_tight) > 0L) {
+    rj <- range_cands[i_tight, on = "postcode", allow.cartesian = TRUE, nomatch = 0L]
+    rj <- rj[in_number_first > number_first & in_number_first <= number_last]
+    if (nrow(rj) > 0L) tight <- rbindlist(list(tight, rj), fill = TRUE, use.names = TRUE)
+  }
+
   tight_ids   <- if (nrow(tight) > 0L) unique(tight$input_id) else integer(0L)
   i_unmatched <- i_all[!input_id %in% tight_ids]
 
@@ -253,10 +328,11 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
   all_pairs[, .SD[seq_len(min(.N, max_results))], by = input_id]
 }
 
-.match_state <- function(con, no_pc, max_results, min_score, include_custom) {
+.match_state <- function(con, no_pc, max_results, min_score, include_custom,
+                         verbose = FALSE) {
   states <- no_pc[!is.na(in_state), unique(in_state)]
   if (length(states) == 0L) {
-    message("No postcode or state found; skipping these inputs.")
+    .cli_match_alert(verbose, "warning", "No postcode or state found; skipping these inputs.")
     return(NULL)
   }
 
@@ -291,5 +367,69 @@ gnaf_match <- function(con, addresses, max_results = 3L, min_score = 40L,
     locality_name = character(), state = character(),
     postcode = integer(), longitude = numeric(), latitude = numeric(),
     source = character()
+  )
+}
+
+.cli_match_step <- function(verbose, text) {
+  if (isTRUE(verbose)) cli::cli_alert_info(text)
+}
+
+.cli_match_detail <- function(verbose, text) {
+  if (isTRUE(verbose)) cli::cli_li(text)
+}
+
+.cli_match_alert <- function(verbose, level, text) {
+  if (!isTRUE(verbose)) return(invisible(NULL))
+
+  switch(
+    level,
+    warning = cli::cli_alert_warning(text),
+    danger = cli::cli_alert_danger(text),
+    success = cli::cli_alert_success(text),
+    cli::cli_alert_info(text)
+  )
+}
+
+.cli_match_summary <- function(verbose, parsed, out, total_timer, parse_elapsed) {
+  if (!isTRUE(verbose)) return(invisible(NULL))
+
+  total_elapsed <- proc.time()[["elapsed"]] - total_timer
+  matched_inputs <- if (nrow(out) > 0L) uniqueN(out$input_id) else 0L
+  unmatched_inputs <- nrow(parsed) - matched_inputs
+  input_word <- if (nrow(parsed) == 1L) "row" else "rows"
+  candidate_word <- if (nrow(out) == 1L) "row" else "rows"
+  avg_best <- if (nrow(out) > 0L) {
+    round(mean(out[match_rank == 1L, total_score]), 1)
+  } else {
+    NA_real_
+  }
+
+  cli::cli_h1("gnaf_match summary")
+  cli::cli_alert_success(
+    sprintf(
+      "Matched {cli::col_green(%s)} of {cli::col_blue(%s)} input %s.",
+      format(matched_inputs, big.mark = ","),
+      format(nrow(parsed), big.mark = ","),
+      input_word
+    )
+  )
+  cli::cli_li(
+    sprintf(
+      "Returned {cli::col_cyan(%s)} candidate %s after ranking and filtering.",
+      format(nrow(out), big.mark = ","),
+      candidate_word
+    )
+  )
+  cli::cli_li(
+    sprintf(
+      "Unmatched inputs above min_score: {cli::col_yellow(%s)}.",
+      format(unmatched_inputs, big.mark = ",")
+    )
+  )
+  if (!is.na(avg_best)) {
+    cli::cli_li("Average top-match score: {cli::col_magenta({sprintf('%.1f', avg_best)})}.")
+  }
+  cli::cli_text(
+    "Timings: parse {cli::col_cyan({sprintf('%.2fs', parse_elapsed)})}, total {cli::col_cyan({sprintf('%.2fs', total_elapsed)})}."
   )
 }

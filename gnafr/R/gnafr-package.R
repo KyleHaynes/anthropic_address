@@ -7,6 +7,7 @@
 #' @docType package
 #' @name gnafr-package
 #' @import data.table
+#' @importFrom cli cli_alert_danger cli_alert_info cli_alert_success cli_alert_warning cli_h1 cli_li cli_text col_blue col_cyan col_green col_magenta col_yellow plural
 #' @importFrom DBI dbConnect dbDisconnect dbExecute dbExistsTable dbGetQuery dbWriteTable
 #' @importFrom duckdb duckdb duckdb_register duckdb_unregister
 #' @importFrom stringdist stringdist
