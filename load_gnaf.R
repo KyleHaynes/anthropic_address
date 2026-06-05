@@ -1,0 +1,30 @@
+require(data.table)
+d <- fread("C:\\temp\\gnaf.qld.csv")
+d
+#          ADDRESS_DETAIL_PID DATE_CREATED                                                                ADDRESS_LABEL ADDRESS_SITE_NAME         BUILDING_NAME FLAT_TYPE FLAT_NUMBER LEVEL_TYPE LEVEL_NUMBER NUMBER_FIRST NUMBER_LAST LOT_NUMBER STREET_NAME STREET_TYPE STREET_SUFFIX
+#                      <char>       <char>                                                                       <char>            <char>                <char>    <char>      <char>     <char>       <char>       <char>      <char>     <char>      <char>      <char>        <char>
+#       1:     GAQLD159783900   27-07-2017 SURFERS FAIRWAYS EAST UNIT 50 13-27 FAIRWAY DR, CLEAR ISLAND WATERS QLD 4226                   SURFERS FAIRWAYS EAST      UNIT          50                                   13          27         50     FAIRWAY       DRIVE              
+#       2:     GAQLD163372979   06-08-2011                                     UNIT 4 15 CRAUFORD ST, WEST END QLD 4810                                              UNIT           4                                   15                           CRAUFORD      STREET              
+#       3:     GAQLD721450903   16-01-2024                                  UNIT 40504 11 PIDGEON CL, WEST END QLD 4101                                              UNIT       40504                                   11                            PIDGEON       CLOSE              
+#       4:     GAQLD160895194   29-10-2004                                   UNIT 1 318 STANLEY ST, NORTH WARD QLD 4810                                              UNIT           1                                  318                            STANLEY      STREET              
+#       5:     GAQLD160585539   09-05-2004                                  UNIT 8 164-170 SPENCE ST, BUNGALOW QLD 4870                                              UNIT           8                                  164         170                 SPENCE      STREET              
+#      ---                                                                                                                                                                                                                                                                             
+# 3305031:     GAQLD154934899   09-05-2004                                        16 EPSOM CT, ALEXANDRA HILLS QLD 4161                                                                                                 16                    225       EPSOM       COURT              
+# 3305032:     GAQLD156887808   26-01-2010                                77 BROADWATER RD, MOUNT GRAVATT EAST QLD 4122                                                                                                 77                      1  BROADWATER        ROAD              
+# 3305033:     GAQLD155479502   14-07-2005                                           136 LUCAS DR, LAMB ISLAND QLD 4184                                                                                                136                    159       LUCAS       DRIVE              
+# 3305034:     GAQLD162953599   03-11-2010                                        18-20 DRIFT CL, GOLDSBOROUGH QLD 4865                                                                                                 18          20        207       DRIFT       CLOSE              
+# 3305035:     GAQLD155487547   27-01-2010                                           70 TALLOW WOOD DR, KULUIN QLD 4558                                                                                                 70                     23 TALLOW WOOD       DRIVE              
+#                LOCALITY_NAME  STATE POSTCODE LEGAL_PARCEL_ID     MB_CODE ALIAS_PRINCIPAL  PRINCIPAL_PID PRIMARY_SECONDARY    PRIMARY_PID      GEOCODE_TYPE LONGITUDE  LATITUDE
+#                       <char> <char>    <int>          <char>       <i64>          <char>         <char>            <char>         <char>            <char>     <num>     <num>
+#       1: CLEAR ISLAND WATERS    QLD     4226      50/BUP3753 30293470000       PRINCIPAL                        SECONDARY GAQLD163045373 PROPERTY CENTROID  153.4023 -28.03448
+#       2:            WEST END    QLD     4810      1/SP233400 30552780000           ALIAS GAQLD425148477         SECONDARY GAQLD163248737 PROPERTY CENTROID  146.7880 -19.26103
+#       3:            WEST END    QLD     4101   9999/SP289969 30562944100       PRINCIPAL                        SECONDARY GAQLD720866125 PROPERTY CENTROID  153.0037 -27.48089
+#       4:          NORTH WARD    QLD     4810     1/BUP101361 30562653900           ALIAS GAQLD160895192         SECONDARY GAQLD162997742 PROPERTY CENTROID  146.8083 -19.25633
+#       5:            BUNGALOW    QLD     4870      8/SP188128 30187960000           ALIAS GAQLD162222335         SECONDARY GAQLD162965016 PROPERTY CENTROID  145.7656 -16.93236
+#      ---                                                                                                                                                                      
+# 3305031:     ALEXANDRA HILLS    QLD     4161    225/RP147047 30485520000       PRINCIPAL                                                 PROPERTY CENTROID  153.2244 -27.52745
+# 3305032:  MOUNT GRAVATT EAST    QLD     4122       1/RP71858 30132740000       PRINCIPAL                                                 PROPERTY CENTROID  153.0861 -27.54288
+# 3305033:         LAMB ISLAND    QLD     4184    160/RP127452 30500330000       PRINCIPAL                                                 PROPERTY CENTROID  153.3826 -27.62388
+# 3305034:        GOLDSBOROUGH    QLD     4865    207/SP145567 30562995200       PRINCIPAL                                                 PROPERTY CENTROID  145.7433 -17.14750
+# 3305035:              KULUIN    QLD     4558     23/RP171263 30420360000       PRINCIPAL                                                 PROPERTY CENTROID  153.0596 -26.66067
+

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Rscript -e \"devtools::document\\('gnafr'\\)\")",
+      "Bash(Rscript -e ' *)"
+    ]
+  }
+}
