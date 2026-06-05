@@ -90,3 +90,51 @@ gnaf_status <- function(con) {
     data.table(table = t, rows = n)
   }))
 }
+
+#' Sample rows from gnafr database tables
+#'
+#' Returns a random sample of rows from each user table in the connected DuckDB
+#' database. If the database has a single table, a single `data.table` is
+#' returned. If it has multiple tables, the result is a named list of
+#' `data.table`s keyed by table name.
+#'
+#' @param con DBI connection.
+#' @param n Number of rows to sample per table.
+#' @return A `data.table` for a single table database, or a named list of
+#'   `data.table`s when multiple tables are present.
+#' @export
+sample_gnaf <- function(con, n = 10L) {
+  n <- as.integer(n)
+  if (is.na(n) || length(n) != 1L || n < 1L) {
+    stop("'n' must be a single positive integer")
+  }
+
+  table_info <- setDT(DBI::dbGetQuery(
+    con,
+    paste(
+      "SELECT table_name",
+      "FROM information_schema.tables",
+      "WHERE table_schema = 'main' AND table_type = 'BASE TABLE'",
+      "ORDER BY table_name"
+    )
+  ))
+
+  if (nrow(table_info) == 0L) {
+    stop("No user tables found in the connected database")
+  }
+
+  sampled_tables <- lapply(table_info$table_name, function(table_name) {
+    table_sql <- as.character(DBI::dbQuoteIdentifier(con, table_name))
+    setDT(DBI::dbGetQuery(
+      con,
+      sprintf("SELECT * FROM %s ORDER BY random() LIMIT %d", table_sql, n)
+    ))
+  })
+  names(sampled_tables) <- table_info$table_name
+
+  if (length(sampled_tables) == 1L) {
+    return(sampled_tables[[1L]])
+  }
+
+  sampled_tables
+}
