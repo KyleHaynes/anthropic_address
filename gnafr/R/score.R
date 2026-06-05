@@ -8,6 +8,38 @@
   flat         = 8L
 )
 
+.default_match_weights <- function() {
+  as.list(.WEIGHTS)
+}
+
+.validate_match_weights <- function(weights) {
+  required_names <- names(.WEIGHTS)
+
+  if (!is.list(weights) || is.null(names(weights))) {
+    stop("'weights' must be a named list")
+  }
+  if (!setequal(names(weights), required_names)) {
+    stop(
+      "'weights' must be a named list with exactly these entries: ",
+      paste(required_names, collapse = ", ")
+    )
+  }
+
+  weights <- weights[required_names]
+  weight_values <- unlist(weights, use.names = TRUE)
+  if (!is.numeric(weight_values) || anyNA(weight_values)) {
+    stop("'weights' values must all be numeric and non-missing")
+  }
+  if (any(weight_values < 0)) {
+    stop("'weights' values must be non-negative")
+  }
+  if (!isTRUE(all.equal(sum(weight_values), 100, tolerance = 1e-8))) {
+    stop("'weights' must sum to 100")
+  }
+
+  lapply(weights, as.numeric)
+}
+
 #' Score candidate pairs
 #'
 #' Operates on a data.table that has been produced by joining the parsed inputs
@@ -22,15 +54,16 @@
 #'   number_first, number_last, flat_number
 #'
 #' @param pairs data.table of candidate pairs (modified in-place).
+#' @param weights Named list of scoring weights.
 #' @return The same data.table with added columns \code{score_*} and
 #'   \code{total_score}.
 #' @noRd
-.score_pairs <- function(pairs) {
+.score_pairs <- function(pairs, weights = .WEIGHTS) {
 
   # --- Postcode (25 pts) ---------------------------------------------------
   pairs[, score_postcode := fifelse(
     !is.na(in_postcode) & !is.na(postcode) & in_postcode == postcode,
-    .WEIGHTS$postcode, 0L
+    as.integer(round(weights$postcode)), 0L
   )]
 
   # --- Suburb / locality (20 pts) ------------------------------------------
@@ -43,7 +76,7 @@
       method = "jw", p = 0.1
     )
   }
-  pairs[, score_suburb := as.integer(round(.WEIGHTS$suburb * jw_suburb))]
+  pairs[, score_suburb := as.integer(round(weights$suburb * jw_suburb))]
 
   # --- Street name (25 pts) ------------------------------------------------
   jw_street <- rep(0, nrow(pairs))
@@ -54,16 +87,19 @@
       method = "jw", p = 0.1
     )
   }
-  pairs[, score_street_name := as.integer(round(.WEIGHTS$street_name * jw_street))]
+  pairs[, score_street_name := as.integer(round(weights$street_name * jw_street))]
 
   # --- Street type (10 pts) ------------------------------------------------
+  # Partial credit (40%) when both sides supply a type but they differ — wrong
+  # street type is a very common user error and shouldn't fully cancel out a
+  # strong street-name match.
   pairs[, score_street_type := {
     both_na <- is.na(in_street_type) & is.na(street_type)
     one_na  <- xor(is.na(in_street_type), is.na(street_type))
     matched <- !is.na(in_street_type) & !is.na(street_type) & in_street_type == street_type
-    fifelse(both_na, .WEIGHTS$street_type,
-    fifelse(matched, .WEIGHTS$street_type,
-    fifelse(one_na,  as.integer(.WEIGHTS$street_type * 0.5), 0L)))
+    fifelse(both_na | matched, as.integer(round(weights$street_type)),
+    fifelse(one_na,            as.integer(round(weights$street_type * 0.5)),
+                               as.integer(round(weights$street_type * 0.4))))
   }]
 
   # --- Street number (12 pts) ----------------------------------------------
@@ -72,8 +108,8 @@
     in_range <- !is.na(in_number_first) & !is.na(number_last) &
                 in_number_first >= number_first & in_number_first <= number_last
     fifelse(is.na(in_number_first), 0L,
-    fifelse(exact, .WEIGHTS$number,
-    fifelse(in_range, as.integer(.WEIGHTS$number * 0.7), 0L)))
+    fifelse(exact, as.integer(round(weights$number)),
+    fifelse(in_range, as.integer(round(weights$number * 0.7)), 0L)))
   }]
 
   # --- Flat / unit (8 pts) -------------------------------------------------
@@ -82,7 +118,7 @@
     gnaf_f <- trimws(fifelse(is.na(flat_number), "", flat_number))
     both_absent <- in_f == "" & gnaf_f == ""
     matched     <- in_f != "" & gnaf_f != "" & in_f == gnaf_f
-    fifelse(both_absent | matched, .WEIGHTS$flat, 0L)
+    fifelse(both_absent | matched, as.integer(round(weights$flat)), 0L)
   }]
 
   # --- Total ---------------------------------------------------------------

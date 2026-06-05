@@ -273,13 +273,43 @@ addresses[unmatched_ids]
 
 ## How scoring works
 
-Each input address is parsed into components, then compared against candidate GNAF records field by field. The total score is the sum of six weighted components (max 100).
+Each input address is parsed into components, then compared against candidate GNAF records field by field. The total score is the sum of six weighted components (max 100). The weights are configurable via the `weights` argument on `gnaf_match()`, which expects a named list that sums to 100.
 
 ### Score breakdown
 
 ```
 total_score = score_postcode + score_suburb + score_street_name
             + score_street_type + score_number + score_flat
+```
+
+Default weights:
+
+```r
+list(
+  postcode = 25,
+  suburb = 20,
+  street_name = 25,
+  street_type = 10,
+  number = 12,
+  flat = 8
+)
+```
+
+You can override them when you need a different bias, for example if street numbers matter more than postcode for your use case:
+
+```r
+results <- gnaf_match(
+  con,
+  addresses,
+  weights = list(
+    postcode = 20,
+    suburb = 18,
+    street_name = 25,
+    street_type = 10,
+    number = 20,
+    flat = 7
+  )
+)
 ```
 
 **Postcode (25 pts)** — all-or-nothing exact match.  
@@ -707,4 +737,14 @@ file.remove("C:/data/gnaf.duckdb")
 con <- gnaf_connect("C:/temp/gnaf.duckdb")
 gnaf_init(con)
 gnaf_load(con, "C:/temp/gnaf.qld.csv")
+```
+
+
+# Following section needs updating:
+```r
+con <- gnaf_connect("C:/temp/gnaf.duckdb")
+gnaf_load_psv(
+  con,
+  gnaf_dir = "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard"
+)
 ```

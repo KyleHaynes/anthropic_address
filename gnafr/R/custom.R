@@ -36,7 +36,7 @@ gnaf_add <- function(con, addresses, upsert = FALSE) {
   opt_cols <- c("address_label", "address_site_name", "building_name",
                 "flat_type", "flat_number", "level_type", "level_number",
                 "number_last", "lot_number", "street_suffix",
-                "longitude", "latitude")
+                "longitude", "latitude", "alias_type")
   for (col in opt_cols) {
     if (!col %in% names(dt)) dt[, (col) := NA]
   }
@@ -87,7 +87,7 @@ gnaf_add <- function(con, addresses, upsert = FALSE) {
             building_name, flat_type, flat_number, level_type, level_number,
             number_first, number_last, lot_number, street_name, street_type,
             street_suffix, locality_name, state, postcode,
-            longitude, latitude, source
+            longitude, latitude, source, alias_type
      FROM __gnafr_insert__
      %s",
     conflict_clause

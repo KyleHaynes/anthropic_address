@@ -32,8 +32,27 @@ gnaf_app <- function(con = NULL, db_path = NULL,
 
   ui <- shiny::fluidPage(
     shiny::tags$head(
+      shiny::tags$script(shiny::HTML(
+        "document.addEventListener('DOMContentLoaded', function() {\n",
+        "  document.addEventListener('click', function(event) {\n",
+        "    var button = event.target.closest('[data-toggle-sidebar]');\n",
+        "    if (!button) return;\n",
+        "    var layout = document.getElementById('gnaf-app-layout');\n",
+        "    if (!layout) return;\n",
+        "    layout.classList.toggle('sidebar-collapsed');\n",
+        "    button.textContent = layout.classList.contains('sidebar-collapsed') ? 'Show controls' : 'Hide controls';\n",
+        "  });\n",
+        "});"
+      )),
       shiny::tags$style(shiny::HTML(
-        ".app-shell {max-width: 1380px; margin: 0 auto; padding-bottom: 24px;}\n",
+        ".app-shell {max-width: 1720px; margin: 0 auto; padding: 0 20px 24px;}\n",
+        ".app-header {display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-top:20px;}\n",
+        ".app-layout {display:grid; grid-template-columns:minmax(300px, 360px) minmax(0, 1fr); gap:20px; align-items:start;}\n",
+        ".app-layout.sidebar-collapsed {grid-template-columns:0 minmax(0, 1fr);}\n",
+        ".sidebar-panel {overflow:hidden; transition:opacity 0.2s ease, padding 0.2s ease, border-width 0.2s ease; min-width:0;}\n",
+        ".app-layout.sidebar-collapsed .sidebar-panel {opacity:0; padding:0; border-width:0; height:0; pointer-events:none;}\n",
+        ".content-panel {min-width:0;}\n",
+        ".sidebar-toggle {border-radius:999px; border:1px solid #bcccdc; background:#fff; color:#102a43; padding:8px 14px; font-weight:600;}\n",
         ".app-title {margin: 20px 0 6px; font-size: 30px; font-weight: 700; color: #102a43;}\n",
         ".app-subtitle {margin-bottom: 22px; color: #486581;}\n",
         ".panel {background: #f8fbff; border: 1px solid #d9e2ec; border-radius: 14px; padding: 18px;}\n",
@@ -45,21 +64,38 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         ".status-pill--warn {background: #fee2e2; color: #991b1b;}\n",
         ".help-text {color: #52606d; font-size: 13px;}\n",
         ".section-gap {margin-top: 16px;}\n",
-        "@media (max-width: 900px) {.metric-grid {grid-template-columns: 1fr;}}"
+        ".reactable {font-size: 12px;}\n",
+        ".reactable .rt-th, .reactable .rt-td {padding: 6px 8px;}\n",
+        ".reactable .rt-tr-group {min-height:auto;}\n",
+        ".details-shell {max-width: 780px; padding: 8px 10px; background: #f8fbff; border-radius: 10px;}\n",
+        ".details-title {font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #102a43;}\n",
+        "@media (max-width: 1100px) {.app-layout {grid-template-columns:1fr;} .sidebar-panel {order:2;} .content-panel {order:1;}}\n",
+        "@media (max-width: 900px) {.metric-grid {grid-template-columns: 1fr;} .app-shell {padding:0 12px 24px;}}"
       ))
     ),
     shiny::div(
       class = "app-shell",
-      shiny::div(class = "app-title", "gnafr geocoder"),
       shiny::div(
-        class = "app-subtitle",
-        "Run address matching against your DuckDB-backed GNAF database and inspect text similarity diagnostics for each match."
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          width = 4,
+        class = "app-header",
+        shiny::div(
+          shiny::div(class = "app-title", "gnafr geocoder"),
           shiny::div(
-            class = "panel",
+            class = "app-subtitle",
+            "Run address matching against your DuckDB-backed GNAF database and inspect text similarity diagnostics for each match."
+          )
+        ),
+        shiny::tags$button(
+          type = "button",
+          class = "sidebar-toggle",
+          `data-toggle-sidebar` = "true",
+          "Hide controls"
+        )
+      ),
+      shiny::div(
+        id = "gnaf-app-layout",
+        class = "app-layout",
+        shiny::div(
+          class = "panel sidebar-panel",
             shiny::textInput("db_path", "DuckDB path", value = if (is.null(db_path)) "" else db_path),
             shiny::actionButton("connect", "Connect", class = "btn-primary"),
             shiny::div(class = "section-gap"),
@@ -86,10 +122,9 @@ gnaf_app <- function(con = NULL, db_path = NULL,
               class = "help-text section-gap",
               "The results table adds full-string Jaro-Winkler and Jaccard similarity scores between each input string and its matched address label."
             )
-          )
         ),
-        shiny::column(
-          width = 8,
+        shiny::div(
+          class = "content-panel",
           shiny::uiOutput("metrics"),
           shiny::tabsetPanel(
             shiny::tabPanel("Matches", reactable::reactableOutput("results_table")),
@@ -224,30 +259,46 @@ gnaf_app <- function(con = NULL, db_path = NULL,
 
     output$metrics <- shiny::renderUI({
       results <- results_rv()
-      best <- results[match_rank == 1L]
+      best <- results[matched %in% TRUE & match_rank == 1L]
       matched_inputs <- uniqueN(best$input_id)
+      unmatched_inputs <- uniqueN(results[matched %in% FALSE, input_id])
+      match_rate <- if (uniqueN(results$input_id) > 0L) {
+        round(100 * matched_inputs / uniqueN(results$input_id), 1)
+      } else {
+        NA_real_
+      }
       avg_score <- if (nrow(best) > 0L) round(mean(best$total_score, na.rm = TRUE), 1) else NA_real_
       avg_text <- if (nrow(best) > 0L) round(mean(best$text_similarity, na.rm = TRUE), 1) else NA_real_
 
       shiny::div(
         class = "metric-grid",
         .gnaf_metric_card("Matched inputs", format(matched_inputs, big.mark = ",")),
-        .gnaf_metric_card("Avg total score", if (is.na(avg_score)) "-" else sprintf("%.1f", avg_score)),
-        .gnaf_metric_card("Avg text similarity", if (is.na(avg_text)) "-" else sprintf("%.1f", avg_text))
+        .gnaf_metric_card("Match rate", if (is.na(match_rate)) "-" else sprintf("%.1f%%", match_rate)),
+        .gnaf_metric_card("Unmatched inputs", format(unmatched_inputs, big.mark = ","))
       )
     })
 
     output$results_table <- reactable::renderReactable({
       results <- results_rv()
       score_fill <- function(score) .gnaf_score_fill(score)
-      text_cell <- function(value, index) {
-        fill <- score_fill(results$text_similarity[index])
+      comparison_cell <- function(value, index) {
+        row <- results[index, ]
+        fill <- if (isTRUE(row$matched)) score_fill(row$text_similarity) else "#e5e7eb"
+        match_text <- if (isTRUE(row$matched) && !is.na(row$address_label)) {
+          row$address_label
+        } else {
+          sprintf("No match (%s)", row$match_status %||% "unmatched")
+        }
+
         shiny::div(
           style = sprintf(
-            "background:%s; border-radius:10px; padding:8px 10px; font-weight:600;",
+            "background:%s; border-radius:12px; padding:10px 12px;",
             fill
           ),
-          value
+          shiny::div(style = "font-size:11px; text-transform:uppercase; letter-spacing:0.08em; opacity:0.75;", "Input"),
+          shiny::div(style = "font-weight:700; margin-bottom:8px;", row$input_raw),
+          shiny::div(style = "font-size:11px; text-transform:uppercase; letter-spacing:0.08em; opacity:0.75;", "Matched"),
+          shiny::div(style = "font-weight:700;", match_text)
         )
       }
 
@@ -258,18 +309,26 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         filterable = TRUE,
         highlight = TRUE,
         striped = TRUE,
-        defaultSorted = list(total_score = "desc"),
+        defaultSorted = list(matched = "desc", total_score = "desc"),
         columns = list(
           input_id = reactable::colDef(name = "Input", maxWidth = 80),
           match_rank = reactable::colDef(name = "Rank", maxWidth = 80),
-          input_raw = reactable::colDef(name = "Input string", minWidth = 250, cell = text_cell),
-          address_label = reactable::colDef(name = "Matched string", minWidth = 280, cell = text_cell),
+          matched = reactable::colDef(name = "Matched", maxWidth = 90),
+          match_status = reactable::colDef(name = "Status", minWidth = 130),
+          input_standardised = reactable::colDef(name = "Standardised", minWidth = 260),
+          comparison = reactable::colDef(name = "Input / matched", minWidth = 420, cell = comparison_cell),
           total_score = .gnaf_score_col("Total", digits = 0),
           text_similarity = .gnaf_score_col("Text score", digits = 1),
           jarowinkler_score = .gnaf_score_col("Jaro-Winkler", digits = 1),
           jaccard_score = .gnaf_score_col("Jaccard", digits = 1),
           longitude = reactable::colDef(format = reactable::colFormat(digits = 6)),
           latitude = reactable::colDef(format = reactable::colFormat(digits = 6))
+        ),
+        defaultColDef = reactable::colDef(na = "-", minWidth = 80),
+        theme = .gnaf_reactable_theme(),
+        columnGroups = list(
+          reactable::colGroup(name = "Comparison", columns = c("input_standardised", "comparison")),
+          reactable::colGroup(name = "Diagnostics", columns = c("total_score", "text_similarity", "jarowinkler_score", "jaccard_score"))
         ),
         details = function(index) {
           row <- results[index, ]
@@ -286,9 +345,17 @@ gnaf_app <- function(con = NULL, db_path = NULL,
 
           shiny::tagList(
             shiny::tags$div(
-              style = "padding: 10px 14px; background: #f8fbff; border-radius: 10px;",
-              shiny::tags$strong("Parsed input"),
-              reactable::reactable(parsed, compact = TRUE, bordered = TRUE, pagination = FALSE)
+              class = "details-shell",
+              shiny::div(class = "details-title", "Parsed input"),
+              reactable::reactable(
+                parsed,
+                compact = TRUE,
+                bordered = FALSE,
+                pagination = FALSE,
+                fullWidth = FALSE,
+                defaultColDef = reactable::colDef(minWidth = 76, na = "-"),
+                theme = .gnaf_details_theme()
+              )
             )
           )
         }
@@ -302,6 +369,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         searchable = TRUE,
         filterable = TRUE,
         striped = TRUE,
+        theme = .gnaf_reactable_theme(),
         columns = list(input_raw = reactable::colDef(minWidth = 280))
       )
     })
@@ -344,15 +412,28 @@ gnaf_app <- function(con = NULL, db_path = NULL,
   }
 
   out <- copy(results)
+  out[, comparison := ""]
   input_norm <- .normalize_addr(out$input_raw)
-  match_norm <- .normalize_addr(out$address_label)
+  match_norm <- .normalize_addr(fifelse(is.na(out$address_label), "", out$address_label))
+  matched_idx <- out$matched %in% TRUE & !is.na(out$address_label)
 
-  jw <- 1 - stringdist::stringdist(input_norm, match_norm, method = "jw", p = 0.1)
-  jaccard <- 1 - stringdist::stringdist(input_norm, match_norm, method = "jaccard", q = 2)
+  jw <- rep(NA_real_, nrow(out))
+  jaccard <- rep(NA_real_, nrow(out))
+  if (any(matched_idx)) {
+    jw[matched_idx] <- 1 - stringdist::stringdist(
+      input_norm[matched_idx], match_norm[matched_idx], method = "jw", p = 0.1
+    )
+    jaccard[matched_idx] <- 1 - stringdist::stringdist(
+      input_norm[matched_idx], match_norm[matched_idx], method = "jaccard", q = 2
+    )
+  }
 
   out[, jarowinkler_score := round(pmax(jw, 0) * 100, 1)]
+  out[!matched_idx, jarowinkler_score := NA_real_]
   out[, jaccard_score := round(pmax(jaccard, 0) * 100, 1)]
+  out[!matched_idx, jaccard_score := NA_real_]
   out[, text_similarity := round((jarowinkler_score + jaccard_score) / 2, 1)]
+  out[!matched_idx, text_similarity := NA_real_]
   out[]
 }
 
@@ -360,7 +441,10 @@ gnaf_app <- function(con = NULL, db_path = NULL,
   data.table(
     input_id = integer(),
     input_raw = character(),
+    input_standardised = character(),
     match_rank = integer(),
+    matched = logical(),
+    match_status = character(),
     total_score = integer(),
     score_postcode = integer(),
     score_suburb = integer(),
@@ -395,6 +479,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
     in_flat_number = character(),
     in_building_name = character(),
     in_number_first = integer(),
+    comparison = character(),
     jarowinkler_score = numeric(),
     jaccard_score = numeric(),
     text_similarity = numeric()
@@ -427,7 +512,29 @@ gnaf_app <- function(con = NULL, db_path = NULL,
   )
 }
 
+.gnaf_reactable_theme <- function() {
+  reactable::reactableTheme(
+    borderColor = "#d9e2ec",
+    stripedColor = "#f8fbff",
+    highlightColor = "#eef2ff",
+    cellPadding = "6px 8px",
+    style = list(fontSize = "12px", lineHeight = "1.35"),
+    headerStyle = list(fontSize = "11px", textTransform = "uppercase", letterSpacing = "0.05em"),
+    rowSelectedStyle = list(backgroundColor = "#dbeafe")
+  )
+}
+
+.gnaf_details_theme <- function() {
+  reactable::reactableTheme(
+    borderColor = "#e2e8f0",
+    cellPadding = "4px 6px",
+    style = list(fontSize = "11px", lineHeight = "1.25"),
+    headerStyle = list(fontSize = "10px", textTransform = "uppercase", letterSpacing = "0.05em")
+  )
+}
+
 .gnaf_score_fill <- function(score) {
+  if (length(score) == 0L || is.na(score)) return("#e5e7eb")
   palette <- grDevices::colorRampPalette(c("#7f1d1d", "#b45309", "#f59e0b", "#84cc16", "#166534"))(101)
   idx <- max(1L, min(101L, as.integer(round(score)) + 1L))
   palette[idx]
@@ -439,6 +546,9 @@ gnaf_app <- function(con = NULL, db_path = NULL,
     align = "center",
     format = reactable::colFormat(digits = digits),
     style = function(value) {
+      if (length(value) == 0L || is.na(value)) {
+        return(list(background = "#f3f4f6", color = "#6b7280", fontWeight = 500))
+      }
       list(
         background = .gnaf_score_fill(value),
         color = if (isTRUE(value >= 70)) "#f8fafc" else "#102a43",

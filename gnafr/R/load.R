@@ -48,7 +48,8 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
         TRY_CAST(POSTCODE  AS INTEGER)         AS postcode,
         TRY_CAST(LONGITUDE AS DOUBLE)          AS longitude,
         TRY_CAST(LATITUDE  AS DOUBLE)          AS latitude,
-        'gnaf'                                 AS source
+        'gnaf'                                 AS source,
+        NULL::VARCHAR                          AS alias_type
       FROM read_csv('%s', header = true, ignore_errors = true)
       ON CONFLICT DO NOTHING
     ", p_fwd))

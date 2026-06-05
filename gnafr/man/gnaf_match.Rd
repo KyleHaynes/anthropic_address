@@ -12,7 +12,8 @@ gnaf_match(
   include_custom = TRUE,
   locality_fallback = TRUE,
   fallback_threshold = 80L,
-  verbose = TRUE
+  weights = .default_match_weights(),
+  verbose = FALSE
 )
 }
 \arguments{
@@ -33,12 +34,17 @@ name for inputs whose best score is below \code{fallback_threshold}.}
 Default 80: a correct match with a matching postcode will typically score
 85+, so 80 catches wrong-postcode and genuinely poor matches.}
 
+\item{weights}{Named list of score weights. Defaults to postcode = 25,
+suburb = 20, street_name = 25, street_type = 10, number = 12, flat = 8.
+Weights must sum to 100.}
+
 \item{verbose}{If \code{TRUE}, prints colored progress, timings, and match
 summary information using the \pkg{cli} package.}
 }
 \value{
 A \code{data.table} ordered by \code{input_id} then descending
-  \code{total_score}.
+  \code{total_score}. Includes a standardised input string for every row and
+  retains unmatched inputs with missing match columns.
 }
 \description{
 Uses a three-path strategy:
