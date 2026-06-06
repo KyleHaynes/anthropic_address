@@ -69,7 +69,9 @@
 
   list(
     score_postcode = sprintf(
-      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d ELSE 0 END",
+      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 1 THEN CAST(ROUND(%d * 0.7) AS INTEGER) WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 2 THEN CAST(ROUND(%d * 0.4) AS INTEGER) ELSE 0 END",
+      i, g, i, g, w_pc,
+      i, g, i, g, w_pc,
       i, g, i, g, w_pc
     ),
     score_suburb = sprintf(
@@ -105,11 +107,15 @@
 #' @noRd
 .score_pairs <- function(pairs, weights = .WEIGHTS) {
 
-  # --- Postcode (25 pts) ---------------------------------------------------
-  pairs[, score_postcode := fifelse(
-    !is.na(in_postcode) & !is.na(postcode) & in_postcode == postcode,
-    as.integer(round(weights$postcode)), 0L
-  )]
+  # --- Postcode (20 pts) ---------------------------------------------------
+  pairs[, score_postcode := {
+    both_present <- !is.na(in_postcode) & !is.na(postcode)
+    diff <- abs(as.integer(in_postcode) - as.integer(postcode))
+    fifelse(!both_present,  0L,
+    fifelse(diff == 0L,     as.integer(round(weights$postcode)),
+    fifelse(diff == 1L,     as.integer(round(weights$postcode * 0.7)),
+    fifelse(diff == 2L,     as.integer(round(weights$postcode * 0.4)), 0L))))
+  }]
 
   # --- Suburb / locality (20 pts) ------------------------------------------
   # Jaro-Winkler similarity; NA on either side → 0

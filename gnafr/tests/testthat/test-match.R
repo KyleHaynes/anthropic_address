@@ -105,3 +105,29 @@ test_that("collapse_address_parts returns NA when all parts are NA", {
   out <- gnafr:::.collapse_address_parts(NA_character_, NA_character_)
   expect_true(is.na(out))
 })
+
+test_that("match_address is working as expected (expected results and reproducible)", {
+  con <- gnaf_connect("C:/temp/gnaf.duckdb")
+  test <- gnaf_match(c(
+        "25 ST JAMES CR EAGLE HEIGHTS QLD 4271",
+        "25 ST JAMES CR EAGLE HEIGHTS 4271 QLD",
+        "110-120 MUSGRADE RD RED HILL QLD 4060",
+        "112 MUSGRAVE RD RED HILLS QLD 4059",
+        "112 MUSGRAVE RD PADDINGTON 4059",
+        "PARLAND 6019/6 PARKLAND BVD BRISBANE QLD 4001",
+        "PARLAND 6019 6 PARKLAND BVD BRISBANE QLD 4001",
+        "U6019 6 PARKLAND BVD BRISBANE QLD 4001"
+    ), con = con, max_results = 1)
+
+    test_vec <- test$address_label == c(
+        "25 SAINT JAMES COURT, EAGLE HEIGHTS QLD 4272",
+        "25 SAINT JAMES COURT, EAGLE HEIGHTS QLD 4272",
+        "110 MUSGRAVE RD, RED HILL QLD 4059",
+        "110-120 MUSGRAVE RD, RED HILL QLD 4059",
+        "110-120 MUSGRAVE ROAD, PADDINGTON QLD 4059",
+        "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000",
+        "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000",
+        "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000"
+    )
+  expect_true(all(test_vec))
+})

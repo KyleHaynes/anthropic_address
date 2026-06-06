@@ -33,7 +33,7 @@
 #'   \code{total_score}. Includes a standardised input string for every row and
 #'   retains unmatched inputs with missing match columns.
 #' @export
-gnaf_match <- function(addresses, con, max_results = 3L, min_score = 60L,
+gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
                        include_custom = TRUE,
                        locality_fallback = TRUE,
                        fallback_threshold = 80L,
@@ -248,7 +248,7 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 60L,
   out[, matched := !is.na(address_detail_pid)]
   out <- .append_match_status(out, parsed, diagnostics)
 
-  cols_first <- c("input_id", "input_raw", "input_standardised", "match_rank",
+  cols_first <- c("input_id", "input_raw", "input_standardised", "address_label", "match_rank",
                   "matched", "match_status", "total_score", "score_postcode", "score_suburb",
                   "score_street_name", "score_street_type", "score_number",
                   "score_flat")
