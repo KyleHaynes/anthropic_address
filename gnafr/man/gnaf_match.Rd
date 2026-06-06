@@ -7,7 +7,7 @@
 gnaf_match(
   addresses,
   con,
-  max_results = 3L,
+  max_results = 1L,
   min_score = 60L,
   include_custom = TRUE,
   locality_fallback = TRUE,

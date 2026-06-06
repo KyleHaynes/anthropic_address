@@ -122,7 +122,7 @@ test_that("match_address is working as expected (expected results and reproducib
     test_vec <- test$address_label == c(
         "25 SAINT JAMES COURT, EAGLE HEIGHTS QLD 4272",
         "25 SAINT JAMES COURT, EAGLE HEIGHTS QLD 4272",
-        "110 MUSGRAVE RD, RED HILL QLD 4059",
+        "110-120 MUSGRAVE RD, RED HILL QLD 4059",
         "110-120 MUSGRAVE RD, RED HILL QLD 4059",
         "110-120 MUSGRAVE ROAD, PADDINGTON QLD 4059",
         "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000",

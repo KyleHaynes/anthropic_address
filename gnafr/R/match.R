@@ -234,7 +234,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
     out <- unique(out, by = c("input_id", "address_detail_pid"))
 
     # Re-apply max_results and assign final rank
-    setorder(out, input_id, -total_score)
+    setorder(out, input_id, -total_score, address_detail_pid)
     out <- out[, .SD[seq_len(min(.N, max_results))], by = input_id]
     out[, match_rank := seq_len(.N), by = input_id]
   } else {
@@ -329,7 +329,7 @@ scored AS (
 ),
 ranked AS (
   SELECT *,
-    ROW_NUMBER() OVER (PARTITION BY input_id ORDER BY total_score DESC) AS match_rank
+    ROW_NUMBER() OVER (PARTITION BY input_id ORDER BY total_score DESC, address_detail_pid) AS match_rank
   FROM scored
   WHERE total_score >= %d
 )
@@ -379,7 +379,7 @@ SELECT * FROM ranked WHERE match_rank <= %d
     fill = TRUE, use.names = TRUE
   )
   if (nrow(matches) > 0L) {
-    setorder(matches, input_id, -total_score)
+    setorder(matches, input_id, -total_score, address_detail_pid)
     matches <- matches[, .SD[seq_len(min(.N, max_results))], by = input_id]
     matches[, match_rank := seq_len(.N), by = input_id]
   } else {
@@ -534,7 +534,7 @@ scored AS (
 ),
 ranked AS (
   SELECT *,
-    ROW_NUMBER() OVER (PARTITION BY input_id ORDER BY total_score DESC) AS match_rank
+    ROW_NUMBER() OVER (PARTITION BY input_id ORDER BY total_score DESC, address_detail_pid) AS match_rank
   FROM scored
   WHERE total_score >= %d
 )
