@@ -33,7 +33,7 @@
 #'   \code{total_score}. Includes a standardised input string for every row and
 #'   retains unmatched inputs with missing match columns.
 #' @export
-gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
+gnaf_match <- function(addresses, con, max_results = 3L, min_score = 60L,
                        include_custom = TRUE,
                        locality_fallback = TRUE,
                        fallback_threshold = 80L,
@@ -149,64 +149,41 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
   slow_timer <- proc.time()[["elapsed"]]
 
   # ------------------------------------------------------------------
-  # Path 1: postcode-blocked matching
+  # Path 1: postcode path — scored entirely in DuckDB
   # ------------------------------------------------------------------
   if (nrow(has_pc) > 0L) {
-    pcs <- unique(has_pc$in_postcode)
-    postcode_word <- if (length(pcs) == 1L) "postcode" else "postcodes"
-    .cli_match_step(
-      verbose,
-      sprintf(
-        "Fetching postcode candidates for %s unique %s.",
-        cli::col_cyan(format(length(pcs), big.mark = ",")),
-        postcode_word
-      )
-    )
-    nfs   <- unique(na.omit(has_pc$in_number_first))
-    cands <- .fetch_by_postcode(
-      con, pcs, include_custom,
-      # Targeted fetch when every input has a parseable street number; falls back
-      # to a full postcode fetch for batches that include numberless addresses.
-      number_firsts = if (!anyNA(has_pc$in_number_first)) nfs else NULL
-    )
-    candidate_word <- if (nrow(cands) == 1L) "row" else "rows"
-    .cli_match_detail(
-      verbose,
-      sprintf(
-        "Postcode path loaded %s candidate %s.",
-        cli::col_green(format(nrow(cands), big.mark = ",")),
-        candidate_word
-      )
-    )
-
-    if (nrow(cands) > 0L) {
-      postcode_path <- .match_postcode(
-        has_pc, cands, max_results, min_score, weights = weights, diagnostics = TRUE
-      )
-      results[["postcode"]] <- postcode_path$matches
-      diagnostics[["postcode"]] <- postcode_path$diagnostics
-    }
+    n_pc <- uniqueN(has_pc$in_postcode)
+    .cli_match_step(verbose, sprintf(
+      "Scoring %s input(s) across %s unique postcode(s) in DuckDB.",
+      cli::col_blue(format(nrow(has_pc), big.mark = ",")),
+      cli::col_cyan(format(n_pc, big.mark = ","))
+    ))
+    pc_path <- .match_postcode_duckdb(con, has_pc, max_results, min_score,
+                                       weights, include_custom, verbose)
+    results[["postcode"]]     <- pc_path$matches
+    diagnostics[["postcode"]] <- pc_path$diagnostics
   }
 
   # ------------------------------------------------------------------
-  # Path 2: no-postcode inputs — try state-level fallback
+  # Path 2: no-postcode inputs — state-level fallback in DuckDB
   # ------------------------------------------------------------------
   if (nrow(no_pc) > 0L) {
-    input_word <- if (nrow(no_pc) == 1L) "row" else "rows"
-    .cli_match_step(
-      verbose,
-      sprintf(
+    no_pc_state <- no_pc[!is.na(in_state)]
+    if (nrow(no_pc_state) > 0L) {
+      input_word <- if (nrow(no_pc_state) == 1L) "row" else "rows"
+      .cli_match_step(verbose, sprintf(
         "Attempting state fallback for %s input %s without a postcode.",
-        cli::col_yellow(format(nrow(no_pc), big.mark = ",")),
+        cli::col_yellow(format(nrow(no_pc_state), big.mark = ",")),
         input_word
-      )
-    )
-    state_path <- .match_state(
-      con, no_pc, max_results, min_score, include_custom, weights = weights,
-      verbose = verbose
-    )
-    results[["no_postcode"]] <- state_path$matches
-    diagnostics[["no_postcode"]] <- state_path$diagnostics
+      ))
+      st_path <- .match_state_duckdb(con, no_pc_state, max_results, min_score,
+                                      weights, include_custom, verbose)
+      results[["no_postcode"]]     <- st_path$matches
+      diagnostics[["no_postcode"]] <- st_path$diagnostics
+    } else {
+      .cli_match_alert(verbose, "warning",
+                       "No postcode or state found for some inputs; skipping.")
+    }
   }
 
   # ------------------------------------------------------------------
@@ -215,15 +192,12 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
   if (locality_fallback) {
     pc_res <- results[["postcode"]]
 
-    # Best score per input from path 1
     best_by_input <- if (!is.null(pc_res) && nrow(pc_res) > 0L) {
       pc_res[, .(best_score = max(total_score)), by = input_id]
     } else {
       data.table(input_id = integer(0), best_score = integer(0))
     }
 
-    # Trigger fallback for: (a) weak postcode match, (b) no postcode match,
-    # (c) no_pc inputs that have a locality name to search on
     weak_ids      <- best_by_input[best_score < fallback_threshold, input_id]
     matched_ids   <- best_by_input$input_id
     unmatched_ids <- has_pc[!input_id %in% matched_ids, input_id]
@@ -234,21 +208,15 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
 
     if (nrow(fallback_parse) > 0L) {
       fallback_word <- if (nrow(fallback_parse) == 1L) "row" else "rows"
-      .cli_match_step(
-        verbose,
-        sprintf(
-          "Running locality fallback for %s input %s.",
-          cli::col_magenta(format(nrow(fallback_parse), big.mark = ",")),
-          fallback_word
-        )
-      )
-      locality_path <- .match_locality_fallback(
-        con, fallback_parse, max_results, min_score, include_custom,
-        weights = weights,
-        verbose = verbose
-      )
-      results[["locality"]] <- locality_path$matches
-      diagnostics[["locality"]] <- locality_path$diagnostics
+      .cli_match_step(verbose, sprintf(
+        "Running locality fallback for %s input %s.",
+        cli::col_magenta(format(nrow(fallback_parse), big.mark = ",")),
+        fallback_word
+      ))
+      loc_path <- .match_locality_duckdb(con, fallback_parse, max_results,
+                                          min_score, weights, include_custom, verbose)
+      results[["locality"]]     <- loc_path$matches
+      diagnostics[["locality"]] <- loc_path$diagnostics
     }
   }
 
@@ -310,228 +278,315 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
 }
 
 # ---------------------------------------------------------------------------
-# Locality fallback: discover correct postcodes via DuckDB jaro_winkler_similarity
+# DuckDB-based path implementations
+# All scoring, joining, filtering and top-N ranking happen inside DuckDB.
+# Only the final (small) result set is transferred to R.
 # ---------------------------------------------------------------------------
 
-.match_locality_fallback <- function(con, parsed_sub, max_results, min_score,
-                                     include_custom, weights, verbose = FALSE) {
-  locs   <- parsed_sub[!is.na(in_locality), unique(in_locality)]
-  states <- parsed_sub[!is.na(in_state),    unique(in_state)]
-  if (length(locs) == 0L) return(.empty_path_result())
+# Core query runner shared by all paths.
+# inputs_tbl  : name of a duckdb_register'd virtual table of parsed inputs
+# gnaf_tbl    : "gnaf_addresses" or "custom_addresses"
+# join_clause : SQL ON expression (uses aliases i = inputs, g = gnaf)
+# pre_filter  : additional WHERE predicates (coarse, no JW)
+#
+# Design notes:
+#   * No window-function aggregates (COUNT/MAX OVER) before the score filter —
+#     those force full materialisation of the join which kills RAM at scale.
+#   * Street-name JW pre-filter (>= 0.3) in the WHERE clause cuts the
+#     intermediate table size dramatically before scoring the remaining rows.
+#   * candidate_count is set to NA; match_status "below_min_score" vs
+#     "no_candidate" is not distinguishable, which is an acceptable trade-off.
+.run_duckdb_score_query <- function(con, inputs_tbl, gnaf_tbl, join_clause,
+                                    pre_filter, weights, max_results, min_score,
+                                    verbose = FALSE, label = "") {
+  exprs      <- .score_sql_exprs(weights)
+  sel_scores <- paste(
+    mapply(function(nm, ex) sprintf("    %s AS %s", ex, nm), names(exprs), exprs),
+    collapse = ",\n"
+  )
+  score_total <- paste(names(exprs), collapse = " + ")
 
-  locs_esc <- gsub("'", "''", locs)
-  state_clause <- if (length(states) > 0L)
-    sprintf("AND g.state IN (%s)", paste0("'", states, "'", collapse = ","))
-  else ""
+  gnaf_cols <- "g.address_detail_pid, g.address_label, g.building_name,
+    g.flat_type, g.flat_number, g.number_first, g.number_last,
+    g.street_name, g.street_type, g.street_suffix, g.locality_name,
+    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
 
-  # DuckDB UNNEST to create a row per query locality, then cross-join with the
-  # compact locality index (~3 000 rows for QLD vs the full address table).
   sql <- sprintf("
-    SELECT DISTINCT locs.q AS in_locality, g.postcode
-    FROM gnaf_locality_index g
-    CROSS JOIN (SELECT unnest([%s]) AS q) locs
-    WHERE jaro_winkler_similarity(g.locality_name, locs.q) >= 0.85
-    %s
-  ", paste0("'", locs_esc, "'", collapse = ","), state_clause)
+WITH joined AS (
+  SELECT
+    %s,
+    i.input_id,
+%s
+  FROM %s g
+  JOIN %s i ON %s
+  WHERE %s
+    AND (i.in_street_name IS NULL
+         OR jaro_winkler_similarity(g.street_name, i.in_street_name) >= 0.3)
+),
+scored AS (
+  SELECT *, %s AS total_score
+  FROM joined
+),
+ranked AS (
+  SELECT *,
+    ROW_NUMBER() OVER (PARTITION BY input_id ORDER BY total_score DESC) AS match_rank
+  FROM scored
+  WHERE total_score >= %d
+)
+SELECT * FROM ranked WHERE match_rank <= %d
+",
+    gnaf_cols, sel_scores,
+    gnaf_tbl, inputs_tbl, join_clause, pre_filter,
+    score_total,
+    min_score, max_results
+  )
 
-  loc_map <- tryCatch(
+  t0 <- proc.time()[["elapsed"]]
+  dt <- tryCatch(
     setDT(DBI::dbGetQuery(con, sql)),
     error = function(e) {
-      .cli_match_alert(
-        verbose,
-        "warning",
-        "Locality fallback query failed: {conditionMessage(e)}"
-      )
-      NULL
+      .cli_match_alert(verbose, "warning",
+        sprintf("%s query failed: %s", label, conditionMessage(e)))
+      data.table()
     }
   )
-  if (is.null(loc_map) || nrow(loc_map) == 0L) return(.empty_path_result())
+  elapsed <- proc.time()[["elapsed"]] - t0
 
-  # For each input expand to all candidate postcodes found for its locality
-  # loc_map: (in_locality, postcode)  ×  parsed_sub: (..., in_locality, ...)
-  i_expanded <- loc_map[parsed_sub, on = "in_locality", allow.cartesian = TRUE, nomatch = 0L]
-  # After join: in_locality (key), postcode (alt from loc_map), + all in_* from parsed_sub
-  if (nrow(i_expanded) == 0L) return(.empty_path_result())
-
-  # Fetch GNAF candidates for all discovered alt postcodes, targeted by number
-  alt_pcs  <- unique(i_expanded$postcode)
-  nfs_loc  <- unique(na.omit(i_expanded$in_number_first))
-  cands    <- .fetch_by_postcode(
-    con, alt_pcs, include_custom,
-    number_firsts = if (!anyNA(i_expanded$in_number_first)) nfs_loc else NULL
-  )
-  if (nrow(cands) == 0L) return(.empty_path_result())
-
-  # Tight join on (alt postcode, number_first)
-  # i_expanded already carries `postcode` (the alt postcode) as a regular column,
-  # which serves directly as the join key against cands$postcode.
-  i_tight <- i_expanded[!is.na(in_number_first)]
-
-  tight <- if (nrow(i_tight) > 0L) {
-    r <- cands[i_tight,
-               on = c("postcode", "number_first" = "in_number_first"),
-               allow.cartesian = TRUE, nomatch = 0L]
-    r[, in_number_first := number_first]  # restore consumed join key
-    r
-  } else cands[0L]
-
-  range_cands <- cands[!is.na(number_last)]
-  if (nrow(range_cands) > 0L && nrow(i_tight) > 0L) {
-    rj <- range_cands[i_tight, on = "postcode", allow.cartesian = TRUE, nomatch = 0L]
-    rj <- rj[in_number_first > number_first & in_number_first <= number_last]
-    if (nrow(rj) > 0L) tight <- rbindlist(list(tight, rj), fill = TRUE, use.names = TRUE)
+  if (verbose && nzchar(label)) {
+    .cli_match_detail(verbose, sprintf(
+      "%s: %s row(s) returned in %s.",
+      label,
+      cli::col_green(format(nrow(dt), big.mark = ",")),
+      cli::col_cyan(sprintf("%.2fs", elapsed))
+    ))
   }
 
-  tight_ids   <- if (nrow(tight) > 0L) unique(tight$input_id) else integer(0L)
-  i_unmatched <- i_expanded[!input_id %in% tight_ids]
+  if (nrow(dt) == 0L) return(.empty_path_result())
 
-  broad <- if (nrow(i_unmatched) > 0L) {
-    cands[i_unmatched, on = "postcode", allow.cartesian = TRUE, nomatch = 0L]
-  } else cands[0L]
+  diag_dt <- dt[, .(
+    candidate_count = NA_integer_,
+    retained_count  = .N,
+    best_score      = max(total_score)
+  ), by = input_id]
 
-  all_pairs <- rbindlist(list(tight, broad), fill = TRUE, use.names = TRUE)
-  if (nrow(all_pairs) == 0L) return(.empty_path_result())
-
-  all_pairs <- .score_pairs(all_pairs, weights = weights)
-  diagnostic_dt <- .build_path_diagnostics(all_pairs, min_score)
-  all_pairs <- all_pairs[total_score >= min_score]
-  if (nrow(all_pairs) == 0L) {
-    return(list(matches = NULL, diagnostics = diagnostic_dt))
-  }
-
-  setorder(all_pairs, input_id, -total_score)
-  list(
-    matches = all_pairs[, .SD[seq_len(min(.N, max_results))], by = input_id],
-    diagnostics = diagnostic_dt
-  )
+  list(matches = dt, diagnostics = diag_dt)
 }
 
-# ---------------------------------------------------------------------------
-# Existing internal helpers (unchanged)
-# ---------------------------------------------------------------------------
-
-.fetch_by_postcode <- function(con, postcodes, include_custom, number_firsts = NULL) {
-  pc_csv <- paste(postcodes, collapse = ",")
-  where <- if (!is.null(number_firsts) && length(number_firsts) > 0L) {
-    nf_csv <- paste(number_firsts, collapse = ",")
-    # Fetch only rows whose number_first matches a query number, plus all range
-    # records (number_last IS NOT NULL) which are needed for the range join.
-    # This avoids pulling every alias variant for every address in the postcode.
-    sprintf(
-      "postcode IN (%s) AND (number_first IN (%s) OR number_last IS NOT NULL)",
-      pc_csv, nf_csv
-    )
+# Combine results from gnaf_addresses + custom_addresses, re-rank.
+.combine_path_results <- function(r1, r2, max_results) {
+  matches <- rbindlist(
+    Filter(Negate(is.null), list(r1$matches, r2$matches)),
+    fill = TRUE, use.names = TRUE
+  )
+  if (nrow(matches) > 0L) {
+    setorder(matches, input_id, -total_score)
+    matches <- matches[, .SD[seq_len(min(.N, max_results))], by = input_id]
+    matches[, match_rank := seq_len(.N), by = input_id]
   } else {
-    sprintf("postcode IN (%s)", pc_csv)
+    matches <- NULL
   }
-  .fetch_sql(con, include_custom, where)
+
+  diags <- rbindlist(
+    Filter(Negate(is.null), list(r1$diagnostics, r2$diagnostics)),
+    fill = TRUE, use.names = TRUE
+  )
+  if (nrow(diags) > 0L) {
+    diags <- diags[, .(
+      candidate_count = sum(candidate_count, na.rm = TRUE),
+      retained_count  = sum(retained_count,  na.rm = TRUE),
+      best_score      = suppressWarnings(max(best_score, na.rm = TRUE))
+    ), by = input_id]
+    diags[!is.finite(best_score), best_score := NA_real_]
+  } else {
+    diags <- NULL
+  }
+
+  list(matches = matches, diagnostics = diags)
 }
 
-.fetch_by_state <- function(con, states, include_custom) {
-  st_csv <- paste0("'", states, "'", collapse = ",")
-  .fetch_sql(con, include_custom, sprintf("state IN (%s)", st_csv))
-}
+.match_postcode_duckdb <- function(con, inputs_dt, max_results, min_score,
+                                   weights, include_custom, verbose = FALSE) {
+  if (nrow(inputs_dt) == 0L) return(.empty_path_result())
 
-.fetch_sql <- function(con, include_custom, where_clause) {
-  sel <- "address_detail_pid, address_label, building_name,
-          flat_type, flat_number, number_first, number_last,
-          street_name, street_type, street_suffix, locality_name,
-          state, postcode, longitude, latitude, source, alias_type"
-  sql <- sprintf("SELECT %s FROM gnaf_addresses WHERE %s", sel, where_clause)
-  dt  <- setDT(DBI::dbGetQuery(con, sql))
+  duckdb::duckdb_register(con, "__gnafr_pc_inputs__", inputs_dt, overwrite = TRUE)
+  on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_pc_inputs__"), silent = TRUE))
+
+  join_on  <- "g.postcode = i.in_postcode"
+  # Check range bounds explicitly; "OR g.number_last IS NOT NULL" without bounds
+  # pulls every range record in the postcode regardless of the input number.
+  pre_filt <- paste(
+    "i.in_postcode IS NOT NULL AND (",
+    "  i.in_number_first IS NULL",
+    "  OR g.number_first = i.in_number_first",
+    "  OR (g.number_last IS NOT NULL",
+    "      AND g.number_first <= i.in_number_first",
+    "      AND i.in_number_first <= g.number_last)",
+    ")"
+  )
+
+  res <- .run_duckdb_score_query(
+    con, "__gnafr_pc_inputs__", "gnaf_addresses",
+    join_on, pre_filt, weights, max_results, min_score, verbose,
+    label = "gnaf_addresses (postcode)"
+  )
 
   if (include_custom && DBI::dbExistsTable(con, "custom_addresses")) {
-    sql2 <- sprintf("SELECT %s FROM custom_addresses WHERE %s", sel, where_clause)
-    dt   <- rbindlist(list(dt, setDT(DBI::dbGetQuery(con, sql2))), fill = TRUE)
+    r2 <- .run_duckdb_score_query(
+      con, "__gnafr_pc_inputs__", "custom_addresses",
+      join_on, pre_filt, weights, max_results, min_score, verbose,
+      label = "custom_addresses (postcode)"
+    )
+    res <- .combine_path_results(res, r2, max_results)
   }
-  dt
+
+  res
 }
 
-.prep_i <- function(parsed_sub) {
-  dt <- copy(parsed_sub)
-  dt[, postcode := in_postcode]
-  dt
-}
+.match_state_duckdb <- function(con, inputs_dt, max_results, min_score,
+                                weights, include_custom, verbose = FALSE) {
+  if (nrow(inputs_dt) == 0L) return(.empty_path_result())
 
-.match_postcode <- function(parsed_pc, cands, max_results, min_score,
-                            weights, diagnostics = FALSE) {
-  i_all <- .prep_i(parsed_pc)
+  duckdb::duckdb_register(con, "__gnafr_st_inputs__", inputs_dt, overwrite = TRUE)
+  on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_st_inputs__"), silent = TRUE))
 
-  i_tight <- i_all[!is.na(in_number_first)]
-  tight <- if (nrow(i_tight) > 0L) {
-    r <- cands[i_tight,
-               on = c("postcode", "number_first" = "in_number_first"),
-               allow.cartesian = TRUE, nomatch = 0L]
-    r[, in_number_first := number_first]
-    r
-  } else cands[0L]
+  join_on  <- "g.state = i.in_state"
+  pre_filt <- "i.in_state IS NOT NULL"
 
-  # Range join: catch GNAF range records (e.g. 110-120 MUSGRAVE) where
-  # in_number_first falls strictly inside the range [number_first, number_last].
-  # The strict > avoids re-adding records already captured by the exact tight join.
-  range_cands <- cands[!is.na(number_last)]
-  if (nrow(range_cands) > 0L && nrow(i_tight) > 0L) {
-    rj <- range_cands[i_tight, on = "postcode", allow.cartesian = TRUE, nomatch = 0L]
-    rj <- rj[in_number_first > number_first & in_number_first <= number_last]
-    if (nrow(rj) > 0L) tight <- rbindlist(list(tight, rj), fill = TRUE, use.names = TRUE)
-  }
-
-  tight_ids   <- if (nrow(tight) > 0L) unique(tight$input_id) else integer(0L)
-  i_unmatched <- i_all[!input_id %in% tight_ids]
-
-  broad <- if (nrow(i_unmatched) > 0L) {
-    cands[i_unmatched, on = "postcode", allow.cartesian = TRUE, nomatch = 0L]
-  } else cands[0L]
-
-  all_pairs <- rbindlist(list(tight, broad), fill = TRUE, use.names = TRUE)
-  if (nrow(all_pairs) == 0L) {
-    if (isTRUE(diagnostics)) return(.empty_path_result())
-    return(NULL)
-  }
-
-  all_pairs <- .score_pairs(all_pairs, weights = weights)
-  diagnostic_dt <- if (isTRUE(diagnostics)) .build_path_diagnostics(all_pairs, min_score) else NULL
-  all_pairs <- all_pairs[total_score >= min_score]
-  if (nrow(all_pairs) == 0L) {
-    if (isTRUE(diagnostics)) return(list(matches = NULL, diagnostics = diagnostic_dt))
-    return(NULL)
-  }
-
-  setorder(all_pairs, input_id, -total_score)
-  matched <- all_pairs[, .SD[seq_len(min(.N, max_results))], by = input_id]
-  if (isTRUE(diagnostics)) {
-    return(list(matches = matched, diagnostics = diagnostic_dt))
-  }
-  matched
-}
-
-.match_state <- function(con, no_pc, max_results, min_score, include_custom,
-                         weights, verbose = FALSE) {
-  states <- no_pc[!is.na(in_state), unique(in_state)]
-  if (length(states) == 0L) {
-    .cli_match_alert(verbose, "warning", "No postcode or state found; skipping these inputs.")
-    return(.empty_path_result())
-  }
-
-  cands <- .fetch_by_state(con, states, include_custom)
-  if (nrow(cands) == 0L) return(.empty_path_result())
-
-  i_all <- .prep_i(no_pc[!is.na(in_state)])
-  i_all[, state := in_state]
-
-  pairs <- cands[i_all, on = "state", allow.cartesian = TRUE, nomatch = 0L]
-  if (nrow(pairs) == 0L) return(.empty_path_result())
-
-  pairs <- .score_pairs(pairs, weights = weights)
-  diagnostic_dt <- .build_path_diagnostics(pairs, min_score)
-  pairs <- pairs[total_score >= min_score]
-  if (nrow(pairs) == 0L) return(list(matches = NULL, diagnostics = diagnostic_dt))
-
-  setorder(pairs, input_id, -total_score)
-  list(
-    matches = pairs[, .SD[seq_len(min(.N, max_results))], by = input_id],
-    diagnostics = diagnostic_dt
+  res <- .run_duckdb_score_query(
+    con, "__gnafr_st_inputs__", "gnaf_addresses",
+    join_on, pre_filt, weights, max_results, min_score, verbose,
+    label = "gnaf_addresses (state)"
   )
+
+  if (include_custom && DBI::dbExistsTable(con, "custom_addresses")) {
+    r2 <- .run_duckdb_score_query(
+      con, "__gnafr_st_inputs__", "custom_addresses",
+      join_on, pre_filt, weights, max_results, min_score, verbose,
+      label = "custom_addresses (state)"
+    )
+    res <- .combine_path_results(res, r2, max_results)
+  }
+
+  res
+}
+
+# Locality fallback: fuzzy-match suburb → discover correct postcodes → score.
+# The entire pipeline (locality lookup + join + scoring + ranking) runs in one
+# DuckDB query, so no cartesian product ever lands in R memory.
+.match_locality_duckdb <- function(con, inputs_dt, max_results, min_score,
+                                   weights, include_custom, verbose = FALSE) {
+  if (nrow(inputs_dt) == 0L || !any(!is.na(inputs_dt$in_locality)))
+    return(.empty_path_result())
+
+  duckdb::duckdb_register(con, "__gnafr_loc_inputs__", inputs_dt, overwrite = TRUE)
+  on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_loc_inputs__"), silent = TRUE))
+
+  exprs      <- .score_sql_exprs(weights)
+  sel_scores <- paste(
+    mapply(function(nm, ex) sprintf("    %s AS %s", ex, nm), names(exprs), exprs),
+    collapse = ",\n"
+  )
+  score_total <- paste(names(exprs), collapse = " + ")
+
+  gnaf_cols <- "g.address_detail_pid, g.address_label, g.building_name,
+    g.flat_type, g.flat_number, g.number_first, g.number_last,
+    g.street_name, g.street_type, g.street_suffix, g.locality_name,
+    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
+
+  make_sql <- function(gnaf_tbl) sprintf("
+WITH unique_locs AS (
+  -- Deduplicate localities before the JW scan so the cross-product is
+  -- (unique_localities × locality_index) not (all_inputs × locality_index).
+  SELECT DISTINCT in_locality, in_state
+  FROM __gnafr_loc_inputs__
+  WHERE in_locality IS NOT NULL
+),
+loc_map AS (
+  SELECT DISTINCT ul.in_locality, g.postcode
+  FROM gnaf_locality_index g
+  JOIN unique_locs ul
+    ON  jaro_winkler_similarity(g.locality_name, ul.in_locality) >= 0.85
+    AND (ul.in_state IS NULL OR g.state = ul.in_state)
+),
+expanded AS (
+  SELECT i.*, loc_map.postcode AS alt_postcode
+  FROM __gnafr_loc_inputs__ i
+  JOIN loc_map ON loc_map.in_locality = i.in_locality
+),
+joined AS (
+  SELECT
+    %s,
+    i.input_id,
+%s
+  FROM %s g
+  JOIN expanded i ON g.postcode = i.alt_postcode
+  WHERE (i.in_number_first IS NULL
+     OR g.number_first = i.in_number_first
+     OR (g.number_last IS NOT NULL
+         AND g.number_first <= i.in_number_first
+         AND i.in_number_first <= g.number_last))
+    AND (i.in_street_name IS NULL
+         OR jaro_winkler_similarity(g.street_name, i.in_street_name) >= 0.3)
+),
+scored AS (
+  SELECT *, %s AS total_score
+  FROM joined
+),
+ranked AS (
+  SELECT *,
+    ROW_NUMBER() OVER (PARTITION BY input_id ORDER BY total_score DESC) AS match_rank
+  FROM scored
+  WHERE total_score >= %d
+)
+SELECT * FROM ranked WHERE match_rank <= %d
+",
+    gnaf_cols, sel_scores, gnaf_tbl,
+    score_total,
+    min_score, max_results
+  )
+
+  t0 <- proc.time()[["elapsed"]]
+  dt <- tryCatch(
+    setDT(DBI::dbGetQuery(con, make_sql("gnaf_addresses"))),
+    error = function(e) {
+      .cli_match_alert(verbose, "warning",
+        sprintf("Locality fallback query failed: %s", conditionMessage(e)))
+      data.table()
+    }
+  )
+  elapsed <- proc.time()[["elapsed"]] - t0
+  if (verbose) .cli_match_detail(verbose, sprintf(
+    "gnaf_addresses (locality): %s row(s) in %s.",
+    cli::col_green(format(nrow(dt), big.mark = ",")),
+    cli::col_cyan(sprintf("%.2fs", elapsed))
+  ))
+
+  if (nrow(dt) == 0L) {
+    res <- .empty_path_result()
+  } else {
+    diag_dt <- dt[, .(candidate_count = NA_integer_, retained_count = .N,
+                       best_score = max(total_score)), by = input_id]
+    res <- list(matches = dt, diagnostics = diag_dt)
+  }
+
+  if (include_custom && DBI::dbExistsTable(con, "custom_addresses")) {
+    t0 <- proc.time()[["elapsed"]]
+    dt2 <- tryCatch(setDT(DBI::dbGetQuery(con, make_sql("custom_addresses"))),
+                    error = function(e) data.table())
+    elapsed2 <- proc.time()[["elapsed"]] - t0
+    if (verbose) .cli_match_detail(verbose, sprintf(
+      "custom_addresses (locality): %s row(s) in %s.",
+      cli::col_green(format(nrow(dt2), big.mark = ",")),
+      cli::col_cyan(sprintf("%.2fs", elapsed2))
+    ))
+    if (nrow(dt2) > 0L) {
+      diag2 <- dt2[, .(candidate_count = NA_integer_, retained_count = .N,
+                        best_score = max(total_score)), by = input_id]
+      res <- .combine_path_results(res, list(matches = dt2, diagnostics = diag2), max_results)
+    }
+  }
+
+  res
 }
 
 .empty_result <- function() {
@@ -561,15 +616,6 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
 
 .empty_path_result <- function() {
   list(matches = NULL, diagnostics = NULL)
-}
-
-.build_path_diagnostics <- function(scored_pairs, min_score) {
-  if (nrow(scored_pairs) == 0L) return(NULL)
-  cc <- scored_pairs[, .(candidate_count = .N), by = input_id]
-  rc <- scored_pairs[total_score >= min_score,
-                     .(retained_count = .N, best_score = max(total_score)),
-                     by = input_id]
-  cc[rc, on = "input_id"]
 }
 
 .standardise_input <- function(parsed) {
@@ -656,10 +702,33 @@ gnaf_match <- function(addresses, con, max_results = 3L, min_score = 40L,
   raw_upper <- raw_upper[nzchar(raw_upper) & !is.na(raw_upper)]
   if (length(raw_upper) == 0L) return(NULL)
 
-  raw_esc   <- gsub("'", "''", raw_upper)
-  in_clause <- paste0("'", raw_esc, "'", collapse = ",")
-  cands     <- .fetch_sql(con, include_custom,
-                          sprintf("UPPER(TRIM(address_label)) IN (%s)", in_clause))
+  # Register as a virtual table so DuckDB can hash-join instead of scanning
+  # with a 50k-item IN() literal (which kills the query planner at scale).
+  lkp <- data.table(lbl_key = raw_upper)
+  duckdb::duckdb_register(con, "__gnafr_exact_lkp__", lkp, overwrite = TRUE)
+  on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_exact_lkp__"), silent = TRUE))
+
+  sel <- "g.address_detail_pid, g.address_label, g.building_name,
+          g.flat_type, g.flat_number, g.number_first, g.number_last,
+          g.street_name, g.street_type, g.street_suffix, g.locality_name,
+          g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
+
+  sql <- sprintf(
+    "SELECT %s FROM gnaf_addresses g
+     JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key",
+    sel
+  )
+  cands <- setDT(DBI::dbGetQuery(con, sql))
+
+  if (include_custom && DBI::dbExistsTable(con, "custom_addresses")) {
+    sql2 <- sprintf(
+      "SELECT %s FROM custom_addresses g
+       JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key",
+      sel
+    )
+    cands <- rbindlist(list(cands, setDT(DBI::dbGetQuery(con, sql2))), fill = TRUE)
+  }
+
   if (nrow(cands) == 0L) return(NULL)
 
   cands[, lbl_key := toupper(trimws(address_label))]

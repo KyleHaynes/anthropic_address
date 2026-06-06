@@ -56,6 +56,48 @@
 #'   postcode, locality_name, street_name, street_type,
 #'   number_first, number_last, flat_number
 #'
+
+# Generates DuckDB SQL CASE expressions for each score component.
+# i / g are the table aliases for inputs and gnaf candidates respectively.
+.score_sql_exprs <- function(weights, i = "i", g = "g") {
+  w_pc  <- as.integer(round(weights$postcode))
+  w_sub <- weights$suburb
+  w_sn  <- weights$street_name
+  w_st  <- weights$street_type
+  w_num <- weights$number
+  w_fl  <- weights$flat
+
+  list(
+    score_postcode = sprintf(
+      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d ELSE 0 END",
+      i, g, i, g, w_pc
+    ),
+    score_suburb = sprintf(
+      "CASE WHEN %s.in_locality IS NOT NULL AND %s.locality_name IS NOT NULL THEN CAST(ROUND(%g * jaro_winkler_similarity(%s.in_locality, %s.locality_name)) AS INTEGER) ELSE 0 END",
+      i, g, w_sub, i, g
+    ),
+    score_street_name = sprintf(
+      "CASE WHEN %s.in_street_name IS NOT NULL AND %s.street_name IS NOT NULL THEN CAST(ROUND(%g * jaro_winkler_similarity(%s.in_street_name, %s.street_name)) AS INTEGER) ELSE 0 END",
+      i, g, w_sn, i, g
+    ),
+    score_street_type = sprintf(
+      "CASE WHEN (%s.in_street_type IS NULL AND %s.street_type IS NULL) OR %s.in_street_type = %s.street_type THEN %d WHEN (%s.in_street_type IS NULL) != (%s.street_type IS NULL) THEN %d ELSE %d END",
+      i, g, i, g, as.integer(round(w_st)),
+      i, g, as.integer(round(w_st * 0.5)),
+      as.integer(round(w_st * 0.4))
+    ),
+    score_number = sprintf(
+      "CASE WHEN %s.in_number_first IS NULL THEN 0 WHEN %s.in_number_first = %s.number_first THEN %d WHEN %s.number_last IS NOT NULL AND %s.in_number_first >= %s.number_first AND %s.in_number_first <= %s.number_last THEN %d ELSE 0 END",
+      i, i, g, as.integer(round(w_num)),
+      g, i, g, i, g, as.integer(round(w_num * 0.7))
+    ),
+    score_flat = sprintf(
+      "CASE WHEN (TRIM(COALESCE(%s.in_flat_number, '')) = '' AND TRIM(COALESCE(%s.flat_number, '')) = '') OR (TRIM(COALESCE(%s.in_flat_number, '')) != '' AND TRIM(COALESCE(%s.in_flat_number, '')) = TRIM(COALESCE(%s.flat_number, ''))) THEN %d ELSE 0 END",
+      i, g, i, i, g, as.integer(round(w_fl))
+    )
+  )
+}
+
 #' @param pairs data.table of candidate pairs (modified in-place).
 #' @param weights Named list of scoring weights.
 #' @return The same data.table with added columns \code{score_*} and
