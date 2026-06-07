@@ -149,7 +149,9 @@ test_that("match_address is working as expected (expected results and reproducib
         "6020 6 PARKLANDS ST BRISBANE CITY 4002",
         "6020/6 PARKLANDS BVD BRISBANE CITY 4000",
         "6020 6 PARKLAND BVD BRISBANE CITY 4000",
-        "UNIT 6020/6 PARKLAND BVD BRISBANE CITY 4000"
+        "UNIT 6020/6 PARKLAND BVD BRISBANE CITY 4000",
+        # New
+        "4 CRESCENT RD, KELVIN GROVE QLD 4059"
     ), con = con, max_results = 1, verbose = FALSE)
 
     test_vec <- test$address_label == c(
@@ -193,7 +195,9 @@ test_that("match_address is working as expected (expected results and reproducib
         "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
         "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
         "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
-        "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000"
+        "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        # New
+        "4 CRESCENT RD, KELVIN GROVE QLD 4059"
     )
   expect_true(all(test_vec))
 })
