@@ -150,6 +150,90 @@ gnaf_rebuild_locality_index <- function(con) {
   invisible(n)
 }
 
+#' Build street-level aliases in the GNAF database
+#'
+#' Extracts every unique combination of \code{(street_name, street_type,
+#' street_suffix, locality_name, state, postcode)} from the GNAF core data,
+#' constructs a number-free address label for each, and inserts the results
+#' back into \code{gnaf_addresses} with \code{alias_type = "street_only"}.
+#'
+#' Street aliases allow \code{gnaf_match} to return a match for inputs that
+#' carry no street number, or whose number is absent from GNAF.  Numbered
+#' inputs are never matched against street-only records (the pre-filter in
+#' each match path requires \code{number_first} to be NULL on the input side).
+#'
+#' The function is idempotent: PIDs are derived from an MD5 of the key fields,
+#' so re-running without \code{overwrite = TRUE} silently skips existing rows.
+#'
+#' @param con DBI connection from \code{gnaf_connect}.
+#' @param overwrite If \code{TRUE}, removes all existing \code{street_only}
+#'   aliases before rebuilding.  Default \code{FALSE}.
+#' @return Invisibly, the number of street-only aliases now in the database.
+#' @export
+gnaf_build_street_aliases <- function(con, overwrite = FALSE) {
+  if (isTRUE(overwrite)) {
+    DBI::dbExecute(con,
+      "DELETE FROM gnaf_addresses WHERE alias_type = 'street_only'"
+    )
+    message("Removed existing street_only aliases.")
+  }
+
+  DBI::dbExecute(con, "
+    INSERT INTO gnaf_addresses (
+      address_detail_pid,
+      address_label,
+      address_site_name, building_name,
+      flat_type, flat_number,
+      level_type, level_number,
+      number_first, number_last,
+      lot_number,
+      street_name, street_type, street_suffix,
+      locality_name, state, postcode,
+      longitude, latitude,
+      source, alias_type
+    )
+    SELECT
+      'SO_' || md5(
+        COALESCE(street_name,  '')  || '|' ||
+        COALESCE(street_type,  '')  || '|' ||
+        COALESCE(street_suffix,'')  || '|' ||
+        COALESCE(locality_name,'')  || '|' ||
+        COALESCE(state,        '')  || '|' ||
+        COALESCE(CAST(postcode AS VARCHAR), '')
+      )                                                                AS address_detail_pid,
+      CONCAT_WS(' ', street_name, street_type, street_suffix) || ', ' ||
+      CONCAT_WS(' ', locality_name, state, CAST(postcode AS VARCHAR)) AS address_label,
+      NULL, NULL,
+      NULL, NULL,
+      NULL, NULL,
+      NULL, NULL,
+      NULL,
+      street_name, street_type, street_suffix,
+      locality_name, state, postcode,
+      NULL, NULL,
+      'gnaf', 'street_only'
+    FROM (
+      SELECT DISTINCT
+        street_name, street_type, street_suffix,
+        locality_name, state, postcode
+      FROM gnaf_addresses
+      WHERE source       = 'gnaf'
+        AND alias_type  IS NULL
+        AND street_name  IS NOT NULL
+        AND locality_name IS NOT NULL
+        AND postcode     IS NOT NULL
+        AND state        IS NOT NULL
+    ) u
+    ON CONFLICT DO NOTHING
+  ")
+
+  n <- DBI::dbGetQuery(con,
+    "SELECT COUNT(*) AS n FROM gnaf_addresses WHERE alias_type = 'street_only'"
+  )$n
+  message(sprintf("Street-only aliases in database: %s", format(n, big.mark = ",")))
+  invisible(n)
+}
+
 #' Report row counts for gnafr tables
 #'
 #' @param con DBI connection.

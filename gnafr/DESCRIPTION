@@ -17,7 +17,12 @@ Imports:
     data.table (>= 1.14.0),
     DBI (>= 1.1.0),
     duckdb (>= 0.9.0),
-    stringdist (>= 0.9.0)
+    stringdist (>= 0.9.0),
+    sf,
+    ggplot2,
+    viridisLite,
+    leaflet,
+    leaflet.extras
 Suggests:
     reactable,
     shiny,

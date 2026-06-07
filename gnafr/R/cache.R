@@ -266,7 +266,7 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   format(ts, "%Y-%m-%d %H:%M:%S")
 }
 
-.cache_lookup <- function(con, standardised_vec, include_custom) {
+.cache_lookup <- function(con, standardised_vec, include_custom, alias_types = NULL) {
   standardised_vec <- standardised_vec[!is.na(standardised_vec) & nzchar(standardised_vec)]
   if (length(standardised_vec) == 0L) return(data.table())
 
@@ -274,7 +274,9 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   duckdb::duckdb_register(con, "__gnafr_cache_lkp__", lkp, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_cache_lkp__"), silent = TRUE))
 
-  addr_src <- .cache_address_source_sql(con, include_custom = include_custom)
+  addr_src    <- .cache_address_source_sql(con, include_custom = include_custom)
+  alias_sql   <- .alias_type_sql(alias_types)
+  alias_where <- if (!is.null(alias_sql)) sprintf("\n    WHERE %s", alias_sql) else ""
 
   setDT(DBI::dbGetQuery(con, sprintf("
     SELECT c.input_standardised,
@@ -284,8 +286,8 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
            g.*
     FROM __gnafr_cache_lkp__ l
     JOIN gnaf_match_cache c ON c.input_standardised = l.input_standardised
-    JOIN %s g ON g.address_detail_pid = c.address_detail_pid
-  ", addr_src)))
+    JOIN %s g ON g.address_detail_pid = c.address_detail_pid%s
+  ", addr_src, alias_where)))
 }
 
 .cache_store <- function(con, result_dt, threshold) {

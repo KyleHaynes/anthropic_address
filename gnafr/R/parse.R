@@ -24,7 +24,7 @@ address_parse <- function(addresses) {
   setcolorder(dt, c("input_id", "input_raw",
                     "in_postcode", "in_state", "in_locality",
                     "in_street_name", "in_street_type", "in_street_suffix",
-                    "in_number_first", "in_number_last",
+                    "in_number_first", "in_number_last", "in_number_suffix",
                     "in_flat_type", "in_flat_number", "in_building_name"))
   dt
 }
@@ -53,7 +53,17 @@ address_parse <- function(addresses) {
   b_m  <- regmatches(normalized, regexec(b_re, normalized, perl = TRUE))
   has_b <- lengths(b_m) == 3L & !has_a
 
-  has_tail <- has_a | has_b
+  # Order C: ...STATE$ (state present, no postcode)
+  c_re <- paste0("(\\b", st_abbr, "\\b)\\s*$")
+  c_m  <- regmatches(normalized, regexec(c_re, normalized, perl = TRUE))
+  has_c <- lengths(c_m) == 2L & !has_a & !has_b
+
+  # Order D: ...POSTCODE$ (postcode present, no state)
+  d_re <- "(\\b\\d{4}\\b)\\s*$"
+  d_m  <- regmatches(normalized, regexec(d_re, normalized, perl = TRUE))
+  has_d <- lengths(d_m) == 2L & !has_a & !has_b & !has_c
+
+  has_tail <- has_a | has_b | has_c | has_d
   in_state    <- rep(NA_character_, n)
   in_postcode <- rep(NA_integer_,   n)
   if (any(has_a)) {
@@ -64,10 +74,18 @@ address_parse <- function(addresses) {
     in_postcode[has_b] <- as.integer(vapply(b_m[has_b], `[[`, character(1), 2L))
     in_state[has_b]    <- vapply(b_m[has_b], `[[`, character(1), 3L)
   }
+  if (any(has_c)) {
+    in_state[has_c] <- vapply(c_m[has_c], `[[`, character(1), 2L)
+  }
+  if (any(has_d)) {
+    in_postcode[has_d] <- as.integer(vapply(d_m[has_d], `[[`, character(1), 2L))
+  }
 
   work <- normalized
   work[has_a] <- trimws(sub(a_re, "", work[has_a], perl = TRUE))
   work[has_b] <- trimws(sub(b_re, "", work[has_b], perl = TRUE))
+  work[has_c] <- trimws(sub(c_re, "", work[has_c], perl = TRUE))
+  work[has_d] <- trimws(sub(d_re, "", work[has_d], perl = TRUE))
 
   # ------------------------------------------------------------------
   # Stage 2: rightmost street type in the remaining string.
@@ -122,12 +140,13 @@ address_parse <- function(addresses) {
   in_street_name   <- rep(NA_character_, n)
   in_number_first  <- rep(NA_integer_,   n)
   in_number_last   <- rep(NA_integer_,   n)
+  in_number_suffix <- rep(NA_character_, n)
   in_flat_type     <- rep(NA_character_, n)
   in_flat_number   <- rep(NA_character_, n)
   in_building_name <- rep(NA_character_, n)
 
-  # 4a: slash notation
-  slash_m  <- regmatches(bst, regexec("^(.*?)(\\d+)/(\\d+(?:-\\d+)?)\\s*(.*)$", bst, perl = TRUE))
+  # 4a: slash notation (unit/flat numbers may carry trailing alpha e.g. 3A/190B)
+  slash_m  <- regmatches(bst, regexec("^(.*?)(\\d+[A-Z]?)/(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s*(.*)$", bst, perl = TRUE))
   is_slash <- lengths(slash_m) == 6L & has_st
   if (any(is_slash)) {
     bld <- vapply(slash_m[is_slash], `[[`, character(1), 2L)
@@ -137,9 +156,11 @@ address_parse <- function(addresses) {
     num_s <- vapply(slash_m[is_slash], `[[`, character(1), 4L)
     in_street_name[is_slash]  <- vapply(slash_m[is_slash], `[[`, character(1), 5L)
     has_r <- grepl("-", num_s, fixed = TRUE)
-    in_number_first[is_slash] <- as.integer(sub("-.*$", "", num_s))
+    in_number_first[is_slash] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_s)))
+    sfx_a <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_s))
+    in_number_suffix[is_slash] <- ifelse(nzchar(sfx_a), sfx_a, NA_character_)
     tmp <- rep(NA_integer_, sum(is_slash))
-    tmp[has_r] <- as.integer(sub("^.*-", "", num_s[has_r]))
+    tmp[has_r] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_s[has_r])))
     in_number_last[is_slash] <- tmp
   }
 
@@ -152,15 +173,17 @@ address_parse <- function(addresses) {
     in_flat_number[is_flat] <- vapply(flat_m[is_flat], `[[`, character(1), 3L)
     ft_len <- vapply(flat_m[is_flat], function(m) nchar(m[[1L]]), integer(1))
     rest   <- trimws(substr(bst[is_flat], ft_len + 1L, nchar(bst[is_flat])))
-    # parse "NUM[-NUM] STREETNAME" from rest
-    sm2 <- regmatches(rest, regexec("^(\\d+(?:-\\d+)?)\\s+(.+)$", rest, perl = TRUE))
+    # parse "NUM[-NUM] STREETNAME" from rest (number may have trailing alpha e.g. 190A)
+    sm2 <- regmatches(rest, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", rest, perl = TRUE))
     ok2 <- lengths(sm2) == 3L
-    in_number_first[is_flat][ok2]  <- as.integer(sub("-.*$", "", vapply(sm2[ok2], `[[`, character(1), 2L)))
+    num2_raw <- vapply(sm2[ok2], `[[`, character(1), 2L)
+    in_number_first[is_flat][ok2]  <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num2_raw)))
+    sfx_b <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num2_raw))
+    in_number_suffix[is_flat][ok2] <- ifelse(nzchar(sfx_b), sfx_b, NA_character_)
     in_number_last[is_flat][ok2]   <- {
-      ns2 <- vapply(sm2[ok2], `[[`, character(1), 2L)
-      hr2 <- grepl("-", ns2, fixed = TRUE)
+      hr2 <- grepl("-", num2_raw, fixed = TRUE)
       tmp2 <- rep(NA_integer_, sum(ok2))
-      tmp2[hr2] <- as.integer(sub("^.*-", "", ns2[hr2]))
+      tmp2[hr2] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num2_raw[hr2])))
       tmp2
     }
     in_street_name[is_flat][ok2]  <- vapply(sm2[ok2], `[[`, character(1), 3L)
@@ -170,13 +193,14 @@ address_parse <- function(addresses) {
   # 4c: simple "NUM[-NUM] STREETNAME" — with implied-flat sub-case:
   #   "NUM1 NUM2[-NUM3] STREETNAME" where NUM1 is unit and NUM2 is street number.
   #   (.parse_before detects this; we replicate it vectorized to avoid fallback overhead.)
+  #   Numbers may carry a trailing alpha suffix (e.g. 190A, 10B); strip it before as.integer().
   remaining_c <- !is_slash & !is_flat & has_st
-  simple_m <- regmatches(bst, regexec("^(\\d+(?:-\\d+)?)\\s+(.+)$", bst, perl = TRUE))
+  simple_m <- regmatches(bst, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", bst, perl = TRUE))
   is_simple <- lengths(simple_m) == 3L & remaining_c
   if (any(is_simple)) {
     num_s  <- vapply(simple_m[is_simple], `[[`, character(1), 2L)
     rest_s <- vapply(simple_m[is_simple], `[[`, character(1), 3L)
-    impl_m <- regmatches(rest_s, regexec("^(\\d+(?:-\\d+)?)\\s+(.+)$", rest_s, perl = TRUE))
+    impl_m <- regmatches(rest_s, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", rest_s, perl = TRUE))
     is_impl <- lengths(impl_m) == 3L
 
     if (any(is_impl)) {
@@ -185,9 +209,11 @@ address_parse <- function(addresses) {
       in_flat_number[idx] <- num_s[is_impl]
       num_s2 <- vapply(impl_m[is_impl], `[[`, character(1), 2L)
       has_r2 <- grepl("-", num_s2, fixed = TRUE)
-      in_number_first[idx] <- as.integer(sub("-.*$", "", num_s2))
+      in_number_first[idx] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_s2)))
+      sfx_c_impl <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_s2))
+      in_number_suffix[idx] <- ifelse(nzchar(sfx_c_impl), sfx_c_impl, NA_character_)
       tmp2 <- rep(NA_integer_, sum(is_impl))
-      tmp2[has_r2] <- as.integer(sub("^.*-", "", num_s2[has_r2]))
+      tmp2[has_r2] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_s2[has_r2])))
       in_number_last[idx]  <- tmp2
       in_street_name[idx]  <- vapply(impl_m[is_impl], `[[`, character(1), 3L)
     }
@@ -198,9 +224,11 @@ address_parse <- function(addresses) {
       num_s_ni <- num_s[ni]
       in_street_name[idx]  <- rest_s[ni]
       has_r <- grepl("-", num_s_ni, fixed = TRUE)
-      in_number_first[idx] <- as.integer(sub("-.*$", "", num_s_ni))
+      in_number_first[idx] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_s_ni)))
+      sfx_c_ni <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_s_ni))
+      in_number_suffix[idx] <- ifelse(nzchar(sfx_c_ni), sfx_c_ni, NA_character_)
       tmp <- rep(NA_integer_, sum(ni))
-      tmp[has_r] <- as.integer(sub("^.*-", "", num_s_ni[has_r]))
+      tmp[has_r] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_s_ni[has_r])))
       in_number_last[idx] <- tmp
     }
   }
@@ -222,6 +250,7 @@ address_parse <- function(addresses) {
     in_street_suffix[fallback] <- vapply(fb, `[[`, character(1), "in_street_suffix")
     in_number_first[fallback]  <- vapply(fb, `[[`, integer(1),   "in_number_first")
     in_number_last[fallback]   <- vapply(fb, `[[`, integer(1),   "in_number_last")
+    in_number_suffix[fallback] <- vapply(fb, `[[`, character(1), "in_number_suffix")
     in_flat_type[fallback]     <- vapply(fb, `[[`, character(1), "in_flat_type")
     in_flat_number[fallback]   <- vapply(fb, `[[`, character(1), "in_flat_number")
     in_building_name[fallback] <- vapply(fb, `[[`, character(1), "in_building_name")
@@ -238,6 +267,7 @@ address_parse <- function(addresses) {
     in_street_suffix = in_street_suffix,
     in_number_first  = in_number_first,
     in_number_last   = in_number_last,
+    in_number_suffix = in_number_suffix,
     in_flat_type     = in_flat_type,
     in_flat_number   = in_flat_number,
     in_building_name = in_building_name
@@ -257,6 +287,7 @@ address_parse <- function(addresses) {
     in_street_suffix = NA_character_,
     in_number_first  = NA_integer_,
     in_number_last   = NA_integer_,
+    in_number_suffix = NA_character_,
     in_flat_type     = NA_character_,
     in_flat_number   = NA_character_,
     in_building_name = NA_character_
@@ -315,11 +346,12 @@ address_parse <- function(addresses) {
 
   # 5. Parse "before" section: [building] [flat] [number] street_name
   bp <- .parse_before(before, ft_re, ft_map)
-  out$in_street_name  <- bp$street_name
-  out$in_number_first <- bp$number_first
-  out$in_number_last  <- bp$number_last
-  out$in_flat_type    <- bp$flat_type
-  out$in_flat_number  <- bp$flat_number
+  out$in_street_name   <- bp$street_name
+  out$in_number_first  <- bp$number_first
+  out$in_number_last   <- bp$number_last
+  out$in_number_suffix <- bp$number_suffix
+  out$in_flat_type     <- bp$flat_type
+  out$in_flat_number   <- bp$flat_number
   out$in_building_name <- bp$building_name
 
   out
@@ -332,11 +364,12 @@ address_parse <- function(addresses) {
 # ---------------------------------------------------------------------------
 .parse_before <- function(s, ft_re, ft_map) {
   out <- list(
-    street_name  = NA_character_,
-    number_first = NA_integer_,
-    number_last  = NA_integer_,
-    flat_type    = NA_character_,
-    flat_number  = NA_character_,
+    street_name   = NA_character_,
+    number_first  = NA_integer_,
+    number_last   = NA_integer_,
+    number_suffix = NA_character_,
+    flat_type     = NA_character_,
+    flat_number   = NA_character_,
     building_name = NA_character_
   )
 
@@ -344,7 +377,8 @@ address_parse <- function(addresses) {
   if (!nzchar(s)) return(out)
 
   # Case A: slash notation anywhere — "building 110/120 street" or "110/120 street"
-  m_slash <- regexpr("(\\d+)/(\\d+(?:-\\d+)?)", s, perl = TRUE)
+  # Unit and street numbers may have trailing alpha (e.g. 3A/190B).
+  m_slash <- regexpr("(\\d+[A-Z]?)/(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)", s, perl = TRUE)
   if (m_slash > 0L) {
     slash_end <- m_slash + attr(m_slash, "match.length") - 1L
     slash_str <- substr(s, m_slash, slash_end)
@@ -359,8 +393,10 @@ address_parse <- function(addresses) {
     out$flat_number <- parts[1L]
 
     num_parts <- strsplit(parts[2L], "-", fixed = TRUE)[[1L]]
-    out$number_first <- as.integer(num_parts[1L])
-    if (length(num_parts) > 1L) out$number_last <- as.integer(num_parts[2L])
+    out$number_first <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
+    sfx_sl <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
+    out$number_suffix <- if (nzchar(sfx_sl)) sfx_sl else NA_character_
+    if (length(num_parts) > 1L) out$number_last <- as.integer(sub("[A-Z]+$", "", num_parts[2L]))
 
     out$street_name <- trimws(substr(s, slash_end + 1L, nchar(s)))
     if (!nzchar(out$street_name)) out$street_name <- NA_character_
@@ -386,8 +422,8 @@ address_parse <- function(addresses) {
   }
 
   # Remaining: [building_name] number[-number] street_name
-  # Find first numeric token
-  m_num <- regexpr("(\\d+(?:-\\d+)?)\\s+", s, perl = TRUE)
+  # Numbers may carry a trailing alpha suffix (e.g. 190A); strip before as.integer().
+  m_num <- regexpr("(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+", s, perl = TRUE)
   if (m_num > 0L) {
     num_end <- m_num + attr(m_num, "match.length") - 1L
 
@@ -403,7 +439,7 @@ address_parse <- function(addresses) {
     # "10 120 MUSGRAVE" and "10 110-120 MUSGRAVE" follow Australian convention where
     # the first bare number is the unit/flat and the second is the street number.
     m_num2 <- if (is.na(out$flat_number) && nzchar(rest))
-      regexpr("^(\\d+(?:-\\d+)?)\\s+", rest, perl = TRUE)
+      regexpr("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+", rest, perl = TRUE)
     else -1L
 
     if (m_num2 > 0L) {
@@ -413,12 +449,16 @@ address_parse <- function(addresses) {
       num2_str  <- trimws(substr(rest, 1L, num2_end))
       rest      <- trimws(substr(rest, num2_end + 1L, nchar(rest)))
       num_parts <- strsplit(num2_str, "-", fixed = TRUE)[[1L]]
-      out$number_first <- as.integer(num_parts[1L])
-      out$number_last  <- if (length(num_parts) > 1L) as.integer(num_parts[2L]) else NA_integer_
+      out$number_first  <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
+      sfx <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
+      out$number_suffix <- if (nzchar(sfx)) sfx else NA_character_
+      out$number_last   <- if (length(num_parts) > 1L) as.integer(sub("[A-Z]+$", "", num_parts[2L])) else NA_integer_
     } else {
       num_parts <- strsplit(num_str, "-", fixed = TRUE)[[1L]]
-      out$number_first <- as.integer(num_parts[1L])
-      if (length(num_parts) > 1L) out$number_last <- as.integer(num_parts[2L])
+      out$number_first <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
+      sfx <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
+      out$number_suffix <- if (nzchar(sfx)) sfx else NA_character_
+      if (length(num_parts) > 1L) out$number_last <- as.integer(sub("[A-Z]+$", "", num_parts[2L]))
     }
 
     out$street_name <- if (nzchar(rest)) rest else NA_character_

@@ -46,3 +46,28 @@
 .normalize_str <- function(x) {
   trimws(gsub("\\s+", " ", x))
 }
+
+# Convert an alias_types argument to a SQL WHERE fragment.
+# NULL  → NULL (caller skips the filter entirely)
+# NA    → g.alias_type IS NULL
+# "foo" → g.alias_type IN ('foo')
+# c(NA, "foo") → (g.alias_type IS NULL OR g.alias_type IN ('foo'))
+# character(0) → 1 = 0  (match nothing — caller should guard against this)
+.alias_type_sql <- function(alias_types, alias = "g") {
+  if (is.null(alias_types)) return(NULL)
+
+  has_na <- any(is.na(alias_types))
+  non_na <- alias_types[!is.na(alias_types)]
+
+  parts <- character(0L)
+  if (has_na)
+    parts <- c(parts, sprintf("%s.alias_type IS NULL", alias))
+  if (length(non_na) > 0L) {
+    quoted <- paste0("'", gsub("'", "''", non_na), "'", collapse = ", ")
+    parts  <- c(parts, sprintf("%s.alias_type IN (%s)", alias, quoted))
+  }
+
+  if (length(parts) == 0L) return("1 = 0")
+  if (length(parts) == 1L) return(parts)
+  sprintf("(%s)", paste(parts, collapse = " OR "))
+}

@@ -131,21 +131,21 @@ test_that("wrong St vs Dr: correct Drive address beats unrelated Street", {
 test_that("exact number match scores full weight", {
   p <- make_pair("ROAD", "ROAD", in_number_first = 42L, number_first = 42L)
   out <- gnafr:::.score_pairs(p)
-  expect_equal(out$score_number, 12L)
+  expect_equal(out$score_number, 10L)
 })
 
 test_that("number in range scores 70 pct", {
   p <- make_pair("ROAD", "ROAD",
                  in_number_first = 15L, number_first = 10L, number_last = 20L)
   out <- gnafr:::.score_pairs(p)
-  expect_equal(out$score_number, 8L)  # round(12 * 0.7) = 8
+  expect_equal(out$score_number, 7L)  # round(10 * 0.7) = 7
 })
 
 test_that("flat number match scores full weight; mismatch scores 0", {
   p_match <- make_pair("ROAD", "ROAD",
                        in_flat_number = "3", flat_number = "3")
   out_match <- gnafr:::.score_pairs(p_match)
-  expect_equal(out_match$score_flat, 8L)
+  expect_equal(out_match$score_flat, 5L)
 
   p_miss <- make_pair("ROAD", "ROAD",
                       in_flat_number = "3", flat_number = "7")
@@ -153,10 +153,15 @@ test_that("flat number match scores full weight; mismatch scores 0", {
   expect_equal(out_miss$score_flat, 0L)
 })
 
-test_that("postcode mismatch scores 0 for postcode component", {
-  p <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4001L)
-  out <- gnafr:::.score_pairs(p)
-  expect_equal(out$score_postcode, 0L)
+test_that("postcode +-1 scores 70 pct; >+-2 scores 0", {
+  p1 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4001L)
+  expect_equal(gnafr:::.score_pairs(p1)$score_postcode, 14L)  # round(20 * 0.7)
+
+  p2 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4002L)
+  expect_equal(gnafr:::.score_pairs(p2)$score_postcode, 8L)   # round(20 * 0.4)
+
+  p3 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4005L)
+  expect_equal(gnafr:::.score_pairs(p3)$score_postcode, 0L)
 })
 
 test_that("total_score is sum of component scores", {

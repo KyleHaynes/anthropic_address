@@ -169,3 +169,38 @@ test_that("empty string gives all-NA row", {
   expect_true(is.na(r$in_postcode))
   expect_true(is.na(r$in_street_name))
 })
+
+# ---- Alpha-suffixed street numbers (e.g. 190A, 10B) -----------------------
+
+test_that("number with trailing alpha extracts integer and suffix", {
+  r <- address_parse("190A MUSGRAVE RD RED HILL QLD 4059")
+  expect_equal(r$in_number_first,  190L)
+  expect_equal(r$in_number_suffix, "A")
+  expect_equal(r$in_street_name,   "MUSGRAVE")
+  expect_equal(r$in_street_type,   "ROAD")
+  expect_equal(r$in_locality,      "RED HILL")
+  expect_equal(r$in_postcode,      4059L)
+  expect_equal(r$in_state,         "QLD")
+})
+
+test_that("lowercase alpha suffix is normalised before extraction", {
+  r <- address_parse("190a MUSGRAVE RD RED HILL QLD 4059")
+  expect_equal(r$in_number_first,  190L)
+  expect_equal(r$in_number_suffix, "A")
+  expect_equal(r$in_street_name,   "MUSGRAVE")
+})
+
+test_that("plain number has NA suffix", {
+  r <- address_parse("190 MUSGRAVE RD RED HILL QLD 4059")
+  expect_equal(r$in_number_first, 190L)
+  expect_true(is.na(r$in_number_suffix))
+})
+
+test_that("flat + alpha-suffixed street number parses all fields", {
+  r <- address_parse("UNIT 3 190A MUSGRAVE RD RED HILL QLD 4059")
+  expect_equal(r$in_flat_type,     "UNIT")
+  expect_equal(r$in_flat_number,   "3")
+  expect_equal(r$in_number_first,  190L)
+  expect_equal(r$in_number_suffix, "A")
+  expect_equal(r$in_street_name,   "MUSGRAVE")
+})

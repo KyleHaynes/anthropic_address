@@ -16,7 +16,7 @@ saveRDS(simulated_inputs, "simulated_inputs.rds")
 
 simulated_inputs <- readRDS("simulated_inputs.rds")
 result_dt <- gnaf_match(
-        c(simulated_inputs$simulated_address[1:100000]),
+        c(simulated_inputs$simulated_address[200000:300000]),
         con,
         max_results = 1L,
         min_score = 70L,
@@ -25,7 +25,11 @@ result_dt <- gnaf_match(
 )
 
 simulated_inputs[, no_match := fifelse(simulated_address %in% result_dt[(!matched)]$input_raw, T, F)]
-simulated_inputs[(no_match)]
+simulated_inputs[(no_match), .(simulated_address, ADDRESS_LABEL, perturbations)]
+
+gnaf_match(c("43 THE PINNACLE, WORONGARY QLD 4213", ""), con)
+
+
 
 # Test "perfect" addresses
 result_dt <- gnaf_match(
@@ -75,13 +79,9 @@ test <- gnaf_match(c(
     "U6019 6 PARKLAND BVD BRISBANE QLD 4001"
 ), con = con, max_results = 1)
 
-test$address_label == c(
-    "25 SAINT JAMES COURT, EAGLE HEIGHTS QLD 4272",
-    "25 SAINT JAMES COURT, EAGLE HEIGHTS QLD 4272",
-    "110-120 MUSGRAVE RD, RED HILL QLD 4059",
-    "110-120 MUSGRAVE RD, RED HILL QLD 4059",
-    "110-120 MUSGRAVE ROAD, PADDINGTON QLD 4059",
-    "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000",
-    "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000",
-    "UNIT 6019 6 PARKLAND BOULEVARD, BRISBANE QLD 4000"
-)
+# Fall back on street type. Kinda not ideal to pass both arguments
+gnaf_match("190 MUSGRAVE RD RED HILL 4059 QLD", con, alias_types = c("street_only"), street_only_fallback = T)
+gnaf_match("190a MUSGRAVE RD RED HILL 4059 QLD", con, alias_types = c(NA), street_only_fallback = T)
+
+
+d[ADDRESS_LABEL %plike% "\\d\\D "]

@@ -88,10 +88,30 @@
       i, g, as.integer(round(w_st * 0.5)),
       as.integer(round(w_st * 0.4))
     ),
-    score_number = sprintf(
-      "CASE WHEN %s.in_number_first IS NULL THEN 0 WHEN %s.in_number_first = %s.number_first THEN %d WHEN %s.number_last IS NOT NULL AND %s.in_number_first >= %s.number_first AND %s.in_number_first <= %s.number_last THEN %d ELSE 0 END",
-      i, i, g, as.integer(round(w_num)),
-      g, i, g, i, g, as.integer(round(w_num * 0.7))
+    score_number = sprintf(paste0(
+      "CASE",
+      " WHEN %s.in_number_first IS NULL THEN 0",
+      " WHEN %s.in_number_suffix IS NOT NULL",
+      "      AND (%s.in_number_first = %s.number_first OR %s.number_first IS NULL)",
+      "      AND starts_with(%s.address_label, CAST(%s.in_number_first AS VARCHAR) || %s.in_number_suffix || ' ')",
+      "      THEN %d",
+      " WHEN %s.in_number_suffix IS NOT NULL AND %s.in_number_first = %s.number_first THEN 0",
+      " WHEN %s.in_number_suffix IS NULL AND %s.in_number_first = %s.number_first THEN %d",
+      " WHEN %s.in_number_suffix IS NULL AND %s.number_last IS NOT NULL",
+      "      AND %s.number_first <= %s.in_number_first",
+      "      AND %s.in_number_first <= %s.number_last THEN %d",
+      " ELSE 0 END"
+    ),
+      i,             # in_number_first IS NULL
+      i,             # in_number_suffix IS NOT NULL
+      i, g, g,       # (in_number_first = number_first OR number_first IS NULL)
+      g, i, i,       # starts_with(address_label, cast(in_number_first) || in_number_suffix || ' ')
+      as.integer(round(w_num)),
+      i, i, g,       # suffix present, number matches, starts_with fails → 0
+      i, i, g,       # no suffix, exact
+      as.integer(round(w_num)),
+      i, g, g, i, i, g,  # no suffix, range
+      as.integer(round(w_num * 0.7))
     ),
     score_flat = sprintf(
       "CASE WHEN (TRIM(COALESCE(%s.in_flat_number, '')) = '' AND TRIM(COALESCE(%s.flat_number, '')) = '') OR (TRIM(COALESCE(%s.in_flat_number, '')) != '' AND TRIM(COALESCE(%s.in_flat_number, '')) = TRIM(COALESCE(%s.flat_number, ''))) THEN %d ELSE 0 END",

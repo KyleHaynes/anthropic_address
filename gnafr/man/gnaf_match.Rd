@@ -10,7 +10,9 @@ gnaf_match(
   max_results = 1L,
   min_score = 60L,
   include_custom = TRUE,
+  alias_types = NULL,
   locality_fallback = TRUE,
+  street_only_fallback = FALSE,
   fallback_threshold = 80L,
   weights = .default_match_weights(),
   cache = TRUE,
@@ -29,8 +31,20 @@ gnaf_match(
 
 \item{include_custom}{Include custom addresses in matching.}
 
+\item{alias_types}{Character vector of \code{alias_type} values to include
+in matching. Use \code{NA} to include core GNAF rows (where
+\code{alias_type} is \code{NULL}). Default \code{NULL} matches all rows
+regardless of alias type. Example: \code{c(NA, "street_only")} restricts
+to core addresses and street-level aliases only.}
+
 \item{locality_fallback}{If \code{TRUE} (default), re-searches by locality
 name for inputs whose best score is below \code{fallback_threshold}.}
+
+\item{street_only_fallback}{If \code{TRUE}, inputs still unmatched after all
+other paths are re-matched against street-level aliases
+(\code{alias_type = "street_only"}) in \code{gnaf_addresses}. Requires
+\code{gnaf_build_street_aliases} to have been run first. Default
+\code{FALSE}.}
 
 \item{fallback_threshold}{Total score below which locality fallback fires.
 Default 80: a correct match with a matching postcode will typically score
@@ -55,7 +69,7 @@ A \code{data.table} ordered by \code{input_id} then descending
   retains unmatched inputs with missing match columns.
 }
 \description{
-Uses a three-path strategy:
+Uses a four-path strategy:
 \enumerate{
   \item \strong{Postcode path} — primary, blocks on the parsed postcode.
   \item \strong{State path} — for inputs with no parseable postcode.
@@ -63,5 +77,10 @@ Uses a three-path strategy:
         weak (score below \code{fallback_threshold}). Uses DuckDB's built-in
         \code{jaro_winkler_similarity} to find the correct postcode from the
         parsed suburb name, then re-scores. Handles wrong or missing postcodes.
+  \item \strong{Street-only fallback} — optional; fires for inputs that are
+        still unmatched after all other paths. Matches against street-level
+        aliases built by \code{gnaf_build_street_aliases}. Useful when a
+        specific street number is absent from GNAF but the street itself
+        exists.
 }
 }

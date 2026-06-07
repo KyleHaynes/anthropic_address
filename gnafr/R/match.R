@@ -1,6 +1,6 @@
 #' Match a vector of address strings against the GNAF database
 #'
-#' Uses a three-path strategy:
+#' Uses a four-path strategy:
 #' \enumerate{
 #'   \item \strong{Postcode path} — primary, blocks on the parsed postcode.
 #'   \item \strong{State path} — for inputs with no parseable postcode.
@@ -8,6 +8,11 @@
 #'         weak (score below \code{fallback_threshold}). Uses DuckDB's built-in
 #'         \code{jaro_winkler_similarity} to find the correct postcode from the
 #'         parsed suburb name, then re-scores. Handles wrong or missing postcodes.
+#'   \item \strong{Street-only fallback} — optional; fires for inputs that are
+#'         still unmatched after all other paths. Matches against street-level
+#'         aliases built by \code{gnaf_build_street_aliases}. Useful when a
+#'         specific street number is absent from GNAF but the street itself
+#'         exists.
 #' }
 #'
 #' @param con DBI connection from \code{gnaf_connect}.
@@ -15,8 +20,18 @@
 #' @param max_results Maximum number of matches to return per input.
 #' @param min_score Minimum total score (0–100) to include in results.
 #' @param include_custom Include custom addresses in matching.
+#' @param alias_types Character vector of \code{alias_type} values to include
+#'   in matching. Use \code{NA} to include core GNAF rows (where
+#'   \code{alias_type} is \code{NULL}). Default \code{NULL} matches all rows
+#'   regardless of alias type. Example: \code{c(NA, "street_only")} restricts
+#'   to core addresses and street-level aliases only.
 #' @param locality_fallback If \code{TRUE} (default), re-searches by locality
 #'   name for inputs whose best score is below \code{fallback_threshold}.
+#' @param street_only_fallback If \code{TRUE}, inputs still unmatched after all
+#'   other paths are re-matched against street-level aliases
+#'   (\code{alias_type = "street_only"}) in \code{gnaf_addresses}. Requires
+#'   \code{gnaf_build_street_aliases} to have been run first. Default
+#'   \code{FALSE}.
 #' @param fallback_threshold Total score below which locality fallback fires.
 #'   Default 80: a correct match with a matching postcode will typically score
 #'   85+, so 80 catches wrong-postcode and genuinely poor matches.
@@ -35,7 +50,9 @@
 #' @export
 gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
                        include_custom = TRUE,
+                       alias_types = NULL,
                        locality_fallback = TRUE,
+                       street_only_fallback = FALSE,
                        fallback_threshold = 80L,
                        weights = .default_match_weights(),
                        cache = TRUE,
@@ -93,7 +110,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   # Ideal for re-processing previously matched/standardised output.
   # ------------------------------------------------------------------
   exact_timer <- proc.time()[["elapsed"]]
-  exact_path <- .exact_label_match(con, parsed, include_custom)
+  exact_path <- .exact_label_match(con, parsed, include_custom, alias_types)
   verbose_stats$exact_elapsed <- proc.time()[["elapsed"]] - exact_timer
   if (!is.null(exact_path) && nrow(exact_path) > 0L) {
     results[["exact"]] <- exact_path
@@ -122,7 +139,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
       parsed[!input_id %in% skip_ids, input_standardised]
     ))
     if (length(remaining_stds) > 0L) {
-      cache_raw <- .cache_lookup(con, remaining_stds, include_custom)
+      cache_raw <- .cache_lookup(con, remaining_stds, include_custom, alias_types)
       if (nrow(cache_raw) > 0L) {
         cache_hits <- cache_raw[
           parsed[!input_id %in% skip_ids, .(input_id, input_standardised)],
@@ -159,7 +176,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
       cli::col_cyan(format(n_pc, big.mark = ","))
     ))
     pc_path <- .match_postcode_duckdb(con, has_pc, max_results, min_score,
-                                       weights, include_custom, verbose)
+                                       weights, include_custom, verbose, alias_types)
     results[["postcode"]]     <- pc_path$matches
     diagnostics[["postcode"]] <- pc_path$diagnostics
   }
@@ -177,7 +194,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
         input_word
       ))
       st_path <- .match_state_duckdb(con, no_pc_state, max_results, min_score,
-                                      weights, include_custom, verbose)
+                                      weights, include_custom, verbose, alias_types)
       results[["no_postcode"]]     <- st_path$matches
       diagnostics[["no_postcode"]] <- st_path$diagnostics
     } else {
@@ -214,9 +231,35 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
         fallback_word
       ))
       loc_path <- .match_locality_duckdb(con, fallback_parse, max_results,
-                                          min_score, weights, include_custom, verbose)
+                                          min_score, weights, include_custom, verbose, alias_types)
       results[["locality"]]     <- loc_path$matches
       diagnostics[["locality"]] <- loc_path$diagnostics
+    }
+  }
+
+  # ------------------------------------------------------------------
+  # Path 4: street-only fallback for inputs still unmatched after all paths
+  # ------------------------------------------------------------------
+  if (isTRUE(street_only_fallback)) {
+    matched_so_far <- unique(unlist(lapply(
+      results,
+      function(r) if (!is.null(r) && nrow(r) > 0L) r$input_id else integer(0L)
+    )))
+    so_parse <- parsed[
+      !input_id %in% matched_so_far &
+      !is.na(in_postcode) &
+      !is.na(in_street_name)
+    ]
+    if (nrow(so_parse) > 0L) {
+      .cli_match_step(verbose, sprintf(
+        "Running street-only fallback for %s input(s).",
+        cli::col_magenta(format(nrow(so_parse), big.mark = ","))
+      ))
+      so_path <- .match_street_only_duckdb(
+        con, so_parse, max_results, min_score, weights, verbose
+      )
+      results[["street_only"]]     <- so_path$matches
+      diagnostics[["street_only"]] <- so_path$diagnostics
     }
   }
 
@@ -256,7 +299,8 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   setorder(out, input_id, -matched, match_rank)
   # Store newly matched high-confidence results in the cache.
   # ON CONFLICT DO NOTHING means cache/exact-path hits are silently skipped.
-  if (isTRUE(cache) && DBI::dbExistsTable(con, "gnaf_match_cache") && nrow(out) > 0L)
+  if (isTRUE(cache) && is.null(alias_types) &&
+      DBI::dbExistsTable(con, "gnaf_match_cache") && nrow(out) > 0L)
     .cache_store(con, out[matched == TRUE], cache_threshold)
 
   verbose_stats$wrangle_elapsed <- proc.time()[["elapsed"]] - wrangle_timer
@@ -405,12 +449,14 @@ SELECT * FROM ranked WHERE match_rank <= %d
 }
 
 .match_postcode_duckdb <- function(con, inputs_dt, max_results, min_score,
-                                   weights, include_custom, verbose = FALSE) {
+                                   weights, include_custom, verbose = FALSE,
+                                   alias_types = NULL) {
   if (nrow(inputs_dt) == 0L) return(.empty_path_result())
 
   duckdb::duckdb_register(con, "__gnafr_pc_inputs__", inputs_dt, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_pc_inputs__"), silent = TRUE))
 
+  alias_sql <- .alias_type_sql(alias_types)
   join_on  <- "g.postcode = i.in_postcode"
   # Check range bounds explicitly; "OR g.number_last IS NOT NULL" without bounds
   # pulls every range record in the postcode regardless of the input number.
@@ -421,7 +467,10 @@ SELECT * FROM ranked WHERE match_rank <= %d
     "  OR (g.number_last IS NOT NULL",
     "      AND g.number_first <= i.in_number_first",
     "      AND i.in_number_first <= g.number_last)",
-    ")"
+    "  OR (g.number_first IS NULL AND i.in_number_suffix IS NOT NULL",
+    "      AND starts_with(g.address_label, CAST(i.in_number_first AS VARCHAR) || i.in_number_suffix || ' '))",
+    ")",
+    if (!is.null(alias_sql)) paste("AND", alias_sql) else ""
   )
 
   res <- .run_duckdb_score_query(
@@ -443,14 +492,19 @@ SELECT * FROM ranked WHERE match_rank <= %d
 }
 
 .match_state_duckdb <- function(con, inputs_dt, max_results, min_score,
-                                weights, include_custom, verbose = FALSE) {
+                                weights, include_custom, verbose = FALSE,
+                                alias_types = NULL) {
   if (nrow(inputs_dt) == 0L) return(.empty_path_result())
 
   duckdb::duckdb_register(con, "__gnafr_st_inputs__", inputs_dt, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_st_inputs__"), silent = TRUE))
 
+  alias_sql <- .alias_type_sql(alias_types)
   join_on  <- "g.state = i.in_state"
-  pre_filt <- "i.in_state IS NOT NULL"
+  pre_filt <- paste(
+    "i.in_state IS NOT NULL",
+    if (!is.null(alias_sql)) paste("AND", alias_sql) else ""
+  )
 
   res <- .run_duckdb_score_query(
     con, "__gnafr_st_inputs__", "gnaf_addresses",
@@ -474,12 +528,16 @@ SELECT * FROM ranked WHERE match_rank <= %d
 # The entire pipeline (locality lookup + join + scoring + ranking) runs in one
 # DuckDB query, so no cartesian product ever lands in R memory.
 .match_locality_duckdb <- function(con, inputs_dt, max_results, min_score,
-                                   weights, include_custom, verbose = FALSE) {
+                                   weights, include_custom, verbose = FALSE,
+                                   alias_types = NULL) {
   if (nrow(inputs_dt) == 0L || !any(!is.na(inputs_dt$in_locality)))
     return(.empty_path_result())
 
   duckdb::duckdb_register(con, "__gnafr_loc_inputs__", inputs_dt, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_loc_inputs__"), silent = TRUE))
+
+  alias_sql    <- .alias_type_sql(alias_types)
+  alias_clause <- if (!is.null(alias_sql)) paste0("\n    AND ", alias_sql) else ""
 
   exprs      <- .score_sql_exprs(weights)
   sel_scores <- paste(
@@ -524,9 +582,11 @@ joined AS (
      OR g.number_first = i.in_number_first
      OR (g.number_last IS NOT NULL
          AND g.number_first <= i.in_number_first
-         AND i.in_number_first <= g.number_last))
+         AND i.in_number_first <= g.number_last)
+     OR (g.number_first IS NULL AND i.in_number_suffix IS NOT NULL
+         AND starts_with(g.address_label, CAST(i.in_number_first AS VARCHAR) || i.in_number_suffix || ' ')))
     AND (i.in_street_name IS NULL
-         OR jaro_winkler_similarity(g.street_name, i.in_street_name) >= 0.3)
+         OR jaro_winkler_similarity(g.street_name, i.in_street_name) >= 0.3)%s
 ),
 scored AS (
   SELECT *, %s AS total_score
@@ -541,6 +601,7 @@ ranked AS (
 SELECT * FROM ranked WHERE match_rank <= %d
 ",
     gnaf_cols, sel_scores, gnaf_tbl,
+    alias_clause,
     score_total,
     min_score, max_results
   )
@@ -589,6 +650,27 @@ SELECT * FROM ranked WHERE match_rank <= %d
   res
 }
 
+# Street-only fallback: match against alias_type = 'street_only' records only.
+# Fired for inputs that survived all other paths without a match.
+# number_first on these records is NULL, so numbered inputs score 0 for number
+# but can still reach min_score via postcode + suburb + street name/type.
+.match_street_only_duckdb <- function(con, inputs_dt, max_results, min_score,
+                                      weights, verbose = FALSE) {
+  if (nrow(inputs_dt) == 0L) return(.empty_path_result())
+
+  duckdb::duckdb_register(con, "__gnafr_so_inputs__", inputs_dt, overwrite = TRUE)
+  on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_so_inputs__"), silent = TRUE))
+
+  join_on  <- "g.postcode = i.in_postcode AND g.alias_type = 'street_only'"
+  pre_filt <- "i.in_postcode IS NOT NULL AND g.alias_type = 'street_only'"
+
+  .run_duckdb_score_query(
+    con, "__gnafr_so_inputs__", "gnaf_addresses",
+    join_on, pre_filt, weights, max_results, min_score, verbose,
+    label = "gnaf_addresses (street_only)"
+  )
+}
+
 .empty_result <- function() {
   data.table(
     input_id = integer(), input_raw = character(), input_standardised = character(),
@@ -620,13 +702,14 @@ SELECT * FROM ranked WHERE match_rank <= %d
 
 .standardise_input <- function(parsed) {
   postcode_chr <- ifelse(is.na(parsed$in_postcode), NA_character_, as.character(parsed$in_postcode))
+  suffix_chr <- ifelse(is.na(parsed$in_number_suffix), "", parsed$in_number_suffix)
   number_chr <- ifelse(
     is.na(parsed$in_number_first),
     NA_character_,
     ifelse(
       is.na(parsed$in_number_last),
-      as.character(parsed$in_number_first),
-      paste0(parsed$in_number_first, "-", parsed$in_number_last)
+      paste0(parsed$in_number_first, suffix_chr),
+      paste0(parsed$in_number_first, suffix_chr, "-", parsed$in_number_last)
     )
   )
   flat_chr <- ifelse(
@@ -697,7 +780,7 @@ SELECT * FROM ranked WHERE match_rank <= %d
 
 # Exact address_label pass: returns scored candidate pairs for any input whose
 # raw text (uppercased) matches a GNAF address_label exactly.
-.exact_label_match <- function(con, parsed, include_custom) {
+.exact_label_match <- function(con, parsed, include_custom, alias_types = NULL) {
   raw_upper <- unique(toupper(trimws(parsed$input_raw)))
   raw_upper <- raw_upper[nzchar(raw_upper) & !is.na(raw_upper)]
   if (length(raw_upper) == 0L) return(NULL)
@@ -708,6 +791,9 @@ SELECT * FROM ranked WHERE match_rank <= %d
   duckdb::duckdb_register(con, "__gnafr_exact_lkp__", lkp, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_exact_lkp__"), silent = TRUE))
 
+  alias_sql   <- .alias_type_sql(alias_types)
+  alias_where <- if (!is.null(alias_sql)) sprintf("\n     AND %s", alias_sql) else ""
+
   sel <- "g.address_detail_pid, g.address_label, g.building_name,
           g.flat_type, g.flat_number, g.number_first, g.number_last,
           g.street_name, g.street_type, g.street_suffix, g.locality_name,
@@ -715,16 +801,16 @@ SELECT * FROM ranked WHERE match_rank <= %d
 
   sql <- sprintf(
     "SELECT %s FROM gnaf_addresses g
-     JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key",
-    sel
+     JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key%s",
+    sel, alias_where
   )
   cands <- setDT(DBI::dbGetQuery(con, sql))
 
   if (include_custom && DBI::dbExistsTable(con, "custom_addresses")) {
     sql2 <- sprintf(
       "SELECT %s FROM custom_addresses g
-       JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key",
-      sel
+       JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key%s",
+      sel, alias_where
     )
     cands <- rbindlist(list(cands, setDT(DBI::dbGetQuery(con, sql2))), fill = TRUE)
   }
