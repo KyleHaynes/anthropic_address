@@ -149,6 +149,26 @@ test_that("period after street type abbreviation is stripped", {
   expect_equal(r$in_number_first, 10L)
 })
 
+# ---- Missing street type ----------------------------------------------------
+
+test_that("missing street type still extracts number and guesses street/locality split", {
+  r <- address_parse("190 MUSGRAVE RED HILL QLD 4059")
+  expect_equal(r$in_number_first, 190L)
+  expect_true(is.na(r$in_street_type))
+  expect_equal(r$in_street_name, "MUSGRAVE")
+  expect_equal(r$in_locality,    "RED HILL")
+  expect_equal(r$in_state,       "QLD")
+  expect_equal(r$in_postcode,    4059L)
+})
+
+test_that("missing street type with single-word remainder is treated as street name", {
+  r <- address_parse("190 MUSGRAVE QLD 4059")
+  expect_equal(r$in_number_first, 190L)
+  expect_true(is.na(r$in_street_type))
+  expect_equal(r$in_street_name, "MUSGRAVE")
+  expect_true(is.na(r$in_locality))
+})
+
 # ---- Vectorised input ------------------------------------------------------
 
 test_that("multiple addresses returned as one row each", {

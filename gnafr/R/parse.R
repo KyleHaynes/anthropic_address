@@ -319,7 +319,29 @@ address_parse <- function(addresses) {
   if (st_all[1L] <= 0L) {
     fuzzy <- .parse_fuzzy_street(addr, st_map)
     if (is.null(fuzzy)) {
-      out$in_locality <- trimws(addr)
+      # No street-type token at all (uncommon but real — e.g. "190 MUSGRAVE
+      # RED HILL QLD 4059"). Still extract number/flat/building so number-
+      # and postcode-based scoring isn't crippled, then take a best guess at
+      # the street/locality split: first remaining word is the street name,
+      # the rest is the locality (most AU street names are a single word when
+      # the type is dropped; localities are typically 1-3 words).
+      bp <- .parse_before(addr, ft_re, ft_map)
+      out$in_number_first  <- bp$number_first
+      out$in_number_last   <- bp$number_last
+      out$in_number_suffix <- bp$number_suffix
+      out$in_flat_type     <- bp$flat_type
+      out$in_flat_number   <- bp$flat_number
+      out$in_building_name <- bp$building_name
+
+      if (!is.na(bp$street_name)) {
+        words <- strsplit(bp$street_name, "\\s+", perl = TRUE)[[1L]]
+        if (length(words) >= 2L) {
+          out$in_street_name <- words[[1L]]
+          out$in_locality    <- paste(words[-1L], collapse = " ")
+        } else {
+          out$in_street_name <- bp$street_name
+        }
+      }
       return(out)
     }
     out$in_street_type <- fuzzy$canonical
