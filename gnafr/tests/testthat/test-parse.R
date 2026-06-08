@@ -270,3 +270,52 @@ test_that("attached U-prefix flat number with following street number parses cor
   expect_equal(r$in_number_first, 6L)
   expect_equal(r$in_street_name,  "PARKLAND")
 })
+
+# ---- Comma hint: word before the (last) comma is structurally the type -----
+# Most real-world addresses look like "1 SMITH ST, BRISBANE QLD 4000". When
+# present, the comma-adjacent word disambiguates the street type globally —
+# both for coincidental abbreviation collisions inside multi-word street
+# names, and for misspelt types that the generic fuzzy scan would otherwise
+# attribute to a street-name word that merely resembles a type.
+
+test_that("misspelt street type before a comma resolves over a coincidental name collision", {
+  r <- address_parse("UNIT 6019 6 parkland bvdz, brisbane city QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "6019")
+  expect_equal(r$in_number_first, 6L)
+  expect_equal(r$in_street_name,  "PARKLAND")
+  expect_equal(r$in_street_type,  "BOULEVARD")
+  expect_equal(r$in_locality,     "BRISBANE CITY")
+})
+
+test_that("comma hint resolves a misspelt type that collides with an abbreviation inside the street name", {
+  r <- address_parse("25 St James Rode, Tamborine Mountain QLD 4272")
+  expect_equal(r$in_street_name, "ST JAMES")
+  expect_equal(r$in_street_type, "ROAD")
+  expect_equal(r$in_locality,    "TAMBORINE MOUNTAIN")
+})
+
+test_that("comma hint resolves a near-miss abbreviation to its canonical type", {
+  r <- address_parse("1 Smith STX, Brisbane QLD 4000")
+  expect_equal(r$in_street_name, "SMITH")
+  expect_equal(r$in_street_type, "STREET")
+  expect_equal(r$in_locality,    "BRISBANE")
+})
+
+test_that("comma hint is ignored when the comma-adjacent word doesn't look like a street type", {
+  r <- address_parse("3/25 Saint James Ct, Tamborine Mountain QLD 4272")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "3")
+  expect_equal(r$in_street_name,  "SAINT JAMES")
+  expect_equal(r$in_street_type,  "COURT")
+})
+
+test_that("comma hint uses the last comma so a leading unit comma isn't mistaken for the type", {
+  r <- address_parse("UNIT 5, 10 Smith St, Brisbane QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "5")
+  expect_equal(r$in_number_first, 10L)
+  expect_equal(r$in_street_name,  "SMITH")
+  expect_equal(r$in_street_type,  "STREET")
+  expect_equal(r$in_locality,     "BRISBANE")
+})

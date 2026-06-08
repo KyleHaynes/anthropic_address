@@ -19,8 +19,21 @@ address_parse <- function(addresses) {
     "^(", paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|"), ")\\s+(\\d+[A-Z]?)\\s+"
   )
 
+  # Comma hint: capture the word immediately before the LAST comma in each
+  # raw address (uppercased, periods stripped) before .normalize_addr
+  # discards comma positions. In "STREET ADDRESS, LOCALITY ..." formats that
+  # word is structurally the street type — useful for disambiguating
+  # coincidental abbreviation collisions (e.g. "St" in "St James") and for
+  # prioritising fuzzy-matching of misspelt types (e.g. "STX" -> "ST").
+  # The LAST comma is used so flat/unit notations like "Unit 5, 10 Smith St,
+  # Brisbane ..." don't pick up the flat number instead.
+  addr_upper <- gsub("\\.", " ", toupper(trimws(addresses)), perl = TRUE)
+  addr_upper <- gsub("\\s+", " ", addr_upper, perl = TRUE)
+  cw_cap <- regmatches(addr_upper, regexec("\\b([A-Z0-9]+)\\s*,(?:[^,]*)$", addr_upper, perl = TRUE))
+  comma_word <- vapply(cw_cap, function(x) if (length(x) == 2L) x[[2L]] else NA_character_, character(1))
+
   normalized <- .normalize_addr(addresses)
-  dt <- .parse_vectorized(normalized, addresses, st_map, st_regex, ft_map, ft_re)
+  dt <- .parse_vectorized(normalized, addresses, st_map, st_regex, ft_map, ft_re, comma_word)
   setcolorder(dt, c("input_id", "input_raw",
                     "in_postcode", "in_state", "in_locality",
                     "in_street_name", "in_street_type", "in_street_suffix",
@@ -34,7 +47,7 @@ address_parse <- function(addresses) {
 # Falls back to .parse_single only for addresses that don't match any fast
 # pattern (typically <5% for well-formed Australian addresses).
 # ---------------------------------------------------------------------------
-.parse_vectorized <- function(normalized, addresses, st_map, st_regex, ft_map, ft_re) {
+.parse_vectorized <- function(normalized, addresses, st_map, st_regex, ft_map, ft_re, comma_word) {
   n <- length(normalized)
 
   # ------------------------------------------------------------------
@@ -103,6 +116,30 @@ address_parse <- function(addresses) {
   has_st         <- !is.na(st_pos)
   st_raw         <- ifelse(has_st, substr(work, st_pos, st_pos + st_len - 1L), NA_character_)
   in_street_type <- unname(st_map[st_raw])
+
+  # Comma hint: when the word immediately before the (last) comma in the
+  # original input differs from the rightmost exact-match street type and
+  # plausibly looks like a type itself (exact key, or a close fuzzy match —
+  # e.g. "Rode" ~ "Road"), the rightmost-match search has likely landed on a
+  # coincidental collision (e.g. "St" inside "St James Rode"). Route these to
+  # .parse_single, which re-resolves the type using the comma hint directly.
+  has_comma <- !is.na(comma_word)
+  mismatch  <- has_st & has_comma & comma_word != st_raw
+  needs_fix <- rep(FALSE, n)
+  if (any(mismatch)) {
+    midx <- which(mismatch)
+    cw <- comma_word[midx]
+    plausible <- !is.na(unname(st_map[cw]))
+    chk <- which(!plausible)
+    if (length(chk) > 0L) {
+      st_keys <- names(st_map)
+      sims <- vapply(cw[chk], function(w)
+        max(1 - stringdist::stringdist(w, st_keys, method = "jw", p = 0.1)), numeric(1))
+      plausible[chk] <- sims >= 0.85
+    }
+    needs_fix[midx[plausible]] <- TRUE
+  }
+  has_st <- has_st & !needs_fix
 
   before_st_end <- ifelse(has_st, st_pos - 1L, nchar(work))
   before_st     <- trimws(substr(work, 1L, before_st_end))
@@ -253,7 +290,7 @@ address_parse <- function(addresses) {
   fallback <- which(!is_slash & !is_flat & !is_simple)
   if (length(fallback) > 0L) {
     fb <- lapply(fallback, function(i) {
-      .parse_single(normalized[[i]], st_regex, st_map, ft_re, ft_map)
+      .parse_single(normalized[[i]], st_regex, st_map, ft_re, ft_map, comma_word[[i]])
     })
     in_postcode[fallback]      <- vapply(fb, `[[`, integer(1),   "in_postcode")
     in_state[fallback]         <- vapply(fb, `[[`, character(1), "in_state")
@@ -290,7 +327,7 @@ address_parse <- function(addresses) {
 # ---------------------------------------------------------------------------
 # Internal: parse a single normalised address string
 # ---------------------------------------------------------------------------
-.parse_single <- function(addr, st_regex, st_map, ft_re, ft_map) {
+.parse_single <- function(addr, st_regex, st_map, ft_re, ft_map, comma_word = NA_character_) {
   out <- list(
     in_postcode      = NA_integer_,
     in_state         = NA_character_,
@@ -326,48 +363,84 @@ address_parse <- function(addresses) {
     addr <- gsub("\\s+", " ", addr)
   }
 
-  # 3. Street type — rightmost exact match with word boundaries, with fuzzy
-  # fallback for common misspellings (e.g. RODE → ROAD, STEET → STREET).
-  st_all <- gregexpr(st_regex, addr, perl = TRUE)[[1L]]
-  if (st_all[1L] <= 0L) {
-    fuzzy <- .parse_fuzzy_street(addr, st_map)
-    if (is.null(fuzzy)) {
-      # No street-type token at all (uncommon but real — e.g. "190 MUSGRAVE
-      # RED HILL QLD 4059"). Still extract number/flat/building so number-
-      # and postcode-based scoring isn't crippled, then take a best guess at
-      # the street/locality split: first remaining word is the street name,
-      # the rest is the locality (most AU street names are a single word when
-      # the type is dropped; localities are typically 1-3 words).
-      bp <- .parse_before(addr, ft_re, ft_map)
-      out$in_number_first  <- bp$number_first
-      out$in_number_last   <- bp$number_last
-      out$in_number_suffix <- bp$number_suffix
-      out$in_flat_type     <- bp$flat_type
-      out$in_flat_number   <- bp$flat_number
-      out$in_building_name <- bp$building_name
-
-      if (!is.na(bp$street_name)) {
-        words <- strsplit(bp$street_name, "\\s+", perl = TRUE)[[1L]]
-        if (length(words) >= 2L) {
-          out$in_street_name <- words[[1L]]
-          out$in_locality    <- paste(words[-1L], collapse = " ")
-        } else {
-          out$in_street_name <- bp$street_name
-        }
+  # 3. Street type resolution.
+  #
+  # When the original input had a comma separating the street address from
+  # the locality, the word immediately before it is structurally the street
+  # type. That comma hint takes priority over the generic rightmost-exact-
+  # match search, which can mis-fire on:
+  #   - coincidental abbreviation collisions inside multi-word street names
+  #     (e.g. "St" inside "St James Rode, Tamborine Mountain..." matches the
+  #     STREET abbreviation, hiding the real, misspelt type "Rode")
+  #   - street-name words that merely resemble a type during fuzzy fallback
+  #     (e.g. "Parkland" ~ "Parade")
+  #
+  # Falls through to the rightmost-exact-match / fuzzy search when there is
+  # no comma hint, the hinted word isn't present in `addr`, or it doesn't
+  # plausibly look like a street type (exact key, or close fuzzy match).
+  resolved_by_comma <- FALSE
+  if (!is.na(comma_word)) {
+    cw_all <- gregexpr(paste0("\\b", comma_word, "\\b"), addr, perl = TRUE)[[1L]]
+    if (cw_all[1L] > 0L) {
+      cw_canon <- unname(st_map[comma_word])
+      if (is.na(cw_canon)) {
+        sims <- 1 - stringdist::stringdist(comma_word, names(st_map), method = "jw", p = 0.1)
+        j <- which.max(sims)
+        if (sims[[j]] >= 0.85) cw_canon <- unname(st_map[[names(st_map)[[j]]]])
       }
-      return(out)
+      if (!is.na(cw_canon)) {
+        cw_start <- tail(cw_all[cw_all > 0L], 1L)
+        cw_len   <- nchar(comma_word)
+        out$in_street_type <- cw_canon
+        before    <- trimws(substr(addr, 1L, cw_start - 1L))
+        after_raw <- trimws(substr(addr, cw_start + cw_len, nchar(addr)))
+        resolved_by_comma <- TRUE
+      }
     }
-    out$in_street_type <- fuzzy$canonical
-    before    <- fuzzy$before
-    after_raw <- fuzzy$after
-  } else {
-    last <- length(st_all)
-    st_start  <- st_all[last]
-    st_len    <- attr(st_all, "match.length")[last]
-    st_raw    <- substr(addr, st_start, st_start + st_len - 1L)
-    out$in_street_type <- unname(st_map[st_raw])
-    before    <- trimws(substr(addr, 1L, st_start - 1L))
-    after_raw <- trimws(substr(addr, st_start + st_len, nchar(addr)))
+  }
+
+  if (!resolved_by_comma) {
+    st_all <- gregexpr(st_regex, addr, perl = TRUE)[[1L]]
+    if (st_all[1L] <= 0L) {
+      fuzzy <- .parse_fuzzy_street(addr, st_map)
+      if (is.null(fuzzy)) {
+        # No street-type token at all (uncommon but real — e.g. "190 MUSGRAVE
+        # RED HILL QLD 4059"). Still extract number/flat/building so number-
+        # and postcode-based scoring isn't crippled, then take a best guess at
+        # the street/locality split: first remaining word is the street name,
+        # the rest is the locality (most AU street names are a single word when
+        # the type is dropped; localities are typically 1-3 words).
+        bp <- .parse_before(addr, ft_re, ft_map)
+        out$in_number_first  <- bp$number_first
+        out$in_number_last   <- bp$number_last
+        out$in_number_suffix <- bp$number_suffix
+        out$in_flat_type     <- bp$flat_type
+        out$in_flat_number   <- bp$flat_number
+        out$in_building_name <- bp$building_name
+
+        if (!is.na(bp$street_name)) {
+          words <- strsplit(bp$street_name, "\\s+", perl = TRUE)[[1L]]
+          if (length(words) >= 2L) {
+            out$in_street_name <- words[[1L]]
+            out$in_locality    <- paste(words[-1L], collapse = " ")
+          } else {
+            out$in_street_name <- bp$street_name
+          }
+        }
+        return(out)
+      }
+      out$in_street_type <- fuzzy$canonical
+      before    <- fuzzy$before
+      after_raw <- fuzzy$after
+    } else {
+      last <- length(st_all)
+      st_start  <- st_all[last]
+      st_len    <- attr(st_all, "match.length")[last]
+      st_raw    <- substr(addr, st_start, st_start + st_len - 1L)
+      out$in_street_type <- unname(st_map[st_raw])
+      before    <- trimws(substr(addr, 1L, st_start - 1L))
+      after_raw <- trimws(substr(addr, st_start + st_len, nchar(addr)))
+    }
   }
 
   # 4. Street suffix (NORTH/SOUTH/EAST/WEST immediately after street type)
@@ -552,9 +625,16 @@ address_parse <- function(addresses) {
   out
 }
 
-# Fuzzy street-type fallback: scan words left-to-right for the first token
-# whose best Jaro-Winkler similarity to any known type key is >= threshold.
-# Handles common misspellings: RODE → ROAD, STEET → STREET, AVNUE → AVENUE.
+# Fuzzy street-type fallback: score every word's best Jaro-Winkler similarity
+# to a known type key and take the GLOBAL best (ties broken by the rightmost
+# word, since the street-type token structurally sits closest to the
+# locality). Handles common misspellings: RODE → ROAD, STEET → STREET,
+# AVNUE → AVENUE, BVDZ → BVD.
+#
+# Picking the first word to merely clear the threshold (rather than the best
+# overall) misfires on streetnames that happen to resemble a type abbreviation
+# — e.g. "PARKLAND" ~ "PARADE" (sim 0.87) would be chosen over the actual
+# misspelled type "BVDZ" ~ "BVD" (sim 0.94) later in the same address.
 # Returns list(before, canonical, after) or NULL if no confident match found.
 .parse_fuzzy_street <- function(addr, st_map, threshold = 0.85) {
   words <- strsplit(trimws(addr), "\\s+", perl = TRUE)[[1L]]
@@ -563,20 +643,29 @@ address_parse <- function(addresses) {
 
   st_keys <- names(st_map)
 
+  best_sim <- -1
+  best_idx <- NA_integer_
+  best_key <- NA_character_
+
   for (i in seq_len(n)) {
     w <- words[[i]]
     if (grepl("^[0-9]", w, perl = TRUE)) next
 
     sims <- 1 - stringdist::stringdist(w, st_keys, method = "jw", p = 0.1)
-    best <- which.max(sims)
+    j <- which.max(sims)
 
-    if (sims[[best]] >= threshold) {
-      canonical <- unname(st_map[st_keys[[best]]])
-      before    <- trimws(paste(words[seq_len(i - 1L)], collapse = " "))
-      after     <- if (i < n) trimws(paste(words[seq(i + 1L, n)], collapse = " ")) else ""
-      return(list(before = before, canonical = canonical, after = after))
+    if (sims[[j]] >= best_sim) {
+      best_sim <- sims[[j]]
+      best_idx <- i
+      best_key <- st_keys[[j]]
     }
   }
-  NULL
+
+  if (is.na(best_idx) || best_sim < threshold) return(NULL)
+
+  canonical <- unname(st_map[best_key])
+  before    <- trimws(paste(words[seq_len(best_idx - 1L)], collapse = " "))
+  after     <- if (best_idx < n) trimws(paste(words[seq(best_idx + 1L, n)], collapse = " ")) else ""
+  list(before = before, canonical = canonical, after = after)
 }
 
