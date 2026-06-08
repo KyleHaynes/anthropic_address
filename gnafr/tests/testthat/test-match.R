@@ -151,7 +151,15 @@ test_that("match_address is working as expected (expected results and reproducib
         "6020 6 PARKLAND BVD BRISBANE CITY 4000",
         "UNIT 6020/6 PARKLAND BVD BRISBANE CITY 4000",
         # New
-        "4 CRESCENT RD, KELVIN GROVE QLD 4059"
+        "4 CRESCENT RD, KELVIN GROVE QLD 4059",
+        "U10 BLAH 6019 6 parkland bvd brisbane city QLD 4000",
+        "U1 BLAH 6019 6 parkland bvd brisbane city QLD 4000",
+        "6 UNIT 6019 parkland bvd brisbane city QLD 4000",
+        "U10 BLAH UNIT 6019 6 parkland bvd brisbane city QLD 4000",
+        "5 BLIND ROAD UNIT 6019 6 parkland bvd brisbane city QLD 4000",
+        "U6019 6 parkland bvd brisbane city QLD 4000",
+        "UNIT 6019/6 parkland bvd brisbane city QLD 4000",
+        "UNIT 6019 6 parkland bvd brisbane city QLD 4000"
     ), con = con, max_results = 1, verbose = FALSE)
 
     test_vec <- test$address_label == c(
@@ -197,7 +205,15 @@ test_that("match_address is working as expected (expected results and reproducib
         "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
         "UNIT 6020 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
         # New
-        "4 CRESCENT RD, KELVIN GROVE QLD 4059"
+        "4 CRESCENT RD, KELVIN GROVE QLD 4059",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000",
+        "UNIT 6019 6 PARKLAND BVD, BRISBANE CITY QLD 4000"
     )
   expect_true(all(test_vec))
 })

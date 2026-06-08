@@ -6,6 +6,12 @@ x <- data.table(DBI::dbGetQuery(
   "SELECT * FROM gnaf_addresses WHERE alias_type = 'street_only'"
 ))
 
+x <- data.table(DBI::dbGetQuery(
+  con,
+  "SELECT * FROM gnaf_addresses WHERE address_label LIKE '%FIRST%'"
+))
+
+
 freq <- DBI::dbGetQuery(
   con,
   "

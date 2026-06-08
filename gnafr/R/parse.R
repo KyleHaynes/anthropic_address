@@ -196,7 +196,20 @@ address_parse <- function(addresses) {
   #   Numbers may carry a trailing alpha suffix (e.g. 190A, 10B); strip it before as.integer().
   remaining_c <- !is_slash & !is_flat & has_st
   simple_m <- regmatches(bst, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", bst, perl = TRUE))
-  is_simple <- lengths(simple_m) == 3L & remaining_c
+  is_simple_cand <- lengths(simple_m) == 3L & remaining_c
+
+  # Exclude candidates whose remainder hides an explicit flat-type marker —
+  # e.g. "6 UNIT 6019 Parkland Bvd" or "5 Blind Road Unit 6019 6 Parkland
+  # Bvd" — these need .parse_before's full marker-search logic, so route them
+  # to the (slower) fallback parser instead of mis-reading the marker as part
+  # of the street name.
+  ft_alt_c <- paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|")
+  embed_re <- paste0("\\b(?:", ft_alt_c, ")\\s+\\d+|\\bU\\d+\\b")
+  rest_chk <- rep(NA_character_, length(bst))
+  rest_chk[is_simple_cand] <- vapply(simple_m[is_simple_cand], `[[`, character(1), 3L)
+  has_embedded_flat <- !is.na(rest_chk) & grepl(embed_re, rest_chk, perl = TRUE)
+  is_simple <- is_simple_cand & !has_embedded_flat
+
   if (any(is_simple)) {
     num_s  <- vapply(simple_m[is_simple], `[[`, character(1), 2L)
     rest_s <- vapply(simple_m[is_simple], `[[`, character(1), 3L)
@@ -398,6 +411,8 @@ address_parse <- function(addresses) {
   s <- trimws(s)
   if (!nzchar(s)) return(out)
 
+  ft_alt <- paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|")
+
   # Case A: slash notation anywhere — "building 110/120 street" or "110/120 street"
   # Unit and street numbers may have trailing alpha (e.g. 3A/190B).
   m_slash <- regexpr("(\\d+[A-Z]?)/(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)", s, perl = TRUE)
@@ -413,38 +428,97 @@ address_parse <- function(addresses) {
     parts <- strsplit(slash_str, "/", fixed = TRUE)[[1L]]
     out$flat_type   <- "UNIT"
     out$flat_number <- parts[1L]
-
-    num_parts <- strsplit(parts[2L], "-", fixed = TRUE)[[1L]]
-    out$number_first <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
-    sfx_sl <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
-    out$number_suffix <- if (nzchar(sfx_sl)) sfx_sl else NA_character_
-    if (length(num_parts) > 1L) out$number_last <- as.integer(sub("[A-Z]+$", "", num_parts[2L]))
+    out <- .apply_parsed_number(out, parts[2L])
 
     out$street_name <- trimws(substr(s, slash_end + 1L, nchar(s)))
     if (!nzchar(out$street_name)) out$street_name <- NA_character_
     return(out)
   }
 
-  # Case B: "U\d+" attached (e.g. "U110 120 STREET")
-  m_u <- regexpr("^U(\\d+)\\s+", s, perl = TRUE)
-  if (m_u > 0L) {
-    cap <- regmatches(s, regexec("^U(\\d+)\\s+", s, perl = TRUE))[[1L]]
-    out$flat_type   <- "UNIT"
-    out$flat_number <- cap[2L]
-    s <- trimws(substr(s, attr(m_u, "match.length") + 1L, nchar(s)))
-  } else {
-    # Case C: "UNIT 110 ..." or "APT 3 ..."
-    m_ft <- regexpr(ft_re, s, perl = TRUE)
-    if (m_ft > 0L) {
-      cap <- regmatches(s, regexec(ft_re, s, perl = TRUE))[[1L]]
-      out$flat_type   <- unname(ft_map[cap[2L]])
-      out$flat_number <- cap[3L]
-      s <- trimws(substr(s, attr(m_ft, "match.length") + 1L, nchar(s)))
+  # Case B: "implied pair" — NUM1 NUM2 STREETNAME, the rightmost such sequence
+  # in the text (mirrors the rightmost-street-type heuristic elsewhere). NUM1
+  # is the flat/unit number and NUM2 the street number — the common Australian
+  # convention of writing "<unit> <number> <street>" without an explicit UNIT
+  # marker (e.g. "10 120 Musgrave Rd"). When the text immediately before NUM1
+  # ends in an explicit flat-type keyword (UNIT, APT, FLAT, ...), that keyword
+  # supplies in_flat_type and is excluded from the building name — this also
+  # lets noisy prefixes like "U10 BLAH UNIT 6019 6 Parkland Bvd" resolve to the
+  # trailing "6019 6 Parkland" pair instead of the leading "U10".
+  pair_re <- "^(.*)\\b(\\d+[A-Z]?)\\s+(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(\\D.*)$"
+  pair_m  <- regmatches(s, regexec(pair_re, s, perl = TRUE))[[1L]]
+  if (length(pair_m) == 5L) {
+    prefix  <- pair_m[[2L]]
+    num1    <- pair_m[[3L]]
+    num2    <- pair_m[[4L]]
+    st_name <- trimws(pair_m[[5L]])
+
+    ftm <- regmatches(prefix, regexec(paste0("^(.*?)\\b(", ft_alt, ")\\s*$"), prefix, perl = TRUE))[[1L]]
+    if (length(ftm) == 3L) {
+      out$flat_type     <- unname(ft_map[[ftm[[3L]]]])
+      out$building_name <- if (nzchar(trimws(ftm[[2L]]))) trimws(ftm[[2L]]) else NA_character_
+    } else {
+      out$flat_type     <- "UNIT"
+      out$building_name <- if (nzchar(trimws(prefix))) trimws(prefix) else NA_character_
     }
+    out$flat_number <- num1
+    out <- .apply_parsed_number(out, num2)
+    out$street_name <- if (nzchar(st_name)) st_name else NA_character_
+    return(out)
   }
 
-  # Remaining: [building_name] number[-number] street_name
-  # Numbers may carry a trailing alpha suffix (e.g. 190A); strip before as.integer().
+  # Case C: explicit flat-type marker anywhere — "UNIT 6019 ..." or attached
+  # "U6019 ..." — possibly preceded by a building name and/or the street
+  # number (e.g. "6 Unit 6019 Parkland Bvd" or "5 Blind Road Unit 6019 6
+  # Parkland Bvd"). Whichever marker sits closest to the street name wins.
+  ft_alt_re <- paste0("\\b(", ft_alt, ")\\s+(\\d+[A-Z]?)\\b")
+  ft_alt_m  <- regexpr(ft_alt_re, s, perl = TRUE)
+  u_re <- "\\bU(\\d+)\\b"
+  u_m  <- regexpr(u_re, s, perl = TRUE)
+
+  use_kw <- ft_alt_m > 0L && (u_m <= 0L || ft_alt_m >= u_m)
+  use_u  <- !use_kw && u_m > 0L
+
+  if (use_kw || use_u) {
+    if (use_kw) {
+      cap  <- regmatches(s, regexec(ft_alt_re, s, perl = TRUE))[[1L]]
+      mpos <- ft_alt_m
+      mlen <- attr(ft_alt_m, "match.length")
+      out$flat_type   <- unname(ft_map[[cap[[2L]]]])
+      out$flat_number <- cap[[3L]]
+    } else {
+      cap  <- regmatches(s, regexec(u_re, s, perl = TRUE))[[1L]]
+      mpos <- u_m
+      mlen <- attr(u_m, "match.length")
+      out$flat_type   <- "UNIT"
+      out$flat_number <- cap[[2L]]
+    }
+    pre  <- trimws(substr(s, 1L, mpos - 1L))
+    post <- trimws(substr(s, mpos + mlen, nchar(s)))
+
+    # The street number sits on whichever side of the marker carries one —
+    # immediately before it ("6 UNIT 6019 Parkland") or immediately after
+    # ("U10 ... UNIT 6019 6 Parkland" / "U6019 6 Parkland").
+    pre_m  <- regmatches(pre,  regexec("^(.*?)\\b(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s*$", pre,  perl = TRUE))[[1L]]
+    post_m <- regmatches(post, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$",      post, perl = TRUE))[[1L]]
+
+    if (length(pre_m) == 3L) {
+      out$building_name <- if (nzchar(trimws(pre_m[[2L]]))) trimws(pre_m[[2L]]) else NA_character_
+      out <- .apply_parsed_number(out, pre_m[[3L]])
+      out$street_name <- if (nzchar(post)) post else NA_character_
+    } else if (length(post_m) == 3L) {
+      if (nzchar(pre)) out$building_name <- pre
+      out <- .apply_parsed_number(out, post_m[[2L]])
+      out$street_name <- if (nzchar(post_m[[3L]])) post_m[[3L]] else NA_character_
+    } else {
+      if (nzchar(pre))  out$building_name <- pre
+      out$street_name  <- if (nzchar(post)) post else NA_character_
+    }
+    return(out)
+  }
+
+  # Case D: plain "[building] NUM[-NUM] STREETNAME" — no flat info present.
+  # Numbers may carry a trailing alpha suffix (e.g. 190A); .apply_parsed_number
+  # strips it before as.integer().
   m_num <- regexpr("(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+", s, perl = TRUE)
   if (m_num > 0L) {
     num_end <- m_num + attr(m_num, "match.length") - 1L
@@ -456,39 +530,25 @@ address_parse <- function(addresses) {
 
     num_str <- trimws(substr(s, m_num, num_end))
     rest    <- trimws(substr(s, num_end + 1L, nchar(s)))
-
-    # Implied flat: no flat number found yet and rest begins with another numeric token.
-    # "10 120 MUSGRAVE" and "10 110-120 MUSGRAVE" follow Australian convention where
-    # the first bare number is the unit/flat and the second is the street number.
-    m_num2 <- if (is.na(out$flat_number) && nzchar(rest))
-      regexpr("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+", rest, perl = TRUE)
-    else -1L
-
-    if (m_num2 > 0L) {
-      num2_end  <- m_num2 + attr(m_num2, "match.length") - 1L
-      out$flat_type   <- "UNIT"
-      out$flat_number <- num_str
-      num2_str  <- trimws(substr(rest, 1L, num2_end))
-      rest      <- trimws(substr(rest, num2_end + 1L, nchar(rest)))
-      num_parts <- strsplit(num2_str, "-", fixed = TRUE)[[1L]]
-      out$number_first  <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
-      sfx <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
-      out$number_suffix <- if (nzchar(sfx)) sfx else NA_character_
-      out$number_last   <- if (length(num_parts) > 1L) as.integer(sub("[A-Z]+$", "", num_parts[2L])) else NA_integer_
-    } else {
-      num_parts <- strsplit(num_str, "-", fixed = TRUE)[[1L]]
-      out$number_first <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
-      sfx <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
-      out$number_suffix <- if (nzchar(sfx)) sfx else NA_character_
-      if (length(num_parts) > 1L) out$number_last <- as.integer(sub("[A-Z]+$", "", num_parts[2L]))
-    }
-
+    out <- .apply_parsed_number(out, num_str)
     out$street_name <- if (nzchar(rest)) rest else NA_character_
   } else {
     # No numeric token — entire remaining is street name (or building name fallback)
     out$street_name <- if (nzchar(s)) s else NA_character_
   }
 
+  out
+}
+
+# Fill number_first / number_last / number_suffix on a `.parse_before` result
+# list from a "NUM[-NUM]" token (numbers may carry a trailing alpha suffix,
+# e.g. "190A", "3A-5B").
+.apply_parsed_number <- function(out, num_str) {
+  num_parts <- strsplit(num_str, "-", fixed = TRUE)[[1L]]
+  out$number_first  <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
+  sfx <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
+  out$number_suffix <- if (nzchar(sfx)) sfx else NA_character_
+  if (length(num_parts) > 1L) out$number_last <- as.integer(sub("[A-Z]+$", "", num_parts[2L]))
   out
 }
 
@@ -519,3 +579,4 @@ address_parse <- function(addresses) {
   }
   NULL
 }
+

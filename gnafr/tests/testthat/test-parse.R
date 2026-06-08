@@ -224,3 +224,49 @@ test_that("flat + alpha-suffixed street number parses all fields", {
   expect_equal(r$in_number_suffix, "A")
   expect_equal(r$in_street_name,   "MUSGRAVE")
 })
+
+# ---- Unit/street-number ambiguity & noisy prefixes -------------------------
+# All of the following describe the same address — "Unit 6019, 6 Parkland
+# Boulevard" — written with varying noise, marker placement and ordering.
+# They should all parse to identical flat/number/street fields.
+
+test_that("implied-pair convention picks rightmost NUM NUM STREETNAME over a noisy leading flat marker", {
+  r <- address_parse("U10 BLAH 6019 6 parkland bvd brisbane city QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "6019")
+  expect_equal(r$in_number_first, 6L)
+  expect_equal(r$in_street_name,  "PARKLAND")
+  expect_equal(r$in_street_type,  "BOULEVARD")
+})
+
+test_that("explicit UNIT marker mid-string after the street number is recognised", {
+  r <- address_parse("6 UNIT 6019 parkland bvd brisbane city QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "6019")
+  expect_equal(r$in_number_first, 6L)
+  expect_equal(r$in_street_name,  "PARKLAND")
+})
+
+test_that("explicit UNIT marker after a noisy leading flat marker resolves to the trailing pair", {
+  r <- address_parse("U10 BLAH UNIT 6019 6 parkland bvd brisbane city QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "6019")
+  expect_equal(r$in_number_first, 6L)
+  expect_equal(r$in_street_name,  "PARKLAND")
+})
+
+test_that("explicit UNIT marker preceded by a noisy leading number+street phrase resolves to the trailing pair", {
+  r <- address_parse("5 BLIND ROAD UNIT 6019 6 parkland bvd brisbane city QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "6019")
+  expect_equal(r$in_number_first, 6L)
+  expect_equal(r$in_street_name,  "PARKLAND")
+})
+
+test_that("attached U-prefix flat number with following street number parses correctly", {
+  r <- address_parse("U6019 6 parkland bvd brisbane city QLD 4000")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "6019")
+  expect_equal(r$in_number_first, 6L)
+  expect_equal(r$in_street_name,  "PARKLAND")
+})
