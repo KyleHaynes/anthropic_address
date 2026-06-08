@@ -7,3 +7,6 @@ todo:
 3. Do we need to load more variants of addresses
 - ranges imputation 110-120, load 112, 114, 116 etc
 -
+
+
+I stashed some changes which join postcodes +/- 3 digits, i think this is a slow down

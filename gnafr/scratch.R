@@ -23,6 +23,10 @@ result_dt <- gnaf_match(
         verbose = TRUE,
         cache = FALSE # Turning off to benchmark bad addresses
 )
+# Note: before this commit, 100k ran like:
+# Timings: parse 66.86s, standardise 1.05s, slow path 162.89s, wrangle 32.30s, total 264.25s.
+
+
 
 simulated_inputs[, no_match := fifelse(simulated_address %in% result_dt[(!matched)]$input_raw, T, F)]
 simulated_inputs[(no_match), .(simulated_address, ADDRESS_LABEL, perturbations)]
