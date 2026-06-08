@@ -24,7 +24,16 @@ result_dt <- gnaf_match(
         cache = FALSE # Turning off to benchmark bad addresses
 )
 # Note: before this commit, 100k ran like:
+# ✔ Matched 99,036 of 100,001 input rows (99.0%).
 # Timings: parse 66.86s, standardise 1.05s, slow path 162.89s, wrangle 32.30s, total 264.25s.
+# NOW A TAD SLOWER for little gain, should we make this an argument
+# ✔ Matched 99,062 of 100,001 input rows (99.1%).
+# • Returned 99,062 candidate rows after ranking and filtering.
+# • Unmatched inputs above min_score: 939.
+# • Exact label matches: 965 in 1.78s.
+# • Cache matches: 0 in 0.00s.
+# • Slow-path matches: 98,097 in 282.48s.
+# Timings: parse 61.16s, standardise 1.03s, slow path 282.48s, wrangle 35.17s, total 381.64s.
 
 
 

@@ -69,7 +69,8 @@
 
   list(
     score_postcode = sprintf(
-      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 1 THEN CAST(ROUND(%d * 0.7) AS INTEGER) WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 2 THEN CAST(ROUND(%d * 0.4) AS INTEGER) ELSE 0 END",
+      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 1 THEN CAST(ROUND(%d * 0.7) AS INTEGER) WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 2 THEN CAST(ROUND(%d * 0.4) AS INTEGER) WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 3 THEN CAST(ROUND(%d * 0.2) AS INTEGER) ELSE 0 END",
+      i, g, i, g, w_pc,
       i, g, i, g, w_pc,
       i, g, i, g, w_pc,
       i, g, i, g, w_pc
@@ -134,7 +135,8 @@
     fifelse(!both_present,  0L,
     fifelse(diff == 0L,     as.integer(round(weights$postcode)),
     fifelse(diff == 1L,     as.integer(round(weights$postcode * 0.7)),
-    fifelse(diff == 2L,     as.integer(round(weights$postcode * 0.4)), 0L))))
+    fifelse(diff == 2L,     as.integer(round(weights$postcode * 0.4)),
+    fifelse(diff == 3L,     as.integer(round(weights$postcode * 0.2)), 0L)))))
   }]
 
   # --- Suburb / locality (20 pts) ------------------------------------------

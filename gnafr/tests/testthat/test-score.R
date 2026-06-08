@@ -153,15 +153,18 @@ test_that("flat number match scores full weight; mismatch scores 0", {
   expect_equal(out_miss$score_flat, 0L)
 })
 
-test_that("postcode +-1 scores 70 pct; >+-2 scores 0", {
+test_that("postcode +-1/+-2/+-3 score partial credit; >+-3 scores 0", {
   p1 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4001L)
   expect_equal(gnafr:::.score_pairs(p1)$score_postcode, 14L)  # round(20 * 0.7)
 
   p2 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4002L)
   expect_equal(gnafr:::.score_pairs(p2)$score_postcode, 8L)   # round(20 * 0.4)
 
-  p3 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4005L)
-  expect_equal(gnafr:::.score_pairs(p3)$score_postcode, 0L)
+  p3 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4003L)
+  expect_equal(gnafr:::.score_pairs(p3)$score_postcode, 4L)   # round(20 * 0.2)
+
+  p4 <- make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4005L)
+  expect_equal(gnafr:::.score_pairs(p4)$score_postcode, 0L)
 })
 
 test_that("total_score is sum of component scores", {

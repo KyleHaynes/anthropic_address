@@ -13,7 +13,7 @@ gnaf_match(
   alias_types = NULL,
   locality_fallback = TRUE,
   street_only_fallback = FALSE,
-  fallback_threshold = 80L,
+  fallback_threshold = 90L,
   weights = .default_match_weights(),
   cache = TRUE,
   cache_threshold = 95L,
@@ -46,9 +46,14 @@ other paths are re-matched against street-level aliases
 \code{gnaf_build_street_aliases} to have been run first. Default
 \code{FALSE}.}
 
-\item{fallback_threshold}{Total score below which locality fallback fires.
-Default 80: a correct match with a matching postcode will typically score
-85+, so 80 catches wrong-postcode and genuinely poor matches.}
+\item{fallback_threshold}{Total score at or below which locality fallback
+fires. Default 90: a clean correct match typically scores 95+, whereas a
+coincidental match — same postcode and house number, unrelated street —
+can still reach into the low-to-mid 80s (e.g. 20 postcode + 10 number +
+partial suburb/street-name credit). 90 leaves enough margin to catch those
+coincidences and let the locality scan (which discovers the right postcode
+from the suburb name regardless of how far off the stated one is) find the
+true candidate, without firing for genuinely good matches.}
 
 \item{weights}{Named list of score weights. Defaults to postcode = 25,
 suburb = 20, street_name = 25, street_type = 10, number = 12, flat = 8.

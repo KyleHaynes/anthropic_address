@@ -32,9 +32,14 @@
 #'   (\code{alias_type = "street_only"}) in \code{gnaf_addresses}. Requires
 #'   \code{gnaf_build_street_aliases} to have been run first. Default
 #'   \code{FALSE}.
-#' @param fallback_threshold Total score below which locality fallback fires.
-#'   Default 80: a correct match with a matching postcode will typically score
-#'   85+, so 80 catches wrong-postcode and genuinely poor matches.
+#' @param fallback_threshold Total score at or below which locality fallback
+#'   fires. Default 90: a clean correct match typically scores 95+, whereas a
+#'   coincidental match — same postcode and house number, unrelated street —
+#'   can still reach into the low-to-mid 80s (e.g. 20 postcode + 10 number +
+#'   partial suburb/street-name credit). 90 leaves enough margin to catch those
+#'   coincidences and let the locality scan (which discovers the right postcode
+#'   from the suburb name regardless of how far off the stated one is) find the
+#'   true candidate, without firing for genuinely good matches.
 #' @param weights Named list of score weights. Defaults to postcode = 25,
 #'   suburb = 20, street_name = 25, street_type = 10, number = 12, flat = 8.
 #'   Weights must sum to 100.
@@ -53,7 +58,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
                        alias_types = NULL,
                        locality_fallback = TRUE,
                        street_only_fallback = FALSE,
-                       fallback_threshold = 80L,
+                       fallback_threshold = 90L,
                        weights = .default_match_weights(),
                        cache = TRUE,
                        cache_threshold = 95L,
@@ -215,7 +220,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
       data.table(input_id = integer(0), best_score = integer(0))
     }
 
-    weak_ids      <- best_by_input[best_score < fallback_threshold, input_id]
+    weak_ids      <- best_by_input[best_score <= fallback_threshold, input_id]
     matched_ids   <- best_by_input$input_id
     unmatched_ids <- has_pc[!input_id %in% matched_ids, input_id]
     no_pc_loc_ids <- no_pc[!is.na(in_locality), input_id]
@@ -453,6 +458,17 @@ SELECT * FROM ranked WHERE match_rank <= %d
                                    alias_types = NULL) {
   if (nrow(inputs_dt) == 0L) return(.empty_path_result())
 
+  # Block on an exact postcode match — this is the hot path and must stay a
+  # cheap hash join against the full multi-million-row gnaf_addresses table.
+  # Near-miss postcodes (off by a digit, postal vs. delivery postcode, etc.)
+  # are NOT retrieved here; instead .score_sql_exprs still gives partial
+  # credit when in_postcode and postcode happen to both appear (e.g. via the
+  # locality-fallback path below, which discovers candidates by suburb name
+  # regardless of how far off the stated postcode is — the right tool for
+  # "the postcode looks fine but is actually wrong", which broadening this
+  # join to +/- N would only handle for small, fixed N at a steep cost: every
+  # extra offset multiplies the join's candidate volume (and runtime) because
+  # both the input side AND the matching gnaf rows per postcode multiply.
   duckdb::duckdb_register(con, "__gnafr_pc_inputs__", inputs_dt, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_pc_inputs__"), silent = TRUE))
 
@@ -567,9 +583,27 @@ loc_map AS (
     AND (ul.in_state IS NULL OR g.state = ul.in_state)
 ),
 expanded AS (
+  -- Two ways to discover an alternative postcode worth trying, both gated to
+  -- this already-small fallback set (inputs whose postcode-path result was
+  -- weak, missing, or absent):
+  --   (a) fuzzy-match the parsed locality name against gnaf_locality_index —
+  --       finds the right postcode regardless of how far off the stated one is.
+  --   (b) try postcodes within +/- 3 of the stated one — catches near-miss
+  --       typos / postal-vs-delivery postcodes whose locality didn't fuzzy-match
+  --       (e.g. it was itself misspelt, or absent from the input).
+  -- Doing this only here — rather than broadening the primary postcode-path
+  -- join — keeps the hot path a cheap equi-join; this fallback only ever
+  -- touches the minority of inputs that didn't already score well.
   SELECT i.*, loc_map.postcode AS alt_postcode
   FROM __gnafr_loc_inputs__ i
   JOIN loc_map ON loc_map.in_locality = i.in_locality
+
+  UNION
+
+  SELECT i.*, (i.in_postcode + o.pc_offset) AS alt_postcode
+  FROM __gnafr_loc_inputs__ i
+  CROSS JOIN (VALUES (-3), (-2), (-1), (1), (2), (3)) AS o(pc_offset)
+  WHERE i.in_postcode IS NOT NULL
 ),
 joined AS (
   SELECT
