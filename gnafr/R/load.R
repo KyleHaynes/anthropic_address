@@ -21,6 +21,7 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
     message("Cleared existing GNAF rows.")
   }
 
+  st_case_sql <- .street_type_case_sql("STREET_TYPE")
   for (p in path) {
     # Normalise to forward slashes (DuckDB accepts them on Windows)
     p_fwd <- gsub("\\\\", "/", p)
@@ -41,7 +42,7 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
         TRY_CAST(NUMBER_LAST  AS INTEGER)      AS number_last,
         LOT_NUMBER                             AS lot_number,
         STREET_NAME                            AS street_name,
-        STREET_TYPE                            AS street_type,
+        (%s)                                   AS street_type,
         STREET_SUFFIX                          AS street_suffix,
         LOCALITY_NAME                          AS locality_name,
         STATE                                  AS state,
@@ -52,7 +53,7 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
         NULL::VARCHAR                          AS alias_type
       FROM read_csv('%s', header = true, ignore_errors = true)
       ON CONFLICT DO NOTHING
-    ", p_fwd))
+    ", st_case_sql, p_fwd))
 
     message("Done: ", p)
   }

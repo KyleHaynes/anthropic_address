@@ -23,6 +23,15 @@
   .gnafr_env$ft_map
 }
 
+.street_type_case_sql <- function(col_expr) {
+  m <- .get_street_type_map()
+  when_clauses <- paste(
+    sprintf("WHEN '%s' THEN '%s'", names(m), m),
+    collapse = " "
+  )
+  sprintf("CASE %s %s ELSE %s END", col_expr, when_clauses, col_expr)
+}
+
 .build_street_type_regex <- function(st_map) {
   abbrevs <- names(st_map)
   # Longest first so regex engine doesn't short-circuit on a prefix

@@ -234,6 +234,34 @@ gnaf_build_street_aliases <- function(con, overwrite = FALSE) {
   invisible(n)
 }
 
+#' Canonicalize street types in an existing gnafr database
+#'
+#' Updates the \code{street_type} column in \code{gnaf_addresses} and
+#' \code{custom_addresses} so that abbreviated forms (e.g. "RD", "AV") are
+#' replaced with their canonical equivalents ("ROAD", "AVENUE").
+#'
+#' Call this once on databases loaded before this fix was applied.  Newly
+#' loaded databases are canonicalized automatically at insert time.
+#'
+#' @param con DBI connection from \code{gnaf_connect}.
+#' @return Invisibly, the total number of rows updated across both tables.
+#' @export
+gnaf_canonicalize_street_types <- function(con) {
+  case_sql <- .street_type_case_sql("street_type")
+  n <- 0L
+  for (tbl in c("gnaf_addresses", "custom_addresses")) {
+    if (DBI::dbExistsTable(con, tbl)) {
+      result <- DBI::dbExecute(con, sprintf(
+        "UPDATE %s SET street_type = (%s) WHERE street_type IS NOT NULL",
+        tbl, case_sql
+      ))
+      n <- n + result
+    }
+  }
+  message(sprintf("Updated %s rows.", format(n, big.mark = ",")))
+  invisible(n)
+}
+
 #' Report row counts for gnafr tables
 #'
 #' @param con DBI connection.

@@ -319,3 +319,44 @@ test_that("comma hint uses the last comma so a leading unit comma isn't mistaken
   expect_equal(r$in_street_type,  "STREET")
   expect_equal(r$in_locality,     "BRISBANE")
 })
+
+# ---- Attached single-letter flat prefix (F8, A6, D2 etc.) ------------------
+# User-supplied addresses often use an informal shorthand: a single capital
+# letter immediately followed by the flat number, with no space — e.g. "F8"
+# (Flat 8), "A6" (Apartment 6). The street number follows as a separate token.
+
+test_that("F-prefix flat parses flat_type=FLAT, flat_number, and correct street number", {
+  r <- address_parse("F8 536 BEACONSFIELD TERRACE, BRIGHTON QLD 4017")
+  expect_equal(r$in_flat_type,    "FLAT")
+  expect_equal(r$in_flat_number,  "8")
+  expect_equal(r$in_number_first, 536L)
+  expect_equal(r$in_street_name,  "BEACONSFIELD")
+  expect_equal(r$in_street_type,  "TERRACE")
+  expect_equal(r$in_locality,     "BRIGHTON")
+})
+
+test_that("A-prefix flat parses flat_type=APARTMENT and correct street number", {
+  r <- address_parse("A6 536 BEACONSFIELD TERRACE, BRIGHTON QLD 4017")
+  expect_equal(r$in_flat_type,    "APARTMENT")
+  expect_equal(r$in_flat_number,  "6")
+  expect_equal(r$in_number_first, 536L)
+  expect_equal(r$in_street_name,  "BEACONSFIELD")
+})
+
+test_that("unknown-letter prefix defaults to UNIT flat_type", {
+  r <- address_parse("D2 536 BEACONSFIELD TERRACE, BRIGHTON QLD 4017")
+  expect_equal(r$in_flat_type,    "UNIT")
+  expect_equal(r$in_flat_number,  "2")
+  expect_equal(r$in_number_first, 536L)
+  expect_equal(r$in_street_name,  "BEACONSFIELD")
+})
+
+test_that("letter+digit flat designator after street number is extracted from street name", {
+  # "36 A1 TAVISTOCK ST" — "A1" is Apartment 1, not part of street name
+  r <- address_parse("36 A1 TAVISTOCK ST, TORQUAY QLD 4655")
+  expect_equal(r$in_flat_type,    "APARTMENT")
+  expect_equal(r$in_flat_number,  "1")
+  expect_equal(r$in_number_first, 36L)
+  expect_equal(r$in_street_name,  "TAVISTOCK")
+  expect_equal(r$in_street_type,  "STREET")
+})

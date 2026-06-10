@@ -133,6 +133,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
                            street_suffix = "sl.STREET_SUFFIX_CODE",
                            locality_name = "l.LOCALITY_NAME",
                            postcode      = "d.POSTCODE") {
+  canon_st <- .street_type_case_sql(street_type)
   sprintf(
     "TRIM(
        COALESCE(d.BUILDING_NAME || ' ', '') ||
@@ -155,7 +156,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
        COALESCE(' ' || NULLIF((%s), ''), '') ||
        ', ' || (%s) || ' QLD ' || (%s)
      )",
-    street_name, street_type, street_suffix, locality_name, postcode
+    street_name, canon_st, street_suffix, locality_name, postcode
   )
 }
 
@@ -196,6 +197,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
 # Step 1: load ADDRESS_DETAIL (principal + alias records)
 # ---------------------------------------------------------------------------
 .psv_insert_standard <- function(con, fps) {
+  st_case_sql <- .street_type_case_sql("sl.STREET_TYPE_CODE")
   DBI::dbExecute(con, sprintf("
     INSERT INTO gnaf_addresses (
       address_detail_pid, address_label, address_site_name, building_name,
@@ -210,7 +212,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
       %s                                                    AS address_label,
       %s,
       sl.STREET_NAME,
-      sl.STREET_TYPE_CODE,
+      (%s),
       sl.STREET_SUFFIX_CODE,
       l.LOCALITY_NAME,
       'QLD',
@@ -240,6 +242,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
     ON CONFLICT DO NOTHING",
     .psv_label_sql(),
     .psv_detail_cols_sql(),
+    st_case_sql,
     .psv_csv(fps$detail),
     .psv_csv(fps$street),
     .psv_csv(fps$locality),
@@ -254,6 +257,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
 # Derived PID: <original_pid>_LA<alias_pid>
 # ---------------------------------------------------------------------------
 .psv_insert_locality_aliases <- function(con, fps) {
+  st_case_sql <- .street_type_case_sql("sl.STREET_TYPE_CODE")
   DBI::dbExecute(con, sprintf("
     INSERT INTO gnaf_addresses (
       address_detail_pid, address_label, address_site_name, building_name,
@@ -268,7 +272,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
       %s                                                    AS address_label,
       %s,
       sl.STREET_NAME,
-      sl.STREET_TYPE_CODE,
+      (%s),
       sl.STREET_SUFFIX_CODE,
       la.NAME                                               AS locality_name,
       'QLD',
@@ -295,6 +299,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
     .psv_label_sql(locality_name = "la.NAME",
                    postcode      = "COALESCE(CAST(la.POSTCODE AS VARCHAR), CAST(d.POSTCODE AS VARCHAR))"),
     .psv_detail_cols_sql(),
+    st_case_sql,
     .psv_csv(fps$detail),
     .psv_csv(fps$street),
     .psv_csv(fps$locality),
@@ -309,6 +314,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
 # Derived PID: <original_pid>_SA<alias_pid>
 # ---------------------------------------------------------------------------
 .psv_insert_street_aliases <- function(con, fps) {
+  st_case_sql <- .street_type_case_sql("sla.STREET_TYPE_CODE")
   DBI::dbExecute(con, sprintf("
     INSERT INTO gnaf_addresses (
       address_detail_pid, address_label, address_site_name, building_name,
@@ -323,7 +329,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
       %s                                                    AS address_label,
       %s,
       sla.STREET_NAME,
-      sla.STREET_TYPE_CODE,
+      (%s),
       sla.STREET_SUFFIX_CODE,
       l.LOCALITY_NAME,
       'QLD',
@@ -351,6 +357,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
                    street_type   = "sla.STREET_TYPE_CODE",
                    street_suffix = "sla.STREET_SUFFIX_CODE"),
     .psv_detail_cols_sql(),
+    st_case_sql,
     .psv_csv(fps$detail),
     .psv_csv(fps$street),
     .psv_csv(fps$str_alias),

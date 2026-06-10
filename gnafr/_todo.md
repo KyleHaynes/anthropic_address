@@ -10,3 +10,5 @@ todo:
 
 
 I stashed some changes which join postcodes +/- 3 digits, i think this is a slow down
+- the above is somewhat fixed, but slow (see scratch.R) .... could make this an argument. see
+  commit at 7.54pm 8/6/2026
