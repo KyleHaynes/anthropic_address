@@ -14,7 +14,7 @@ simulated_inputs = address_perturb_sample(
 )
 saveRDS(simulated_inputs, "simulated_inputs.rds")
 
-simulated_inputs <- readRDS("simulated_inputs.rds")
+# simulated_inputs <- readRDS("x.rds")
 result_dt <- gnaf_match(
         c(simulated_inputs$simulated_address[200000:300000]),
         con,
@@ -34,6 +34,15 @@ result_dt <- gnaf_match(
 # • Cache matches: 0 in 0.00s.
 # • Slow-path matches: 98,097 in 282.48s.
 # Timings: parse 61.16s, standardise 1.03s, slow path 282.48s, wrangle 35.17s, total 381.64s.
+
+# This is from the fall back commit of: 3658f17aaa6687b85034def9d9cdf4349271e9ae
+# ✔ Matched 99,063 of 100,001 input rows (99.1%).
+# • Returned 99,063 candidate rows after ranking and filtering.
+# • Unmatched inputs above min_score: 938.
+# • Exact label matches: 968 in 1.64s.
+# • Cache matches: 0 in 0.00s.
+# • Slow-path matches: 98,095 in 288.53s.
+# Timings: parse 58.36s, standardise 1.46s, slow path 288.53s, wrangle 22.29s, total 372.34s.
 
 
 
