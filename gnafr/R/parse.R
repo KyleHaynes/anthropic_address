@@ -1,51 +1,44 @@
+# Attached single-letter flat designators ("F8", "A6", "U110"); any other
+# letter defaults to UNIT at the use sites.
+.ATT_FLAT_MAP <- c(U = "UNIT", F = "FLAT", A = "APARTMENT")
+
+# Abbreviation-expansion tables for .expand_abbreviations. Patterns are applied
+# sequentially (vectorize_all = FALSE), preserving the original gsub order:
+# MNT/MT -> MOUNT; ST -> SAINT (safe after street_type is stripped); NTH/STH
+# and leading N/S/E/W -> compass words; CK -> CREEK; & -> AND.
+.EXPAND_PATTERNS <- c(
+  "\\bMNT\\b", "\\bMT\\b", "\\bST\\b", "\\bNTH\\b", "\\bSTH\\b",
+  "^N\\b", "^S\\b", "^E\\b", "^W\\b", "\\bCK\\b", "\\s+&\\s+"
+)
+.EXPAND_REPLACEMENTS <- c(
+  "MOUNT", "MOUNT", "SAINT", "NORTH", "SOUTH",
+  "NORTH", "SOUTH", "EAST", "WEST", "CREEK", " AND "
+)
+
+.ORDINAL_PATTERNS <- sprintf("\\b%s\\b", c(
+  "1ST", "2ND", "3RD", "4TH", "5TH", "6TH", "7TH", "8TH", "9TH", "10TH",
+  "11TH", "12TH", "13TH", "14TH", "15TH", "16TH", "17TH", "18TH", "19TH", "20TH"
+))
+.ORDINAL_REPLACEMENTS <- c(
+  "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "SIXTH", "SEVENTH",
+  "EIGHTH", "NINTH", "TENTH", "ELEVENTH", "TWELFTH", "THIRTEENTH",
+  "FOURTEENTH", "FIFTEENTH", "SIXTEENTH", "SEVENTEENTH", "EIGHTEENTH",
+  "NINETEENTH", "TWENTIETH"
+)
+
 # Expands common abbreviations in in_locality and in_street_name after the
 # structured fields (street type etc.) have already been extracted.  Runs only
 # when normalize = TRUE in address_parse / gnaf_match.
 .expand_abbreviations <- function(dt) {
-
-  .exp_common <- function(x) {
-    # Mount / Mountain prefixes
-    x <- gsub("\\bMNT\\b",  "MOUNT", x, perl = TRUE)
-    x <- gsub("\\bMT\\b",   "MOUNT", x, perl = TRUE)
-    # Saint — safe after street_type is already stripped from the field
-    x <- gsub("\\bST\\b",   "SAINT", x, perl = TRUE)
-    # Australian directional shorthands anywhere in the field
-    x <- gsub("\\bNTH\\b",  "NORTH", x, perl = TRUE)
-    x <- gsub("\\bSTH\\b",  "SOUTH", x, perl = TRUE)
-    # Single-letter compass only when leading the field (^N LAKES → NORTH LAKES)
-    x <- gsub("^N\\b",      "NORTH", x, perl = TRUE)
-    x <- gsub("^S\\b",      "SOUTH", x, perl = TRUE)
-    x <- gsub("^E\\b",      "EAST",  x, perl = TRUE)
-    x <- gsub("^W\\b",      "WEST",  x, perl = TRUE)
-    # Creek
-    x <- gsub("\\bCK\\b",   "CREEK", x, perl = TRUE)
-    # Ampersand
-    x <- gsub("\\s+&\\s+",  " AND ", x, perl = TRUE)
-    x
+  exp_common <- function(x) {
+    stringi::stri_replace_all_regex(x, .EXPAND_PATTERNS, .EXPAND_REPLACEMENTS,
+                                    vectorize_all = FALSE)
   }
-
-  .ordinal_map <- c(
-    "\\b1ST\\b"  = "FIRST",       "\\b2ND\\b"  = "SECOND",
-    "\\b3RD\\b"  = "THIRD",       "\\b4TH\\b"  = "FOURTH",
-    "\\b5TH\\b"  = "FIFTH",       "\\b6TH\\b"  = "SIXTH",
-    "\\b7TH\\b"  = "SEVENTH",     "\\b8TH\\b"  = "EIGHTH",
-    "\\b9TH\\b"  = "NINTH",       "\\b10TH\\b" = "TENTH",
-    "\\b11TH\\b" = "ELEVENTH",    "\\b12TH\\b" = "TWELFTH",
-    "\\b13TH\\b" = "THIRTEENTH",  "\\b14TH\\b" = "FOURTEENTH",
-    "\\b15TH\\b" = "FIFTEENTH",   "\\b16TH\\b" = "SIXTEENTH",
-    "\\b17TH\\b" = "SEVENTEENTH", "\\b18TH\\b" = "EIGHTEENTH",
-    "\\b19TH\\b" = "NINETEENTH",  "\\b20TH\\b" = "TWENTIETH"
-  )
-
-  .exp_street <- function(x) {
-    x <- .exp_common(x)
-    for (pat in names(.ordinal_map))
-      x <- gsub(pat, .ordinal_map[[pat]], x, perl = TRUE)
-    x
-  }
-
-  dt[, in_locality    := .exp_common(in_locality)]
-  dt[, in_street_name := .exp_street(in_street_name)]
+  dt[, in_locality := exp_common(in_locality)]
+  dt[, in_street_name := stringi::stri_replace_all_regex(
+    exp_common(in_street_name), .ORDINAL_PATTERNS, .ORDINAL_REPLACEMENTS,
+    vectorize_all = FALSE
+  )]
   dt
 }
 
@@ -71,12 +64,13 @@
 #'   \code{in_flat_type}, \code{in_flat_number}, \code{in_building_name}.
 #' @export
 address_parse <- function(addresses, normalize = TRUE) {
-  st_map    <- .get_street_type_map()
-  st_regex  <- .build_street_type_regex(st_map)
-  ft_map    <- .get_flat_type_map()
-  ft_re     <- paste0(
-    "^(", paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|"), ")\\s+(\\d+[A-Z]?)\\s+"
-  )
+  st_map   <- .get_street_type_map()
+  st_regex <- .build_street_type_regex(st_map)
+  ft_map   <- .get_flat_type_map()
+  # Longest-first alternation of flat-type abbreviations, built once per call
+  # and threaded through every parser level that needs it.
+  ft_alt   <- paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|")
+  ft_re    <- paste0("^(", ft_alt, ")\\s+(\\d+[A-Z]?)\\s+")
 
   # Comma hint: capture the word immediately before the LAST comma in each
   # raw address (uppercased, periods stripped) before .normalize_addr
@@ -86,13 +80,17 @@ address_parse <- function(addresses, normalize = TRUE) {
   # prioritising fuzzy-matching of misspelt types (e.g. "STX" -> "ST").
   # The LAST comma is used so flat/unit notations like "Unit 5, 10 Smith St,
   # Brisbane ..." don't pick up the flat number instead.
-  addr_upper <- gsub("\\.", " ", toupper(trimws(addresses)), perl = TRUE)
-  addr_upper <- gsub("\\s+", " ", addr_upper, perl = TRUE)
-  cw_cap <- regmatches(addr_upper, regexec("\\b([A-Z0-9]+)\\s*,(?:[^,]*)$", addr_upper, perl = TRUE))
-  comma_word <- vapply(cw_cap, function(x) if (length(x) == 2L) x[[2L]] else NA_character_, character(1))
+  addr_upper <- stringi::stri_replace_all_fixed(
+    stringi::stri_trans_toupper(stringi::stri_trim_both(addresses)), ".", " "
+  )
+  addr_upper <- stringi::stri_replace_all_regex(addr_upper, "\\s+", " ")
+  comma_word <- stringi::stri_match_first_regex(
+    addr_upper, "\\b([A-Z0-9]+)\\s*,[^,]*$"
+  )[, 2L]
 
   normalized <- .normalize_addr(addresses)
-  dt <- .parse_vectorized(normalized, addresses, st_map, st_regex, ft_map, ft_re, comma_word)
+  dt <- .parse_vectorized(normalized, addresses, st_map, st_regex, ft_map,
+                          ft_re, ft_alt, comma_word)
   if (isTRUE(normalize)) .expand_abbreviations(dt)
   setcolorder(dt, c("input_id", "input_raw",
                     "in_postcode", "in_state", "in_locality",
@@ -103,78 +101,91 @@ address_parse <- function(addresses, normalize = TRUE) {
 }
 
 # ---------------------------------------------------------------------------
-# Vectorized parser — handles the full address vector in bulk C operations.
+# Vectorized parser — handles the full address vector in bulk stringi calls.
 # Falls back to .parse_single only for addresses that don't match any fast
 # pattern (typically <5% for well-formed Australian addresses).
 # ---------------------------------------------------------------------------
-.parse_vectorized <- function(normalized, addresses, st_map, st_regex, ft_map, ft_re, comma_word) {
+.parse_vectorized <- function(normalized, addresses, st_map, st_regex, ft_map,
+                              ft_re, ft_alt, comma_word) {
   n <- length(normalized)
+
+  in_state         <- rep(NA_character_, n)
+  in_postcode      <- rep(NA_integer_,   n)
+  in_locality      <- rep(NA_character_, n)
+  in_street_name   <- rep(NA_character_, n)
+  in_street_suffix <- rep(NA_character_, n)
+  in_number_first  <- rep(NA_integer_,   n)
+  in_number_last   <- rep(NA_integer_,   n)
+  in_number_suffix <- rep(NA_character_, n)
+  in_flat_type     <- rep(NA_character_, n)
+  in_flat_number   <- rep(NA_character_, n)
+  in_building_name <- rep(NA_character_, n)
+
+  # NA / empty inputs produce an all-NA parse row and skip every stage,
+  # including the fallback parser.
+  valid <- !is.na(normalized) & nzchar(normalized)
 
   # ------------------------------------------------------------------
   # Stage 1: extract trailing geo-suffix from end.
   # Handles both "STATE POSTCODE" and "POSTCODE STATE" orderings since
-  # address_perturb_sample produces both.
+  # address_perturb_sample produces both. Each pattern is only tried on
+  # the rows the previous ones didn't claim.
   # ------------------------------------------------------------------
   st_abbr <- "(?:QLD|NSW|VIC|SA|WA|TAS|NT|ACT)"
-  # Order A: ...STATE POSTCODE$
-  a_re <- paste0("(\\b", st_abbr, "\\b)\\s+(\\b\\d{4}\\b)\\s*$")
-  a_m  <- regmatches(normalized, regexec(a_re, normalized, perl = TRUE))
-  has_a <- lengths(a_m) == 3L
-
-  # Order B: ...POSTCODE STATE$
-  b_re <- paste0("(\\b\\d{4}\\b)\\s+(\\b", st_abbr, "\\b)\\s*$")
-  b_m  <- regmatches(normalized, regexec(b_re, normalized, perl = TRUE))
-  has_b <- lengths(b_m) == 3L & !has_a
-
-  # Order C: ...STATE$ (state present, no postcode)
-  c_re <- paste0("(\\b", st_abbr, "\\b)\\s*$")
-  c_m  <- regmatches(normalized, regexec(c_re, normalized, perl = TRUE))
-  has_c <- lengths(c_m) == 2L & !has_a & !has_b
-
-  # Order D: ...POSTCODE$ (postcode present, no state)
-  d_re <- "(\\b\\d{4}\\b)\\s*$"
-  d_m  <- regmatches(normalized, regexec(d_re, normalized, perl = TRUE))
-  has_d <- lengths(d_m) == 2L & !has_a & !has_b & !has_c
-
-  has_tail <- has_a | has_b | has_c | has_d
-  in_state    <- rep(NA_character_, n)
-  in_postcode <- rep(NA_integer_,   n)
-  if (any(has_a)) {
-    in_state[has_a]    <- vapply(a_m[has_a], `[[`, character(1), 2L)
-    in_postcode[has_a] <- as.integer(vapply(a_m[has_a], `[[`, character(1), 3L))
-  }
-  if (any(has_b)) {
-    in_postcode[has_b] <- as.integer(vapply(b_m[has_b], `[[`, character(1), 2L))
-    in_state[has_b]    <- vapply(b_m[has_b], `[[`, character(1), 3L)
-  }
-  if (any(has_c)) {
-    in_state[has_c] <- vapply(c_m[has_c], `[[`, character(1), 2L)
-  }
-  if (any(has_d)) {
-    in_postcode[has_d] <- as.integer(vapply(d_m[has_d], `[[`, character(1), 2L))
-  }
+  a_re <- paste0("(\\b", st_abbr, "\\b)\\s+(\\b\\d{4}\\b)\\s*$")  # STATE POSTCODE$
+  b_re <- paste0("(\\b\\d{4}\\b)\\s+(\\b", st_abbr, "\\b)\\s*$")  # POSTCODE STATE$
+  c_re <- paste0("(\\b", st_abbr, "\\b)\\s*$")                    # STATE$
+  d_re <- "(\\b\\d{4}\\b)\\s*$"                                   # POSTCODE$
 
   work <- normalized
-  work[has_a] <- trimws(sub(a_re, "", work[has_a], perl = TRUE))
-  work[has_b] <- trimws(sub(b_re, "", work[has_b], perl = TRUE))
-  work[has_c] <- trimws(sub(c_re, "", work[has_c], perl = TRUE))
-  work[has_d] <- trimws(sub(d_re, "", work[has_d], perl = TRUE))
+  rem  <- which(valid)
+
+  m <- stringi::stri_match_first_regex(work[rem], a_re)
+  hit <- !is.na(m[, 1L])
+  idx <- rem[hit]
+  if (length(idx) > 0L) {
+    in_state[idx]    <- m[hit, 2L]
+    in_postcode[idx] <- as.integer(m[hit, 3L])
+    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], a_re, ""))
+  }
+  rem <- rem[!hit]
+
+  m <- stringi::stri_match_first_regex(work[rem], b_re)
+  hit <- !is.na(m[, 1L])
+  idx <- rem[hit]
+  if (length(idx) > 0L) {
+    in_postcode[idx] <- as.integer(m[hit, 2L])
+    in_state[idx]    <- m[hit, 3L]
+    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], b_re, ""))
+  }
+  rem <- rem[!hit]
+
+  m <- stringi::stri_match_first_regex(work[rem], c_re)
+  hit <- !is.na(m[, 1L])
+  idx <- rem[hit]
+  if (length(idx) > 0L) {
+    in_state[idx] <- m[hit, 2L]
+    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], c_re, ""))
+  }
+  rem <- rem[!hit]
+
+  m <- stringi::stri_match_first_regex(work[rem], d_re)
+  hit <- !is.na(m[, 1L])
+  idx <- rem[hit]
+  if (length(idx) > 0L) {
+    in_postcode[idx] <- as.integer(m[hit, 2L])
+    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], d_re, ""))
+  }
 
   # ------------------------------------------------------------------
   # Stage 2: rightmost street type in the remaining string.
-  # gregexpr applies to the full vector in one compiled-regex pass.
   # ------------------------------------------------------------------
-  st_m   <- gregexpr(st_regex, work, perl = TRUE)
-  st_pos <- vapply(st_m, function(m) {
-    p <- m[m > 0L]; if (length(p) == 0L) NA_integer_ else tail(p, 1L)
-  }, integer(1))
-  st_len <- mapply(function(m, pos) {
-    if (is.na(pos)) return(NA_integer_)
-    attr(m, "match.length")[length(attr(m, "match.length"))]
-  }, st_m, st_pos, SIMPLIFY = TRUE)
-
-  has_st         <- !is.na(st_pos)
-  st_raw         <- ifelse(has_st, substr(work, st_pos, st_pos + st_len - 1L), NA_character_)
+  loc_st <- stringi::stri_locate_last_regex(work, st_regex)
+  st_pos <- loc_st[, 1L]
+  st_end <- loc_st[, 2L]
+  has_st <- !is.na(st_pos) & valid
+  st_raw <- rep(NA_character_, n)
+  st_raw[has_st] <- substr(work[has_st], st_pos[has_st], st_end[has_st])
   in_street_type <- unname(st_map[st_raw])
 
   # Comma hint: when the word immediately before the (last) comma in the
@@ -205,7 +216,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   before_st     <- trimws(substr(work, 1L, before_st_end))
   before_st[!nzchar(before_st)] <- NA_character_
 
-  after_st_start <- ifelse(has_st, st_pos + st_len, nchar(work) + 1L)
+  after_st_start <- ifelse(has_st, st_end + 1L, nchar(work) + 1L)
   after_st_raw   <- trimws(substr(work, after_st_start, nchar(work)))
   after_st_raw[!nzchar(after_st_raw) | !has_st] <- NA_character_
 
@@ -213,189 +224,166 @@ address_parse <- function(addresses, normalize = TRUE) {
   # Stage 3: optional street suffix then locality from after_st_raw.
   # ------------------------------------------------------------------
   sfx_re <- "^(NORTH|SOUTH|EAST|WEST|UPPER|LOWER|INNER|OUTER)\\b"
-  sfx_m  <- regexpr(sfx_re, ifelse(is.na(after_st_raw), "", after_st_raw), perl = TRUE)
-  has_sfx <- sfx_m > 0L & !is.na(after_st_raw)
+  sfx_m  <- stringi::stri_match_first_regex(after_st_raw, sfx_re)
+  has_sfx <- !is.na(sfx_m[, 1L])
 
-  in_street_suffix <- ifelse(has_sfx,
-    substr(after_st_raw, 1L, attr(sfx_m, "match.length")),
-    NA_character_)
-  loc_raw <- ifelse(has_sfx,
-    trimws(sub(sfx_re, "", after_st_raw, perl = TRUE)),
-    after_st_raw)
+  in_street_suffix[has_sfx] <- sfx_m[has_sfx, 2L]
+  loc_raw <- after_st_raw
+  loc_raw[has_sfx] <- trimws(stringi::stri_replace_first_regex(
+    after_st_raw[has_sfx], sfx_re, ""))
   in_locality <- ifelse(!is.na(loc_raw) & nzchar(loc_raw), loc_raw, NA_character_)
 
   # ------------------------------------------------------------------
   # Stage 4: parse the before-street-type for number / flat / name.
-  # Three vectorized patterns cover the common cases:
+  # Four vectorized patterns cover the common cases, each tried only on
+  # rows the previous patterns didn't claim:
   #   4a — slash notation "FLAT/NUM STREETNAME" (unit addresses)
   #   4b — flat-type prefix "UNIT 3 NUM STREETNAME"
+  #   4b2 — attached single-letter flat prefix "F8 536 STREETNAME"
   #   4c — simple "NUM[-NUM] STREETNAME"  ← ~70% of all addresses
   # Anything else falls back to .parse_single.
   # ------------------------------------------------------------------
-  bst <- ifelse(is.na(before_st), "", before_st)
+  bst <- before_st
+  bst[is.na(bst)] <- ""
 
-  in_street_name   <- rep(NA_character_, n)
-  in_number_first  <- rep(NA_integer_,   n)
-  in_number_last   <- rep(NA_integer_,   n)
-  in_number_suffix <- rep(NA_character_, n)
-  in_flat_type     <- rep(NA_character_, n)
-  in_flat_number   <- rep(NA_character_, n)
-  in_building_name <- rep(NA_character_, n)
+  fast <- rep(FALSE, n)
+  cand <- which(has_st)
 
   # 4a: slash notation (unit/flat numbers may carry trailing alpha e.g. 3A/190B)
-  slash_m  <- regmatches(bst, regexec("^(.*?)(\\d+[A-Z]?)/(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s*(.*)$", bst, perl = TRUE))
-  is_slash <- lengths(slash_m) == 6L & has_st
-  if (any(is_slash)) {
-    bld <- vapply(slash_m[is_slash], `[[`, character(1), 2L)
-    in_building_name[is_slash] <- ifelse(nzchar(trimws(bld)), trimws(bld), NA_character_)
-    in_flat_type[is_slash]    <- "UNIT"
-    in_flat_number[is_slash]  <- vapply(slash_m[is_slash], `[[`, character(1), 3L)
-    num_s <- vapply(slash_m[is_slash], `[[`, character(1), 4L)
-    in_street_name[is_slash]  <- vapply(slash_m[is_slash], `[[`, character(1), 5L)
-    has_r <- grepl("-", num_s, fixed = TRUE)
-    in_number_first[is_slash] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_s)))
-    sfx_a <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_s))
-    in_number_suffix[is_slash] <- ifelse(nzchar(sfx_a), sfx_a, NA_character_)
-    tmp <- rep(NA_integer_, sum(is_slash))
-    tmp[has_r] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_s[has_r])))
-    in_number_last[is_slash] <- tmp
+  m <- stringi::stri_match_first_regex(
+    bst[cand], "^(.*?)(\\d+[A-Z]?)/(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s*(.*)$")
+  hit <- !is.na(m[, 1L])
+  idx <- cand[hit]
+  if (length(idx) > 0L) {
+    bld <- trimws(m[hit, 2L])
+    in_building_name[idx] <- fifelse(nzchar(bld), bld, NA_character_)
+    in_flat_type[idx]     <- "UNIT"
+    in_flat_number[idx]   <- m[hit, 3L]
+    num <- .split_number_vec(m[hit, 4L])
+    in_number_first[idx]  <- num$first
+    in_number_last[idx]   <- num$last
+    in_number_suffix[idx] <- num$suffix
+    in_street_name[idx]   <- m[hit, 5L]
+    fast[idx] <- TRUE
   }
+  cand <- cand[!hit]
 
-  # 4b: flat-type prefix ("UNIT 3 ...")  — not slash, has a street type
-  remaining_b <- !is_slash & has_st
-  flat_m  <- regmatches(bst, regexec(ft_re, bst, perl = TRUE))
-  is_flat <- lengths(flat_m) > 2L & remaining_b
-  if (any(is_flat)) {
-    in_flat_type[is_flat]   <- unname(ft_map[vapply(flat_m[is_flat], `[[`, character(1), 2L)])
-    in_flat_number[is_flat] <- vapply(flat_m[is_flat], `[[`, character(1), 3L)
-    ft_len <- vapply(flat_m[is_flat], function(m) nchar(m[[1L]]), integer(1))
-    rest   <- trimws(substr(bst[is_flat], ft_len + 1L, nchar(bst[is_flat])))
+  # 4b: flat-type prefix ("UNIT 3 ...")
+  m <- stringi::stri_match_first_regex(bst[cand], ft_re)
+  hit <- !is.na(m[, 1L])
+  idx <- cand[hit]
+  if (length(idx) > 0L) {
+    in_flat_type[idx]   <- unname(ft_map[m[hit, 2L]])
+    in_flat_number[idx] <- m[hit, 3L]
+    rest <- trimws(substr(bst[idx], nchar(m[hit, 1L]) + 1L, nchar(bst[idx])))
     # parse "NUM[-NUM] STREETNAME" from rest (number may have trailing alpha e.g. 190A)
-    sm2 <- regmatches(rest, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", rest, perl = TRUE))
-    ok2 <- lengths(sm2) == 3L
-    num2_raw <- vapply(sm2[ok2], `[[`, character(1), 2L)
-    in_number_first[is_flat][ok2]  <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num2_raw)))
-    sfx_b <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num2_raw))
-    in_number_suffix[is_flat][ok2] <- ifelse(nzchar(sfx_b), sfx_b, NA_character_)
-    in_number_last[is_flat][ok2]   <- {
-      hr2 <- grepl("-", num2_raw, fixed = TRUE)
-      tmp2 <- rep(NA_integer_, sum(ok2))
-      tmp2[hr2] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num2_raw[hr2])))
-      tmp2
+    m2  <- stringi::stri_match_first_regex(rest, "^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$")
+    ok2 <- !is.na(m2[, 1L])
+    if (any(ok2)) {
+      idx2 <- idx[ok2]
+      num  <- .split_number_vec(m2[ok2, 2L])
+      in_number_first[idx2]  <- num$first
+      in_number_last[idx2]   <- num$last
+      in_number_suffix[idx2] <- num$suffix
+      in_street_name[idx2]   <- m2[ok2, 3L]
     }
-    in_street_name[is_flat][ok2]  <- vapply(sm2[ok2], `[[`, character(1), 3L)
-    in_street_name[is_flat][!ok2] <- ifelse(nzchar(rest[!ok2]), rest[!ok2], NA_character_)
+    if (any(!ok2)) {
+      rest_no <- rest[!ok2]
+      in_street_name[idx[!ok2]] <- fifelse(nzchar(rest_no), rest_no, NA_character_)
+    }
+    fast[idx] <- TRUE
   }
+  cand <- cand[!hit]
 
   # 4b2: attached single-letter flat prefix — "F8 536 STREETNAME".
   # A single capital letter immediately followed by digits (no space) then NUM
   # STREETNAME. Handles informal shorthands like F8 (Flat 8), A6 (Apartment 6),
   # D2, etc. Not reachable by 4b (requires space after marker) or 4c (requires
   # digit at position 0).
-  remaining_b2 <- !is_slash & !is_flat & has_st
-  .att_map_vec <- c(U = "UNIT", F = "FLAT", A = "APARTMENT")
-  att_re_vec   <- "^([A-Z])(\\d+[A-Z]?)\\s+(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$"
-  att_mv       <- regmatches(bst, regexec(att_re_vec, bst, perl = TRUE))
-  is_att       <- lengths(att_mv) == 5L & remaining_b2
-  if (any(is_att)) {
-    ltr_att  <- vapply(att_mv[is_att], `[[`, character(1), 2L)
-    fn_att   <- vapply(att_mv[is_att], `[[`, character(1), 3L)
-    num_att  <- vapply(att_mv[is_att], `[[`, character(1), 4L)
-    sn_att   <- vapply(att_mv[is_att], `[[`, character(1), 5L)
-    in_flat_type[is_att]   <- unname(ifelse(!is.na(.att_map_vec[ltr_att]),
-                                             .att_map_vec[ltr_att], "UNIT"))
-    in_flat_number[is_att] <- fn_att
-    in_street_name[is_att] <- sn_att
-    has_r_att <- grepl("-", num_att, fixed = TRUE)
-    in_number_first[is_att] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_att)))
-    sfx_att <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_att))
-    in_number_suffix[is_att] <- ifelse(nzchar(sfx_att), sfx_att, NA_character_)
-    tmp_att <- rep(NA_integer_, sum(is_att))
-    tmp_att[has_r_att] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_att[has_r_att])))
-    in_number_last[is_att] <- tmp_att
+  m <- stringi::stri_match_first_regex(
+    bst[cand], "^([A-Z])(\\d+[A-Z]?)\\s+(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$")
+  hit <- !is.na(m[, 1L])
+  idx <- cand[hit]
+  if (length(idx) > 0L) {
+    mapped <- unname(.ATT_FLAT_MAP[m[hit, 2L]])
+    in_flat_type[idx]   <- fifelse(is.na(mapped), "UNIT", mapped)
+    in_flat_number[idx] <- m[hit, 3L]
+    num <- .split_number_vec(m[hit, 4L])
+    in_number_first[idx]  <- num$first
+    in_number_last[idx]   <- num$last
+    in_number_suffix[idx] <- num$suffix
+    in_street_name[idx]   <- m[hit, 5L]
+    fast[idx] <- TRUE
   }
+  cand <- cand[!hit]
 
   # 4c: simple "NUM[-NUM] STREETNAME" — with implied-flat sub-case:
   #   "NUM1 NUM2[-NUM3] STREETNAME" where NUM1 is unit and NUM2 is street number.
   #   (.parse_before detects this; we replicate it vectorized to avoid fallback overhead.)
-  #   Numbers may carry a trailing alpha suffix (e.g. 190A, 10B); strip it before as.integer().
-  remaining_c <- !is_slash & !is_flat & !is_att & has_st
-  simple_m <- regmatches(bst, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", bst, perl = TRUE))
-  is_simple_cand <- lengths(simple_m) == 3L & remaining_c
+  simple_re <- "^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$"
+  m <- stringi::stri_match_first_regex(bst[cand], simple_re)
+  hit <- !is.na(m[, 1L])
 
   # Exclude candidates whose remainder hides an explicit flat-type marker —
   # e.g. "6 UNIT 6019 Parkland Bvd" or "5 Blind Road Unit 6019 6 Parkland
   # Bvd" — these need .parse_before's full marker-search logic, so route them
   # to the (slower) fallback parser instead of mis-reading the marker as part
   # of the street name.
-  ft_alt_c <- paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|")
-  embed_re <- paste0("\\b(?:", ft_alt_c, ")\\s+\\d+|\\bU\\d+\\b")
-  rest_chk <- rep(NA_character_, length(bst))
-  rest_chk[is_simple_cand] <- vapply(simple_m[is_simple_cand], `[[`, character(1), 3L)
-  has_embedded_flat <- !is.na(rest_chk) & grepl(embed_re, rest_chk, perl = TRUE)
-  is_simple <- is_simple_cand & !has_embedded_flat
-
-  if (any(is_simple)) {
-    num_s  <- vapply(simple_m[is_simple], `[[`, character(1), 2L)
-    rest_s <- vapply(simple_m[is_simple], `[[`, character(1), 3L)
-    impl_m <- regmatches(rest_s, regexec("^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$", rest_s, perl = TRUE))
-    is_impl <- lengths(impl_m) == 3L
+  if (any(hit)) {
+    embed_re <- paste0("\\b(?:", ft_alt, ")\\s+\\d+|\\bU\\d+\\b")
+    hit[hit] <- !stringi::stri_detect_regex(m[hit, 3L], embed_re)
+  }
+  idx <- cand[hit]
+  if (length(idx) > 0L) {
+    num_s  <- m[hit, 2L]
+    rest_s <- m[hit, 3L]
+    impl    <- stringi::stri_match_first_regex(rest_s, simple_re)
+    is_impl <- !is.na(impl[, 1L])
 
     if (any(is_impl)) {
-      idx <- which(is_simple)[is_impl]
-      in_flat_type[idx]   <- "UNIT"
-      in_flat_number[idx] <- num_s[is_impl]
-      num_s2 <- vapply(impl_m[is_impl], `[[`, character(1), 2L)
-      has_r2 <- grepl("-", num_s2, fixed = TRUE)
-      in_number_first[idx] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_s2)))
-      sfx_c_impl <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_s2))
-      in_number_suffix[idx] <- ifelse(nzchar(sfx_c_impl), sfx_c_impl, NA_character_)
-      tmp2 <- rep(NA_integer_, sum(is_impl))
-      tmp2[has_r2] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_s2[has_r2])))
-      in_number_last[idx]  <- tmp2
-      in_street_name[idx]  <- vapply(impl_m[is_impl], `[[`, character(1), 3L)
+      idx_i <- idx[is_impl]
+      in_flat_type[idx_i]   <- "UNIT"
+      in_flat_number[idx_i] <- num_s[is_impl]
+      num <- .split_number_vec(impl[is_impl, 2L])
+      in_number_first[idx_i]  <- num$first
+      in_number_last[idx_i]   <- num$last
+      in_number_suffix[idx_i] <- num$suffix
+      in_street_name[idx_i]   <- impl[is_impl, 3L]
     }
 
-    ni <- !is_impl
-    if (any(ni)) {
-      idx <- which(is_simple)[ni]
-      num_s_ni <- num_s[ni]
-      in_street_name[idx]  <- rest_s[ni]
-      has_r <- grepl("-", num_s_ni, fixed = TRUE)
-      in_number_first[idx] <- as.integer(sub("[A-Z]+$", "", sub("-.*$", "", num_s_ni)))
-      sfx_c_ni <- sub("^\\d+([A-Z]?).*$", "\\1", sub("-.*$", "", num_s_ni))
-      in_number_suffix[idx] <- ifelse(nzchar(sfx_c_ni), sfx_c_ni, NA_character_)
-      tmp <- rep(NA_integer_, sum(ni))
-      tmp[has_r] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", num_s_ni[has_r])))
-      in_number_last[idx] <- tmp
+    if (any(!is_impl)) {
+      idx_n <- idx[!is_impl]
+      num <- .split_number_vec(num_s[!is_impl])
+      in_number_first[idx_n]  <- num$first
+      in_number_last[idx_n]   <- num$last
+      in_number_suffix[idx_n] <- num$suffix
+      in_street_name[idx_n]   <- rest_s[!is_impl]
 
       # Post-process: if street_name starts with a letter+digit flat designator
       # (e.g. "A1 TAVISTOCK" from "36 A1 TAVISTOCK ST"), extract it as flat.
-      sn_ni <- rest_s[ni]
-      att_fn_m <- regmatches(sn_ni,
-        regexec("^([A-Z])(\\d+[A-Z]?)\\s+(\\S.*)$", sn_ni, perl = TRUE))
-      is_fn <- lengths(att_fn_m) == 4L
+      fnm <- stringi::stri_match_first_regex(
+        rest_s[!is_impl], "^([A-Z])(\\d+[A-Z]?)\\s+(\\S.*)$")
+      is_fn <- !is.na(fnm[, 1L])
       if (any(is_fn)) {
-        idx_fn  <- idx[is_fn]
-        ltr_fn  <- vapply(att_fn_m[is_fn], `[[`, character(1), 2L)
-        dgt_fn  <- vapply(att_fn_m[is_fn], `[[`, character(1), 3L)
-        sn_fn   <- vapply(att_fn_m[is_fn], `[[`, character(1), 4L)
-        in_flat_type[idx_fn]   <- unname(ifelse(!is.na(.att_map_vec[ltr_fn]),
-                                                 .att_map_vec[ltr_fn], "UNIT"))
-        in_flat_number[idx_fn] <- dgt_fn
-        in_street_name[idx_fn] <- sn_fn
+        idx_f  <- idx_n[is_fn]
+        mapped <- unname(.ATT_FLAT_MAP[fnm[is_fn, 2L]])
+        in_flat_type[idx_f]   <- fifelse(is.na(mapped), "UNIT", mapped)
+        in_flat_number[idx_f] <- fnm[is_fn, 3L]
+        in_street_name[idx_f] <- fnm[is_fn, 4L]
       }
     }
+    fast[idx] <- TRUE
   }
 
   # ------------------------------------------------------------------
-  # Fallback: any address that didn't hit a fast path above.
+  # Fallback: any valid address that didn't hit a fast path above.
   # Typically: no street type found, complex building names, fuzzy street.
   # ------------------------------------------------------------------
-  fallback <- which(!is_slash & !is_flat & !is_att & !is_simple)
+  fallback <- which(valid & !fast)
   if (length(fallback) > 0L) {
     fb <- lapply(fallback, function(i) {
-      .parse_single(normalized[[i]], st_regex, st_map, ft_re, ft_map, comma_word[[i]])
+      .parse_single(normalized[[i]], st_regex, st_map, ft_re, ft_map, ft_alt,
+                    comma_word[[i]])
     })
     in_postcode[fallback]      <- vapply(fb, `[[`, integer(1),   "in_postcode")
     in_state[fallback]         <- vapply(fb, `[[`, character(1), "in_state")
@@ -432,7 +420,8 @@ address_parse <- function(addresses, normalize = TRUE) {
 # ---------------------------------------------------------------------------
 # Internal: parse a single normalised address string
 # ---------------------------------------------------------------------------
-.parse_single <- function(addr, st_regex, st_map, ft_re, ft_map, comma_word = NA_character_) {
+.parse_single <- function(addr, st_regex, st_map, ft_re, ft_map, ft_alt,
+                          comma_word = NA_character_) {
   out <- list(
     in_postcode      = NA_integer_,
     in_state         = NA_character_,
@@ -448,15 +437,17 @@ address_parse <- function(addresses, normalize = TRUE) {
     in_building_name = NA_character_
   )
 
-  if (!nzchar(addr)) return(out)
+  if (is.na(addr) || !nzchar(addr)) return(out)
 
-  # 1. Postcode: last 4-digit token in string
+  # 1. Postcode: last 4-digit token in string. Remove it by position — a
+  # pattern-based removal would also delete a street number that happens to
+  # share the same digits (e.g. "4000 SMITH ST BRISBANE QLD 4000").
   pc_all <- gregexpr("\\b\\d{4}\\b", addr, perl = TRUE)[[1L]]
   if (pc_all[1L] > 0L) {
-    last <- length(pc_all)
-    pc_start <- pc_all[last]
+    pc_start <- pc_all[length(pc_all)]
     out$in_postcode <- as.integer(substr(addr, pc_start, pc_start + 3L))
-    addr <- trimws(gsub(substr(addr, pc_start, pc_start + 3L), "", addr, fixed = TRUE))
+    addr <- trimws(paste0(substr(addr, 1L, pc_start - 1L),
+                          substr(addr, pc_start + 4L, nchar(addr))))
     addr <- gsub("\\s+", " ", addr)
   }
 
@@ -515,7 +506,7 @@ address_parse <- function(addresses, normalize = TRUE) {
         # the street/locality split: first remaining word is the street name,
         # the rest is the locality (most AU street names are a single word when
         # the type is dropped; localities are typically 1-3 words).
-        bp <- .parse_before(addr, ft_re, ft_map)
+        bp <- .parse_before(addr, ft_re, ft_map, ft_alt)
         out$in_number_first  <- bp$number_first
         out$in_number_last   <- bp$number_last
         out$in_number_suffix <- bp$number_suffix
@@ -558,7 +549,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   out$in_locality <- if (nzchar(after_raw)) after_raw else NA_character_
 
   # 5. Parse "before" section: [building] [flat] [number] street_name
-  bp <- .parse_before(before, ft_re, ft_map)
+  bp <- .parse_before(before, ft_re, ft_map, ft_alt)
   out$in_street_name   <- bp$street_name
   out$in_number_first  <- bp$number_first
   out$in_number_last   <- bp$number_last
@@ -575,7 +566,7 @@ address_parse <- function(addresses, normalize = TRUE) {
 # Returns a list with: street_name, number_first, number_last,
 #                      flat_type, flat_number, building_name
 # ---------------------------------------------------------------------------
-.parse_before <- function(s, ft_re, ft_map) {
+.parse_before <- function(s, ft_re, ft_map, ft_alt) {
   out <- list(
     street_name   = NA_character_,
     number_first  = NA_integer_,
@@ -588,8 +579,6 @@ address_parse <- function(addresses, normalize = TRUE) {
 
   s <- trimws(s)
   if (!nzchar(s)) return(out)
-
-  ft_alt <- paste(names(ft_map)[order(-nchar(names(ft_map)))], collapse = "|")
 
   # Case A: slash notation anywhere — "building 110/120 street" or "110/120 street"
   # Unit and street numbers may have trailing alpha (e.g. 3A/190B).
@@ -620,14 +609,13 @@ address_parse <- function(addresses, normalize = TRUE) {
   # (e.g. "F8", "D2", "A6") that the flat-type keyword regex can't reach
   # because it requires a space between marker and number, and the implied-pair
   # regex's \\b word-boundary can't match between a letter and digit in "F8".
-  .att_flat_type_map <- c(U = "UNIT", F = "FLAT", A = "APARTMENT")
   att_m <- regmatches(s, regexec(
     "^([A-Z])(\\d+[A-Z]?)\\s+(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(\\S.*)$", s,
     perl = TRUE))[[1L]]
   if (length(att_m) == 5L) {
     letter_att <- att_m[[2L]]
-    out$flat_type   <- if (!is.na(.att_flat_type_map[letter_att]))
-                         unname(.att_flat_type_map[letter_att]) else "UNIT"
+    out$flat_type   <- if (!is.na(.ATT_FLAT_MAP[letter_att]))
+                         unname(.ATT_FLAT_MAP[letter_att]) else "UNIT"
     out$flat_number <- att_m[[3L]]
     out <- .apply_parsed_number(out, att_m[[4L]])
     out$street_name <- att_m[[5L]]
@@ -737,14 +725,13 @@ address_parse <- function(addresses, normalize = TRUE) {
     # identifier. Only fires when no flat has already been captured and a
     # word follows the designator (so "36 B4" without a name is left alone).
     if (!is.na(out$street_name) && is.na(out$flat_number)) {
-      .att_flat_type_map2 <- c(U = "UNIT", F = "FLAT", A = "APARTMENT")
       fn_m <- regmatches(out$street_name,
         regexec("^([A-Z])(\\d+[A-Z]?)\\s+(\\S.*)$", out$street_name,
                 perl = TRUE))[[1L]]
       if (length(fn_m) == 4L) {
         letter_fn <- fn_m[[2L]]
-        out$flat_type   <- if (!is.na(.att_flat_type_map2[letter_fn]))
-                             unname(.att_flat_type_map2[letter_fn]) else "UNIT"
+        out$flat_type   <- if (!is.na(.ATT_FLAT_MAP[letter_fn]))
+                             unname(.ATT_FLAT_MAP[letter_fn]) else "UNIT"
         out$flat_number <- fn_m[[3L]]
         out$street_name <- fn_m[[4L]]
       }
@@ -757,15 +744,26 @@ address_parse <- function(addresses, normalize = TRUE) {
   out
 }
 
+# Vectorized split of "NUM[-NUM]" tokens (numbers may carry a trailing alpha
+# suffix, e.g. "190A", "3A-5B") into first / last / suffix components.
+.split_number_vec <- function(x) {
+  head_tok <- sub("-.*$", "", x)
+  first    <- as.integer(sub("[A-Z]+$", "", head_tok))
+  sfx      <- sub("^\\d+([A-Z]?).*$", "\\1", head_tok)
+  suffix   <- fifelse(nzchar(sfx), sfx, NA_character_)
+  last     <- rep(NA_integer_, length(x))
+  has_r    <- grepl("-", x, fixed = TRUE)
+  last[has_r] <- as.integer(sub("[A-Z]+$", "", sub("^.*-", "", x[has_r])))
+  list(first = first, last = last, suffix = suffix)
+}
+
 # Fill number_first / number_last / number_suffix on a `.parse_before` result
-# list from a "NUM[-NUM]" token (numbers may carry a trailing alpha suffix,
-# e.g. "190A", "3A-5B").
+# list from a "NUM[-NUM]" token.
 .apply_parsed_number <- function(out, num_str) {
-  num_parts <- strsplit(num_str, "-", fixed = TRUE)[[1L]]
-  out$number_first  <- as.integer(sub("[A-Z]+$", "", num_parts[1L]))
-  sfx <- sub("^\\d+([A-Z]?).*$", "\\1", num_parts[1L])
-  out$number_suffix <- if (nzchar(sfx)) sfx else NA_character_
-  if (length(num_parts) > 1L) out$number_last <- as.integer(sub("[A-Z]+$", "", num_parts[2L]))
+  p <- .split_number_vec(num_str)
+  out$number_first  <- p$first
+  out$number_last   <- p$last
+  out$number_suffix <- p$suffix
   out
 }
 
@@ -785,31 +783,24 @@ address_parse <- function(addresses, normalize = TRUE) {
   n     <- length(words)
   if (n < 2L) return(NULL)
 
-  st_keys <- names(st_map)
+  cand <- which(!grepl("^[0-9]", words, perl = TRUE))
+  if (length(cand) == 0L) return(NULL)
 
-  best_sim <- -1
-  best_idx <- NA_integer_
-  best_key <- NA_character_
+  st_keys  <- names(st_map)
+  sims     <- 1 - stringdist::stringdistmatrix(words[cand], st_keys,
+                                               method = "jw", p = 0.1)
+  key_j    <- max.col(sims, ties.method = "first")
+  best_per <- sims[cbind(seq_along(cand), key_j)]
 
-  for (i in seq_len(n)) {
-    w <- words[[i]]
-    if (grepl("^[0-9]", w, perl = TRUE)) next
+  best_sim <- max(best_per)
+  if (best_sim < threshold) return(NULL)
 
-    sims <- 1 - stringdist::stringdist(w, st_keys, method = "jw", p = 0.1)
-    j <- which.max(sims)
-
-    if (sims[[j]] >= best_sim) {
-      best_sim <- sims[[j]]
-      best_idx <- i
-      best_key <- st_keys[[j]]
-    }
-  }
-
-  if (is.na(best_idx) || best_sim < threshold) return(NULL)
+  pick     <- tail(which(best_per == best_sim), 1L)  # rightmost word on ties
+  best_idx <- cand[pick]
+  best_key <- st_keys[key_j[pick]]
 
   canonical <- unname(st_map[best_key])
   before    <- trimws(paste(words[seq_len(best_idx - 1L)], collapse = " "))
   after     <- if (best_idx < n) trimws(paste(words[seq(best_idx + 1L, n)], collapse = " ")) else ""
   list(before = before, canonical = canonical, after = after)
 }
-

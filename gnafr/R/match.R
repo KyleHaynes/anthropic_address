@@ -70,6 +70,12 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
 
   weights <- .validate_match_weights(weights)
 
+  # Cached scores were computed with the default weights; serving or storing
+  # them under different weights would silently mis-score, so the cache is
+  # bypassed for the whole call when non-default weights are supplied.
+  cache_usable <- isTRUE(cache) &&
+    identical(weights, .validate_match_weights(.default_match_weights()))
+
   total_timer <- proc.time()[["elapsed"]]
   address_count <- length(addresses)
   address_word <- if (address_count == 1L) "address" else "addresses"
@@ -116,7 +122,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   # Ideal for re-processing previously matched/standardised output.
   # ------------------------------------------------------------------
   exact_timer <- proc.time()[["elapsed"]]
-  exact_path <- .exact_label_match(con, parsed, include_custom, alias_types)
+  exact_path <- .exact_label_match(con, parsed, include_custom, alias_types, weights)
   verbose_stats$exact_elapsed <- proc.time()[["elapsed"]] - exact_timer
   if (!is.null(exact_path) && nrow(exact_path) > 0L) {
     results[["exact"]] <- exact_path
@@ -140,7 +146,9 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   # Previously matched addresses above cache_threshold skip the full pipeline.
   # ------------------------------------------------------------------
   cache_timer <- proc.time()[["elapsed"]]
-  if (isTRUE(cache) && DBI::dbExistsTable(con, "gnaf_match_cache")) {
+  if (isTRUE(cache) && !cache_usable)
+    .cli_match_detail(verbose, "Match cache bypassed: non-default weights supplied.")
+  if (cache_usable && DBI::dbExistsTable(con, "gnaf_match_cache")) {
     remaining_stds <- unique(na.omit(
       parsed[!input_id %in% skip_ids, input_standardised]
     ))
@@ -278,13 +286,13 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   wrangle_timer <- proc.time()[["elapsed"]]
   out <- rbindlist(results, fill = TRUE, use.names = TRUE)
   if (nrow(out) > 0L) {
-    # Deduplicate: same GNAF record may appear from multiple paths; keep higher score
-    setorder(out, input_id, -total_score)
+    # Deduplicate: same GNAF record may appear from multiple paths; the order
+    # puts the higher-scoring duplicate first so unique() keeps it.
+    setorder(out, input_id, -total_score, address_detail_pid)
     out <- unique(out, by = c("input_id", "address_detail_pid"))
 
     # Re-apply max_results and assign final rank
-    setorder(out, input_id, -total_score, address_detail_pid)
-    out <- out[, .SD[seq_len(min(.N, max_results))], by = input_id]
+    out <- out[out[, .I[seq_len(min(.N, max_results))], by = input_id]$V1]
     out[, match_rank := seq_len(.N), by = input_id]
   } else {
     out <- .empty_result()
@@ -305,7 +313,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   setorder(out, input_id, -matched, match_rank)
   # Store newly matched high-confidence results in the cache.
   # ON CONFLICT DO NOTHING means cache/exact-path hits are silently skipped.
-  if (isTRUE(cache) && is.null(alias_types) &&
+  if (cache_usable && is.null(alias_types) &&
       DBI::dbExistsTable(con, "gnaf_match_cache") && nrow(out) > 0L)
     .cache_store(con, out[matched == TRUE], cache_threshold)
 
@@ -333,6 +341,32 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
 # Only the final (small) result set is transferred to R.
 # ---------------------------------------------------------------------------
 
+# Candidate columns selected from the GNAF/custom side in every path query.
+.GNAF_SELECT_COLS <- "g.address_detail_pid, g.address_label, g.building_name,
+    g.flat_type, g.flat_number, g.number_first, g.number_last,
+    g.street_name, g.street_type, g.street_suffix, g.locality_name,
+    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
+
+# Coarse street-number pre-filter shared by the postcode, state and locality
+# paths: when the input carries a number, only keep candidates whose number
+# matches exactly, covers it as a range, or (suffixed inputs like "190A")
+# matches the address_label prefix. Range bounds are checked explicitly;
+# "OR g.number_last IS NOT NULL" without bounds would pull every range record
+# regardless of the input number.
+.number_prefilter_sql <- function() {
+  paste(
+    "(",
+    "  i.in_number_first IS NULL",
+    "  OR g.number_first = i.in_number_first",
+    "  OR (g.number_last IS NOT NULL",
+    "      AND g.number_first <= i.in_number_first",
+    "      AND i.in_number_first <= g.number_last)",
+    "  OR (g.number_first IS NULL AND i.in_number_suffix IS NOT NULL",
+    "      AND starts_with(g.address_label, CAST(i.in_number_first AS VARCHAR) || i.in_number_suffix || ' '))",
+    ")"
+  )
+}
+
 # Core query runner shared by all paths.
 # inputs_tbl  : name of a duckdb_register'd virtual table of parsed inputs
 # gnaf_tbl    : "gnaf_addresses" or "custom_addresses"
@@ -355,11 +389,6 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
     collapse = ",\n"
   )
   score_total <- paste(names(exprs), collapse = " + ")
-
-  gnaf_cols <- "g.address_detail_pid, g.address_label, g.building_name,
-    g.flat_type, g.flat_number, g.number_first, g.number_last,
-    g.street_name, g.street_type, g.street_suffix, g.locality_name,
-    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
 
   sql <- sprintf("
 WITH joined AS (
@@ -385,7 +414,7 @@ ranked AS (
 )
 SELECT * FROM ranked WHERE match_rank <= %d
 ",
-    gnaf_cols, sel_scores,
+    .GNAF_SELECT_COLS, sel_scores,
     gnaf_tbl, inputs_tbl, join_clause, pre_filter,
     score_total,
     min_score, max_results
@@ -430,7 +459,7 @@ SELECT * FROM ranked WHERE match_rank <= %d
   )
   if (nrow(matches) > 0L) {
     setorder(matches, input_id, -total_score, address_detail_pid)
-    matches <- matches[, .SD[seq_len(min(.N, max_results))], by = input_id]
+    matches <- matches[matches[, .I[seq_len(min(.N, max_results))], by = input_id]$V1]
     matches[, match_rank := seq_len(.N), by = input_id]
   } else {
     matches <- NULL
@@ -475,18 +504,8 @@ SELECT * FROM ranked WHERE match_rank <= %d
 
   alias_sql <- .alias_type_sql(alias_types)
   join_on  <- "g.postcode = i.in_postcode"
-  # Check range bounds explicitly; "OR g.number_last IS NOT NULL" without bounds
-  # pulls every range record in the postcode regardless of the input number.
   pre_filt <- paste(
-    "i.in_postcode IS NOT NULL AND (",
-    "  i.in_number_first IS NULL",
-    "  OR g.number_first = i.in_number_first",
-    "  OR (g.number_last IS NOT NULL",
-    "      AND g.number_first <= i.in_number_first",
-    "      AND i.in_number_first <= g.number_last)",
-    "  OR (g.number_first IS NULL AND i.in_number_suffix IS NOT NULL",
-    "      AND starts_with(g.address_label, CAST(i.in_number_first AS VARCHAR) || i.in_number_suffix || ' '))",
-    ")",
+    "i.in_postcode IS NOT NULL AND", .number_prefilter_sql(),
     if (!is.null(alias_sql)) paste("AND", alias_sql) else ""
   )
 
@@ -518,8 +537,10 @@ SELECT * FROM ranked WHERE match_rank <= %d
 
   alias_sql <- .alias_type_sql(alias_types)
   join_on  <- "g.state = i.in_state"
+  # The same number pre-filter as the postcode path: without it this path
+  # scores an entire state's rows per input, which dominates its runtime.
   pre_filt <- paste(
-    "i.in_state IS NOT NULL",
+    "i.in_state IS NOT NULL AND", .number_prefilter_sql(),
     if (!is.null(alias_sql)) paste("AND", alias_sql) else ""
   )
 
@@ -562,11 +583,6 @@ SELECT * FROM ranked WHERE match_rank <= %d
     collapse = ",\n"
   )
   score_total <- paste(names(exprs), collapse = " + ")
-
-  gnaf_cols <- "g.address_detail_pid, g.address_label, g.building_name,
-    g.flat_type, g.flat_number, g.number_first, g.number_last,
-    g.street_name, g.street_type, g.street_suffix, g.locality_name,
-    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
 
   make_sql <- function(gnaf_tbl) sprintf("
 WITH unique_locs AS (
@@ -613,13 +629,7 @@ joined AS (
 %s
   FROM %s g
   JOIN expanded i ON g.postcode = i.alt_postcode
-  WHERE (i.in_number_first IS NULL
-     OR g.number_first = i.in_number_first
-     OR (g.number_last IS NOT NULL
-         AND g.number_first <= i.in_number_first
-         AND i.in_number_first <= g.number_last)
-     OR (g.number_first IS NULL AND i.in_number_suffix IS NOT NULL
-         AND starts_with(g.address_label, CAST(i.in_number_first AS VARCHAR) || i.in_number_suffix || ' ')))
+  WHERE %s
     AND (i.in_street_name IS NULL
          OR jaro_winkler_similarity(g.street_name, i.in_street_name) >= 0.3)%s
 ),
@@ -635,8 +645,8 @@ ranked AS (
 )
 SELECT * FROM ranked WHERE match_rank <= %d
 ",
-    gnaf_cols, sel_scores, gnaf_tbl,
-    alias_clause,
+    .GNAF_SELECT_COLS, sel_scores, gnaf_tbl,
+    .number_prefilter_sql(), alias_clause,
     score_total,
     min_score, max_results
   )
@@ -815,7 +825,8 @@ SELECT * FROM ranked WHERE match_rank <= %d
 
 # Exact address_label pass: returns scored candidate pairs for any input whose
 # raw text (uppercased) matches a GNAF address_label exactly.
-.exact_label_match <- function(con, parsed, include_custom, alias_types = NULL) {
+.exact_label_match <- function(con, parsed, include_custom, alias_types = NULL,
+                               weights = .default_match_weights()) {
   raw_upper <- unique(toupper(trimws(parsed$input_raw)))
   raw_upper <- raw_upper[nzchar(raw_upper) & !is.na(raw_upper)]
   if (length(raw_upper) == 0L) return(NULL)
@@ -829,15 +840,10 @@ SELECT * FROM ranked WHERE match_rank <= %d
   alias_sql   <- .alias_type_sql(alias_types)
   alias_where <- if (!is.null(alias_sql)) sprintf("\n     AND %s", alias_sql) else ""
 
-  sel <- "g.address_detail_pid, g.address_label, g.building_name,
-          g.flat_type, g.flat_number, g.number_first, g.number_last,
-          g.street_name, g.street_type, g.street_suffix, g.locality_name,
-          g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
-
   sql <- sprintf(
     "SELECT %s FROM gnaf_addresses g
      JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key%s",
-    sel, alias_where
+    .GNAF_SELECT_COLS, alias_where
   )
   cands <- setDT(DBI::dbGetQuery(con, sql))
 
@@ -845,7 +851,7 @@ SELECT * FROM ranked WHERE match_rank <= %d
     sql2 <- sprintf(
       "SELECT %s FROM custom_addresses g
        JOIN __gnafr_exact_lkp__ l ON UPPER(TRIM(g.address_label)) = l.lbl_key%s",
-      sel, alias_where
+      .GNAF_SELECT_COLS, alias_where
     )
     cands <- rbindlist(list(cands, setDT(DBI::dbGetQuery(con, sql2))), fill = TRUE)
   }
@@ -860,7 +866,7 @@ SELECT * FROM ranked WHERE match_rank <= %d
   joined[, lbl_key := NULL]
   if (nrow(joined) == 0L) return(NULL)
 
-  joined <- .score_pairs(joined, weights = .default_match_weights())
+  joined <- .score_pairs(joined, weights = weights)
   joined[, match_rank := 1L]
   joined
 }

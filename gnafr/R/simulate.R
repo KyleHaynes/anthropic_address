@@ -218,7 +218,3 @@ address_perturb_sample <- function(x, n = min(1000L, nrow(x)), replace = FALSE,
   if (identical(candidate, label)) return(label)
   candidate
 }
-
-`%||%` <- function(x, y) {
-  if (is.null(x) || length(x) == 0L || (is.character(x) && !nzchar(x))) y else x
-}

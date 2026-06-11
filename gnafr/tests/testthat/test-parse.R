@@ -420,3 +420,32 @@ test_that("normalize = FALSE leaves abbreviations unchanged", {
   expect_equal(r2$in_street_name, "ST JAMES")
   expect_equal(r2$in_locality,    "ST LUCIA")
 })
+
+test_that("street number matching the postcode digits is not deleted with it", {
+  # The misspelt street type forces the .parse_single fallback, where the
+  # postcode used to be removed by pattern (deleting BOTH "4000" tokens)
+  # rather than by position.
+  r <- address_parse("4000 SMITH STREEET BRISBANE QLD 4000")
+  expect_equal(r$in_postcode,     4000L)
+  expect_equal(r$in_number_first, 4000L)
+  expect_equal(r$in_street_name,  "SMITH")
+  expect_equal(r$in_street_type,  "STREET")
+  expect_equal(r$in_locality,     "BRISBANE")
+})
+
+test_that("NA and empty inputs return all-NA rows with correct input_id", {
+  r <- address_parse(c(NA, "", "   ", "10 SMITH ST BRISBANE QLD 4000"))
+  expect_equal(nrow(r), 4L)
+  expect_equal(r$input_id, 1:4)
+
+  na_cols <- c("in_postcode", "in_state", "in_locality", "in_street_name",
+               "in_street_type", "in_street_suffix", "in_number_first",
+               "in_number_last", "in_number_suffix", "in_flat_type",
+               "in_flat_number", "in_building_name")
+  for (col in na_cols) {
+    expect_true(all(is.na(r[[col]][1:3])), info = col)
+  }
+
+  expect_equal(r$in_street_name[4L], "SMITH")
+  expect_equal(r$in_postcode[4L],    4000L)
+})

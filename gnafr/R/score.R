@@ -176,13 +176,31 @@
   }]
 
   # --- Street number (12 pts) ----------------------------------------------
+  # Mirrors .score_sql_exprs score_number, including the number-suffix rule: a
+  # parsed suffix (e.g. "190A") only earns credit when the candidate's
+  # address_label starts with "<number><suffix> "; otherwise it scores 0.
+  # Callers without those columns (or with all-NA suffixes) get the plain
+  # exact/range behaviour.
+  in_sfx <- if ("in_number_suffix" %in% names(pairs)) pairs$in_number_suffix
+            else rep(NA_character_, nrow(pairs))
+  lbl    <- if ("address_label" %in% names(pairs)) pairs$address_label
+            else rep(NA_character_, nrow(pairs))
+  sfx_lbl_ok <- !is.na(lbl) & !is.na(pairs$in_number_first) & !is.na(in_sfx) &
+    startsWith(lbl, paste0(pairs$in_number_first, in_sfx, " "))
+
   pairs[, score_number := {
-    exact    <- !is.na(in_number_first) & in_number_first == number_first
-    in_range <- !is.na(in_number_first) & !is.na(number_last) &
+    has_sfx  <- !is.na(in_sfx)
+    exact    <- !is.na(in_number_first) & !is.na(number_first) &
+                in_number_first == number_first
+    in_range <- !is.na(in_number_first) & !is.na(number_first) &
+                !is.na(number_last) &
                 in_number_first >= number_first & in_number_first <= number_last
     fifelse(is.na(in_number_first), 0L,
+    fifelse(has_sfx & (exact | is.na(number_first)) & sfx_lbl_ok,
+            as.integer(round(weights$number)),
+    fifelse(has_sfx, 0L,
     fifelse(exact, as.integer(round(weights$number)),
-    fifelse(in_range, as.integer(round(weights$number * 0.7)), 0L)))
+    fifelse(in_range, as.integer(round(weights$number * 0.7)), 0L)))))
   }]
 
   # --- Flat / unit (8 pts) -------------------------------------------------

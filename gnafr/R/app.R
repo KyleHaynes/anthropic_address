@@ -557,7 +557,3 @@ gnaf_app <- function(con = NULL, db_path = NULL,
     }
   )
 }
-
-`%||%` <- function(x, y) {
-  if (is.null(x) || length(x) == 0L || (is.character(x) && !nzchar(x))) y else x
-}

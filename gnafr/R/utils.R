@@ -39,14 +39,20 @@
   paste0("\\b(", paste(abbrevs, collapse = "|"), ")\\b")
 }
 
+# Fallback operator used across the package. Deliberately broader than the
+# usual null-coalesce: length-0 vectors and empty strings also fall through.
+`%||%` <- function(x, y) {
+  if (is.null(x) || length(x) == 0L || (is.character(x) && !nzchar(x))) y else x
+}
+
 #' Normalize a raw address string for parsing
 #' @noRd
 .normalize_addr <- function(x) {
-  x <- toupper(trimws(x))
-  x <- gsub(",", " ", x, fixed = TRUE)
-  x <- gsub("\\.", " ", x)
-  x <- gsub("\\s+", " ", x)
-  trimws(x)
+  x <- stringi::stri_trans_toupper(stringi::stri_trim_both(x))
+  x <- stringi::stri_replace_all_fixed(x, ",", " ")
+  x <- stringi::stri_replace_all_fixed(x, ".", " ")
+  x <- stringi::stri_replace_all_regex(x, "\\s+", " ")
+  stringi::stri_trim_both(x)
 }
 
 #' Normalize a street name for scoring (remove leading/trailing whitespace,
