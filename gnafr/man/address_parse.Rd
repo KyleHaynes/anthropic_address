@@ -4,10 +4,19 @@
 \alias{address_parse}
 \title{Parse a vector of address strings into structured components}
 \usage{
-address_parse(addresses)
+address_parse(addresses, normalize = TRUE)
 }
 \arguments{
 \item{addresses}{Character vector of raw address strings.}
+
+\item{normalize}{If \code{TRUE} (the default), common abbreviations in
+\code{in_locality} and \code{in_street_name} are expanded to their GNAF
+canonical forms after parsing: \code{MT}/\code{MNT} \eqn{\to}
+\code{MOUNT}; \code{ST} \eqn{\to} \code{SAINT}; \code{NTH}/\code{STH}
+and leading \code{N}/\code{S}/\code{E}/\code{W} \eqn{\to} full compass
+words; \code{CK} \eqn{\to} \code{CREEK}; \code{\&} \eqn{\to}
+\code{AND}; ordinal numerals (\code{1ST}, \code{2ND}, \ldots) \eqn{\to}
+written words (street name only).  Set to \code{FALSE} to skip.}
 }
 \value{
 A \code{data.table} with one row per input and columns:

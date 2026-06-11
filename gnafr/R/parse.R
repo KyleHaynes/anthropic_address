@@ -1,3 +1,54 @@
+# Expands common abbreviations in in_locality and in_street_name after the
+# structured fields (street type etc.) have already been extracted.  Runs only
+# when normalize = TRUE in address_parse / gnaf_match.
+.expand_abbreviations <- function(dt) {
+
+  .exp_common <- function(x) {
+    # Mount / Mountain prefixes
+    x <- gsub("\\bMNT\\b",  "MOUNT", x, perl = TRUE)
+    x <- gsub("\\bMT\\b",   "MOUNT", x, perl = TRUE)
+    # Saint — safe after street_type is already stripped from the field
+    x <- gsub("\\bST\\b",   "SAINT", x, perl = TRUE)
+    # Australian directional shorthands anywhere in the field
+    x <- gsub("\\bNTH\\b",  "NORTH", x, perl = TRUE)
+    x <- gsub("\\bSTH\\b",  "SOUTH", x, perl = TRUE)
+    # Single-letter compass only when leading the field (^N LAKES → NORTH LAKES)
+    x <- gsub("^N\\b",      "NORTH", x, perl = TRUE)
+    x <- gsub("^S\\b",      "SOUTH", x, perl = TRUE)
+    x <- gsub("^E\\b",      "EAST",  x, perl = TRUE)
+    x <- gsub("^W\\b",      "WEST",  x, perl = TRUE)
+    # Creek
+    x <- gsub("\\bCK\\b",   "CREEK", x, perl = TRUE)
+    # Ampersand
+    x <- gsub("\\s+&\\s+",  " AND ", x, perl = TRUE)
+    x
+  }
+
+  .ordinal_map <- c(
+    "\\b1ST\\b"  = "FIRST",       "\\b2ND\\b"  = "SECOND",
+    "\\b3RD\\b"  = "THIRD",       "\\b4TH\\b"  = "FOURTH",
+    "\\b5TH\\b"  = "FIFTH",       "\\b6TH\\b"  = "SIXTH",
+    "\\b7TH\\b"  = "SEVENTH",     "\\b8TH\\b"  = "EIGHTH",
+    "\\b9TH\\b"  = "NINTH",       "\\b10TH\\b" = "TENTH",
+    "\\b11TH\\b" = "ELEVENTH",    "\\b12TH\\b" = "TWELFTH",
+    "\\b13TH\\b" = "THIRTEENTH",  "\\b14TH\\b" = "FOURTEENTH",
+    "\\b15TH\\b" = "FIFTEENTH",   "\\b16TH\\b" = "SIXTEENTH",
+    "\\b17TH\\b" = "SEVENTEENTH", "\\b18TH\\b" = "EIGHTEENTH",
+    "\\b19TH\\b" = "NINETEENTH",  "\\b20TH\\b" = "TWENTIETH"
+  )
+
+  .exp_street <- function(x) {
+    x <- .exp_common(x)
+    for (pat in names(.ordinal_map))
+      x <- gsub(pat, .ordinal_map[[pat]], x, perl = TRUE)
+    x
+  }
+
+  dt[, in_locality    := .exp_common(in_locality)]
+  dt[, in_street_name := .exp_street(in_street_name)]
+  dt
+}
+
 #' Parse a vector of address strings into structured components
 #'
 #' Handles common Australian address formats including unit/flat prefixes,
@@ -5,13 +56,21 @@
 #' street number ranges (13-27).
 #'
 #' @param addresses Character vector of raw address strings.
+#' @param normalize If \code{TRUE} (the default), common abbreviations in
+#'   \code{in_locality} and \code{in_street_name} are expanded to their GNAF
+#'   canonical forms after parsing: \code{MT}/\code{MNT} \eqn{\to}
+#'   \code{MOUNT}; \code{ST} \eqn{\to} \code{SAINT}; \code{NTH}/\code{STH}
+#'   and leading \code{N}/\code{S}/\code{E}/\code{W} \eqn{\to} full compass
+#'   words; \code{CK} \eqn{\to} \code{CREEK}; \code{\&} \eqn{\to}
+#'   \code{AND}; ordinal numerals (\code{1ST}, \code{2ND}, \ldots) \eqn{\to}
+#'   written words (street name only).  Set to \code{FALSE} to skip.
 #' @return A \code{data.table} with one row per input and columns:
 #'   \code{input_id}, \code{input_raw}, \code{in_postcode}, \code{in_state},
 #'   \code{in_locality}, \code{in_street_name}, \code{in_street_type},
 #'   \code{in_street_suffix}, \code{in_number_first}, \code{in_number_last},
 #'   \code{in_flat_type}, \code{in_flat_number}, \code{in_building_name}.
 #' @export
-address_parse <- function(addresses) {
+address_parse <- function(addresses, normalize = TRUE) {
   st_map    <- .get_street_type_map()
   st_regex  <- .build_street_type_regex(st_map)
   ft_map    <- .get_flat_type_map()
@@ -34,6 +93,7 @@ address_parse <- function(addresses) {
 
   normalized <- .normalize_addr(addresses)
   dt <- .parse_vectorized(normalized, addresses, st_map, st_regex, ft_map, ft_re, comma_word)
+  if (isTRUE(normalize)) .expand_abbreviations(dt)
   setcolorder(dt, c("input_id", "input_raw",
                     "in_postcode", "in_state", "in_locality",
                     "in_street_name", "in_street_type", "in_street_suffix",

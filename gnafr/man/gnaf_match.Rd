@@ -15,6 +15,7 @@ gnaf_match(
   street_only_fallback = FALSE,
   fallback_threshold = 90L,
   weights = .default_match_weights(),
+  normalize = TRUE,
   cache = TRUE,
   cache_threshold = 95L,
   verbose = TRUE

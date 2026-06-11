@@ -16,7 +16,7 @@ test_that("standard address parses all fields", {
 
 test_that("Rd instead of Ct still parses street name correctly", {
   r <- address_parse("25 St James Rd, Tamborine Mountain QLD 4272")
-  expect_equal(r$in_street_name, "ST JAMES")
+  expect_equal(r$in_street_name, "SAINT JAMES")
   expect_equal(r$in_street_type, "ROAD")
   expect_equal(r$in_number_first, 25L)
 })
@@ -290,7 +290,7 @@ test_that("misspelt street type before a comma resolves over a coincidental name
 
 test_that("comma hint resolves a misspelt type that collides with an abbreviation inside the street name", {
   r <- address_parse("25 St James Rode, Tamborine Mountain QLD 4272")
-  expect_equal(r$in_street_name, "ST JAMES")
+  expect_equal(r$in_street_name, "SAINT JAMES")
   expect_equal(r$in_street_type, "ROAD")
   expect_equal(r$in_locality,    "TAMBORINE MOUNTAIN")
 })
@@ -359,4 +359,64 @@ test_that("letter+digit flat designator after street number is extracted from st
   expect_equal(r$in_number_first, 36L)
   expect_equal(r$in_street_name,  "TAVISTOCK")
   expect_equal(r$in_street_type,  "STREET")
+})
+
+# ---- Abbreviation normalization (normalize = TRUE) -------------------------
+
+test_that("MT and MNT expand to MOUNT in street name and locality", {
+  r <- address_parse("5 MT GRAVATT RD, MT GRAVATT QLD 4122")
+  expect_equal(r$in_street_name, "MOUNT GRAVATT")
+  expect_equal(r$in_locality,    "MOUNT GRAVATT")
+
+  r2 <- address_parse("5 MNT VIEW DR, MNT ISA QLD 4825")
+  expect_equal(r2$in_street_name, "MOUNT VIEW")
+  expect_equal(r2$in_locality,    "MOUNT ISA")
+})
+
+test_that("ST expands to SAINT in street name and locality after street type is stripped", {
+  r <- address_parse("10 ST JAMES CT, ST LUCIA QLD 4067")
+  expect_equal(r$in_street_name, "SAINT JAMES")
+  expect_equal(r$in_street_type, "COURT")
+  expect_equal(r$in_locality,    "SAINT LUCIA")
+})
+
+test_that("NTH and STH expand to NORTH and SOUTH", {
+  r <- address_parse("1 NTH QUAY ST, STH BRISBANE QLD 4101")
+  expect_equal(r$in_street_name, "NORTH QUAY")
+  expect_equal(r$in_locality,    "SOUTH BRISBANE")
+})
+
+test_that("leading single-letter compass expands only when field-initial", {
+  r <- address_parse("1 N SHORE DR, W END QLD 4101")
+  expect_equal(r$in_street_name, "NORTH SHORE")
+  expect_equal(r$in_locality,    "WEST END")
+})
+
+test_that("CK expands to CREEK", {
+  r <- address_parse("12 MOUNTAIN CK RD, MOUNTAIN CREEK QLD 4557")
+  expect_equal(r$in_street_name, "MOUNTAIN CREEK")
+  expect_equal(r$in_locality,    "MOUNTAIN CREEK")
+})
+
+test_that("ordinals in street name expand to words", {
+  r <- address_parse("5 1ST AVE, BROADBEACH QLD 4218")
+  expect_equal(r$in_street_name, "FIRST")
+  expect_equal(r$in_street_type, "AVENUE")
+
+  r2 <- address_parse("5 3RD AVE, BROADBEACH QLD 4218")
+  expect_equal(r2$in_street_name, "THIRD")
+
+  r3 <- address_parse("5 12TH ST, SOUTH BRISBANE QLD 4101")
+  expect_equal(r3$in_street_name, "TWELFTH")
+  expect_equal(r3$in_street_type, "STREET")
+})
+
+test_that("normalize = FALSE leaves abbreviations unchanged", {
+  r <- address_parse("5 MT GRAVATT RD, MT GRAVATT QLD 4122", normalize = FALSE)
+  expect_equal(r$in_street_name, "MT GRAVATT")
+  expect_equal(r$in_locality,    "MT GRAVATT")
+
+  r2 <- address_parse("10 ST JAMES CT, ST LUCIA QLD 4067", normalize = FALSE)
+  expect_equal(r2$in_street_name, "ST JAMES")
+  expect_equal(r2$in_locality,    "ST LUCIA")
 })

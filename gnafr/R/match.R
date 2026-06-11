@@ -60,6 +60,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
                        street_only_fallback = FALSE,
                        fallback_threshold = 90L,
                        weights = .default_match_weights(),
+                       normalize = TRUE,
                        cache = TRUE,
                        cache_threshold = 95L,
                        verbose = TRUE) {
@@ -81,7 +82,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
     )
   )
   parse_timer <- proc.time()[["elapsed"]]
-  parsed <- address_parse(addresses)
+  parsed <- address_parse(addresses, normalize = normalize)
   parse_elapsed <- proc.time()[["elapsed"]] - parse_timer
 
   .cli_match_step(verbose, "Standardising parsed input addresses.")
