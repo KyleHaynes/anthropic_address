@@ -1,7 +1,13 @@
 #' Load GNAF CSV data into the database
 #'
 #' Uses DuckDB's native CSV reader for maximum speed. The GNAF CSV must contain
-#' at minimum the columns produced by the standard GNAF Core download.
+#' at minimum the columns produced by the standard GNAF Core download. All
+#' GNAF Core columns are captured, including \code{DATE_CREATED},
+#' \code{LEGAL_PARCEL_ID}, \code{MB_CODE}, \code{ALIAS_PRINCIPAL},
+#' \code{PRINCIPAL_PID} (alias-to-principal address mapping), and
+#' \code{PRIMARY_SECONDARY} / \code{PRIMARY_PID} (main-dwelling vs.
+#' sub-dwelling mapping), stored as \code{alias_principal}, \code{principal_pid},
+#' \code{primary_secondary} and \code{primary_pid}.
 #'
 #' @param con DBI connection from \code{gnaf_connect}.
 #' @param path Character vector of one or more paths to GNAF CSV files.
@@ -28,7 +34,17 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
     message("Loading: ", p)
 
     DBI::dbExecute(con, sprintf("
-      INSERT INTO gnaf_addresses
+      INSERT INTO gnaf_addresses (
+        address_detail_pid, address_label, address_site_name, building_name,
+        flat_type, flat_number, level_type, level_number,
+        number_first, number_last, lot_number,
+        street_name, street_type, street_suffix,
+        locality_name, state, postcode,
+        longitude, latitude, source, alias_type,
+        date_created, legal_parcel_id, mb_code,
+        alias_principal, principal_pid, primary_secondary, primary_pid,
+        geocode_type
+      )
       SELECT
         ADDRESS_DETAIL_PID                     AS address_detail_pid,
         ADDRESS_LABEL                          AS address_label,
@@ -50,7 +66,15 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
         TRY_CAST(LONGITUDE AS DOUBLE)          AS longitude,
         TRY_CAST(LATITUDE  AS DOUBLE)          AS latitude,
         'gnaf'                                 AS source,
-        NULL::VARCHAR                          AS alias_type
+        NULL::VARCHAR                          AS alias_type,
+        CAST(TRY_STRPTIME(CAST(DATE_CREATED AS VARCHAR), '%%d-%%m-%%Y') AS DATE) AS date_created,
+        LEGAL_PARCEL_ID                        AS legal_parcel_id,
+        CAST(MB_CODE AS VARCHAR)               AS mb_code,
+        ALIAS_PRINCIPAL                        AS alias_principal,
+        PRINCIPAL_PID                          AS principal_pid,
+        PRIMARY_SECONDARY                      AS primary_secondary,
+        PRIMARY_PID                            AS primary_pid,
+        GEOCODE_TYPE                           AS geocode_type
       FROM read_csv('%s', header = true, ignore_errors = true)
       ON CONFLICT DO NOTHING
     ", st_case_sql, p_fwd))

@@ -345,7 +345,9 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
 .GNAF_SELECT_COLS <- "g.address_detail_pid, g.address_label, g.building_name,
     g.flat_type, g.flat_number, g.number_first, g.number_last,
     g.street_name, g.street_type, g.street_suffix, g.locality_name,
-    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type"
+    g.state, g.postcode, g.longitude, g.latitude, g.source, g.alias_type,
+    g.alias_principal, g.principal_pid, g.primary_secondary, g.primary_pid,
+    g.geocode_type, g.date_created, g.legal_parcel_id, g.mb_code"
 
 # Coarse street-number pre-filter shared by the postcode, state and locality
 # paths: when the input carries a number, only keep candidates whose number
@@ -733,6 +735,10 @@ SELECT * FROM ranked WHERE match_rank <= %d
     locality_name = character(), state = character(),
     postcode = integer(), longitude = numeric(), latitude = numeric(),
     source = character(), alias_type = character(),
+    alias_principal = character(), principal_pid = character(),
+    primary_secondary = character(), primary_pid = character(),
+    geocode_type = character(), date_created = as.Date(character()),
+    legal_parcel_id = character(), mb_code = character(),
     in_postcode = integer(), in_state = character(), in_locality = character(),
     in_street_name = character(), in_street_type = character(),
     in_street_suffix = character(), in_number_first = integer(),

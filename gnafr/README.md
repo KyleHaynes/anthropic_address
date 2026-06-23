@@ -54,7 +54,7 @@ GNAF Core is a free, open dataset published by Geoscape. Download it from:
 
 After downloading and extracting, the package expects a CSV with the standard GNAF Core columns. The quickest way to get a state-level CSV is to run the `load_gnaf.R` script in this repo, which uses `data.table::fread` to read and optionally filter the raw pipe-delimited GNAF files.
 
-Key columns used by `gnafr`:
+All columns from the standard GNAF Core CSV are loaded into `gnaf_addresses`. Key ones:
 
 | Column | Example |
 |--------|---------|
@@ -71,6 +71,12 @@ Key columns used by `gnafr`:
 | `POSTCODE` | `4226` |
 | `LONGITUDE` | `153.4023` |
 | `LATITUDE` | `-28.03448` |
+| `DATE_CREATED` | `27-07-2017` |
+| `LEGAL_PARCEL_ID` | `50/BUP3753` |
+| `MB_CODE` | `30293470000` |
+| `ALIAS_PRINCIPAL` / `PRINCIPAL_PID` | `PRINCIPAL` / *(blank, or the PID of the principal address for an `ALIAS` record)* |
+| `PRIMARY_SECONDARY` / `PRIMARY_PID` | `SECONDARY` / `GAQLD163045373` — distinguishes the main dwelling (`PRIMARY`) from sub-dwellings/units (`SECONDARY`) |
+| `GEOCODE_TYPE` | `PROPERTY CENTROID` |
 
 ---
 
@@ -226,6 +232,12 @@ input_id  input_raw                           match_rank  total_score  score_pos
 | `state` / `postcode` | State and postcode |
 | `longitude` / `latitude` | Geocoordinates from GNAF |
 | `source` | `"gnaf"` or `"custom"` |
+| `alias_principal` / `principal_pid` | Whether the matched record is the `PRINCIPAL` address or an `ALIAS`, and (for aliases) the `address_detail_pid` of its principal record |
+| `primary_secondary` / `primary_pid` | Whether the matched record is the `PRIMARY` (main dwelling) or a `SECONDARY` (sub-dwelling/unit) address, and (for secondaries) the `address_detail_pid` of its primary record |
+| `geocode_type` | Geocode method/reliability code (e.g. `PROPERTY CENTROID`) |
+| `date_created` | Date the address record was created in GNAF |
+| `legal_parcel_id` | Cadastral lot/plan identifier |
+| `mb_code` | ABS Mesh Block code |
 
 ### Inputs with no match
 

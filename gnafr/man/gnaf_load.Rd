@@ -18,5 +18,11 @@ Invisibly, the total number of GNAF rows now in the database.
 }
 \description{
 Uses DuckDB's native CSV reader for maximum speed. The GNAF CSV must contain
-at minimum the columns produced by the standard GNAF Core download.
+at minimum the columns produced by the standard GNAF Core download. All
+GNAF Core columns are captured, including \code{DATE_CREATED},
+\code{LEGAL_PARCEL_ID}, \code{MB_CODE}, \code{ALIAS_PRINCIPAL},
+\code{PRINCIPAL_PID} (alias-to-principal address mapping), and
+\code{PRIMARY_SECONDARY} / \code{PRIMARY_PID} (main-dwelling vs.
+sub-dwelling mapping), stored as \code{alias_principal}, \code{principal_pid},
+\code{primary_secondary} and \code{primary_pid}.
 }

@@ -46,20 +46,41 @@ gnaf_init <- function(con) {
     longitude          DOUBLE,
     latitude           DOUBLE,
     source             VARCHAR,
-    alias_type         VARCHAR
+    alias_type         VARCHAR,
+    date_created       DATE,
+    legal_parcel_id    VARCHAR,
+    mb_code            VARCHAR,
+    alias_principal    VARCHAR,
+    principal_pid      VARCHAR,
+    primary_secondary  VARCHAR,
+    primary_pid        VARCHAR,
+    geocode_type       VARCHAR
   "
 
   DBI::dbExecute(con, sprintf("CREATE TABLE IF NOT EXISTS gnaf_addresses (%s)", col_ddl))
   DBI::dbExecute(con, sprintf("CREATE TABLE IF NOT EXISTS custom_addresses (%s)", col_ddl))
 
-  # Migration: add alias_type to tables created before this column existed
+  # Migration: add columns to tables created before they existed
+  migration_cols <- c(
+    alias_type        = "VARCHAR",
+    date_created      = "DATE",
+    legal_parcel_id   = "VARCHAR",
+    mb_code           = "VARCHAR",
+    alias_principal   = "VARCHAR",
+    principal_pid     = "VARCHAR",
+    primary_secondary = "VARCHAR",
+    primary_pid       = "VARCHAR",
+    geocode_type      = "VARCHAR"
+  )
   for (tbl in c("gnaf_addresses", "custom_addresses")) {
-    tryCatch(
-      DBI::dbExecute(con, sprintf(
-        "ALTER TABLE %s ADD COLUMN IF NOT EXISTS alias_type VARCHAR", tbl
-      )),
-      error = function(e) NULL
-    )
+    for (col in names(migration_cols)) {
+      tryCatch(
+        DBI::dbExecute(con, sprintf(
+          "ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s %s", tbl, col, migration_cols[[col]]
+        )),
+        error = function(e) NULL
+      )
+    }
   }
 
   DBI::dbExecute(con,

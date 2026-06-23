@@ -15,7 +15,10 @@ address.  Required columns: \code{number_first}, \code{street_name},
 Optional: \code{address_detail_pid} (auto-generated if absent),
 \code{address_label}, \code{building_name}, \code{flat_type},
 \code{flat_number}, \code{number_last}, \code{street_suffix},
-\code{longitude}, \code{latitude}.}
+\code{longitude}, \code{latitude}, \code{date_created},
+\code{legal_parcel_id}, \code{mb_code}, \code{alias_principal},
+\code{principal_pid}, \code{primary_secondary}, \code{primary_pid},
+\code{geocode_type}.}
 
 \item{upsert}{If \code{FALSE} (default) duplicate PIDs are silently skipped.
 If \code{TRUE}, existing rows with the same PID are replaced.}

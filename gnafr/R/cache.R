@@ -198,7 +198,15 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
             g.longitude,
             g.latitude,
             g.source,
-            g.alias_type
+            g.alias_type,
+            g.alias_principal,
+            g.principal_pid,
+            g.primary_secondary,
+            g.primary_pid,
+            g.geocode_type,
+            g.date_created,
+            g.legal_parcel_id,
+            g.mb_code
      FROM gnaf_match_cache c
      JOIN %s g ON g.address_detail_pid = c.address_detail_pid
      %s
@@ -218,7 +226,9 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   addr_sel <- "address_detail_pid, address_label, building_name,
                flat_type, flat_number, number_first, number_last,
                street_name, street_type, street_suffix, locality_name,
-               state, postcode, longitude, latitude, source, alias_type"
+               state, postcode, longitude, latitude, source, alias_type,
+               alias_principal, principal_pid, primary_secondary, primary_pid,
+               geocode_type, date_created, legal_parcel_id, mb_code"
 
   if (include_custom && DBI::dbExistsTable(con, "custom_addresses")) {
     sprintf("(SELECT %s FROM gnaf_addresses UNION ALL SELECT %s FROM custom_addresses)",
