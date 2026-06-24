@@ -189,6 +189,7 @@ results <- gnaf_match(con, addresses, max_results = 5, min_score = 20)
 
 ---
 
+
 ## Understanding the output
 
 `gnaf_match` returns a `data.table` with one row per match. Multiple rows per input are possible when `max_results > 1`.
