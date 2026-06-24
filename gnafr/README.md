@@ -136,6 +136,7 @@ gnaf_load(con, "C:/temp/gnaf.qld.csv", overwrite = TRUE)
 
 ### Reconnecting in a new session
 
+
 Once the database is built you never need to call `gnaf_init` or `gnaf_load` again. Just reconnect:
 
 ```r
