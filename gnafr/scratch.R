@@ -86,7 +86,7 @@ result_dt <- gnaf_match(
 
 
 gnaf_match("25 ST JAMES CR EAGLE HEIGHTS QLD 4271", con = con, weights = list(postcode = 20L, suburb = 15L, street_name = 40L, street_type = 10L, number = 10L, flat = 5L))
-gnaf_match("25 ST JAMES CR EAGLE HEIGHTS QLD 4271", con = con, max_results = 1)$address_label
+gnaf_match("25ST JAMES CR EAGLE HEIGHTS QLD 4271", con = con, max_results = 1)$address_label
  input_id                             input_raw                           input_standardised address_label
 
 

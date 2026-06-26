@@ -168,10 +168,14 @@ gnaf_disconnect(con)
 # The two paths are alternatives, not complements — each loads its own
 # complete set of source = 'gnaf' rows, so pick one:
 #
-#   gnaf_load_psv(con, "G-NAF MAY 2026/Standard")
+   gnaf_load_psv(con, "C:\\temp\\gnaf\\G-NAF\\G-NAF MAY 2026\\Standard")
 #
 # Prefer gnaf_load() (Steps 1+3 above) when the simplified CSV is all you
 # have, or you don't need locality/street synonym coverage. Prefer
 # gnaf_load_psv() when you have the full raw product and want that extra
 # alias coverage out of the box.
 # =============================================================================
+
+
+gnaf_status(con)
+sample_gnaf(con, n = 51)

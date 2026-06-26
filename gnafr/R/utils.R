@@ -52,7 +52,55 @@
   x <- stringi::stri_replace_all_fixed(x, ",", " ")
   x <- stringi::stri_replace_all_fixed(x, ".", " ")
   x <- stringi::stri_replace_all_regex(x, "\\s+", " ")
+  x <- .fix_glued_number_letters(x)
   stringi::stri_trim_both(x)
+}
+
+# A number directly followed by 2+ letters with no space (e.g. "25ST JAMES
+# CR") is virtually always a missing space rather than an intentional token —
+# the only legitimate no-space numeric suffix in AU addresses is a single
+# trailing letter (e.g. "190A"). The one ambiguous case is an ordinal numeral
+# ("1ST", "3RD", "12TH" used as a street name, e.g. "5 1ST AVE"): we leave
+# those glued whenever the letters are the grammatically correct ordinal
+# suffix for that number, and only insert a space otherwise.
+.fix_glued_number_letters <- function(x) {
+  glue_re <- "(\\d+)([A-Z]{2,})"
+  needs <- stringi::stri_detect_regex(x, glue_re)
+  if (!any(needs, na.rm = TRUE)) return(x)
+  idx <- which(needs)
+  x[idx] <- vapply(x[idx], .fix_one_glued_number, character(1L), USE.NAMES = FALSE)
+  x
+}
+
+.fix_one_glued_number <- function(s) {
+  m <- gregexpr("(\\d+)([A-Z]{2,})", s, perl = TRUE)[[1L]]
+  if (m[1L] < 0L) return(s)
+  caps <- attr(m, "capture.start")
+  lens <- attr(m, "capture.length")
+  # Walk matches right-to-left so earlier insertions don't shift later positions.
+  for (i in rev(seq_len(length(m)))) {
+    l_start <- caps[i, 2L]
+    l_len   <- lens[i, 2L]
+    digits  <- substr(s, caps[i, 1L], caps[i, 1L] + lens[i, 1L] - 1L)
+    letters <- substr(s, l_start, l_start + l_len - 1L)
+    if (!.is_ordinal_suffix(digits, letters)) {
+      s <- paste0(substr(s, 1L, l_start - 1L), " ", substr(s, l_start, nchar(s)))
+    }
+  }
+  s
+}
+
+.is_ordinal_suffix <- function(digits, letters) {
+  n <- suppressWarnings(as.integer(digits))
+  if (is.na(n)) return(FALSE)
+  last_two <- n %% 100L
+  last_one <- n %% 10L
+  expected <- if (last_two %in% c(11L, 12L, 13L)) "TH"
+              else if (last_one == 1L) "ST"
+              else if (last_one == 2L) "ND"
+              else if (last_one == 3L) "RD"
+              else "TH"
+  identical(letters, expected)
 }
 
 #' Normalize a street name for scoring (remove leading/trailing whitespace,

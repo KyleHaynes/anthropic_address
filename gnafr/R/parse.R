@@ -256,8 +256,12 @@ address_parse <- function(addresses, normalize = TRUE) {
   idx <- cand[hit]
   if (length(idx) > 0L) {
     bld <- trimws(m[hit, 2L])
-    in_building_name[idx] <- fifelse(nzchar(bld), bld, NA_character_)
-    in_flat_type[idx]     <- "UNIT"
+    # A lone letter before the slash (e.g. "U6019/6") is the attached
+    # flat-prefix marker, not a building name — see .ATT_FLAT_MAP.
+    is_att <- grepl("^[A-Z]$", bld)
+    mapped <- unname(.ATT_FLAT_MAP[bld])
+    in_flat_type[idx]     <- fifelse(is_att, fifelse(is.na(mapped), "UNIT", mapped), "UNIT")
+    in_building_name[idx] <- fifelse(!is_att & nzchar(bld), bld, NA_character_)
     in_flat_number[idx]   <- m[hit, 3L]
     num <- .split_number_vec(m[hit, 4L])
     in_number_first[idx]  <- num$first
@@ -587,13 +591,18 @@ address_parse <- function(addresses, normalize = TRUE) {
     slash_end <- m_slash + attr(m_slash, "match.length") - 1L
     slash_str <- substr(s, m_slash, slash_end)
 
-    if (m_slash > 1L) {
-      out$building_name <- trimws(substr(s, 1L, m_slash - 1L))
-      if (!nzchar(out$building_name)) out$building_name <- NA_character_
+    pre_slash <- if (m_slash > 1L) trimws(substr(s, 1L, m_slash - 1L)) else ""
+    # A lone letter before the slash (e.g. "U6019/6") is the attached
+    # flat-prefix marker, not a building name — see .ATT_FLAT_MAP.
+    if (grepl("^[A-Z]$", pre_slash)) {
+      mapped <- unname(.ATT_FLAT_MAP[pre_slash])
+      out$flat_type <- if (!is.na(mapped)) mapped else "UNIT"
+    } else {
+      out$flat_type <- "UNIT"
+      if (nzchar(pre_slash)) out$building_name <- pre_slash
     }
 
     parts <- strsplit(slash_str, "/", fixed = TRUE)[[1L]]
-    out$flat_type   <- "UNIT"
     out$flat_number <- parts[1L]
     out <- .apply_parsed_number(out, parts[2L])
 
