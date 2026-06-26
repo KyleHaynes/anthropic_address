@@ -455,26 +455,45 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre class="mermaid mermaid-js">%%{init: {'themeVariables': {
   'fontSize': '12px',
   'nodePadding': 6,
-  'rankSpacing': 16,
+  'rankSpacing': 20,
   'edgeSpacing': 8,
   'diagramPadding': 6
 }}}%%
-flowchart TD
-    A[gnaf_match input] --&gt; B{Exact label&lt;br/&gt;match?}
+flowchart LR
+
+    A[gnaf_match input]
+    B{Exact label&lt;br/&gt;match?}
+    C{In match&lt;br/&gt;cache?}
+    D[address_parse]
+
+    A --&gt; B
     B -- yes --&gt; Z[Result]
-    B -- no --&gt; C{In match&lt;br/&gt;cache?}
+    B -- no --&gt; C
     C -- yes --&gt; Z
-    C -- no --&gt; D[address_parse]
+    C -- no --&gt; D
+
     D --&gt; E{Postcode&lt;br/&gt;parsed?}
-    E -- yes --&gt; F[Postcode path&lt;br/&gt;DuckDB]
-    E -- no --&gt; G[State path&lt;br/&gt;DuckDB]
+
+    subgraph P[DuckDB Matching]
+        direction TB
+        F[Postcode path]
+        G[State path]
+    end
+
+    E -- yes --&gt; F
+    E -- no --&gt; G
+
     F --&gt; H{Best score &lt;=&lt;br/&gt;fallback_threshold&lt;br/&gt;or unmatched?}
     G --&gt; H
-    H -- yes &amp; locality parsed --&gt; I[Locality fallback&lt;br/&gt;fuzzy suburb -&gt; postcode]
+
     H -- no --&gt; Z
+    H -- yes &amp; locality parsed --&gt; I[Locality fallback&lt;br/&gt;fuzzy suburb → postcode]
+
     I --&gt; J{Still unmatched &amp;&lt;br/&gt;street_only_fallback=TRUE?}
-    J -- yes --&gt; K[Street-only fallback]
+
     J -- no --&gt; Z
+    J -- yes --&gt; K[Street-only fallback]
+
     K --&gt; Z
 </pre>
 </div>
