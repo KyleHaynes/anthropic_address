@@ -122,6 +122,44 @@ gnaf_disconnect(con)
 abbreviation swaps, dropped components); `keep_original = TRUE` (the default) keeps
 the unperturbed label alongside the perturbed one so you can compare directly.
 
+## Unit testing and regression protection
+
+The package is covered by a suite of automated unit tests under `tests/testthat/`.
+These are run with `testthat` from the package root, typically via:
+
+```r
+library(devtools)
+devtools::test()
+```
+
+The test files are organised by responsibility:
+
+- `tests/testthat/test-parse.R` verifies the parser behaviour for Australian addresses,
+  including street/flat notation, abbreviations, missing commas, postcode/state
+  variations, and multiple input cases.
+- `tests/testthat/test-score.R` checks the scoring calculations directly, ensuring
+  street-type, number, postcode and flat scoring follow the package's rules and
+  that the total score remains the sum of all components.
+- `tests/testthat/test-match.R` exercises the matching pipeline itself, including
+  input validation and end-to-end `gnaf_match()` behaviour against an in-memory
+  DuckDB database.
+
+Together these tests serve three goals:
+
+1. **Validate current behaviour** — they codify the expected outputs for the parser,
+   scorer, and matcher so the package behaves consistently across changes.
+2. **Prevent regressions** — when parser or scoring code is modified, the test suite
+   catches unintended side effects immediately instead of letting them leak into
+   production results.
+3. **Document assumptions** — test cases like "`Rd` instead of `Ct`" or "unit prefix
+   notation" make the package's address-handling contracts explicit and easy to
+   understand.
+
+The `address_perturb_sample()` helper complements the formal tests by enabling
+repeatable, data-driven regression checks. It generates noisy variants of real
+records and lets you verify that `gnaf_match()` still recovers the intended
+address, which is especially useful when tuning parser logic or scoring weights.
+
 ## The match cache, day to day {#sec-cache-daily}
 
 The mechanics are covered in [How matching works](03-theory.qmd#sec-matching-paths);

@@ -397,7 +397,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><a href="#the-shiny-geocoder-app" id="toc-the-shiny-geocoder-app" class="nav-link active" data-scroll-target="#the-shiny-geocoder-app"><span class="header-section-number">6.1</span> The Shiny geocoder app</a></li>
   <li><a href="#spatial-helpers" id="toc-spatial-helpers" class="nav-link" data-scroll-target="#spatial-helpers"><span class="header-section-number">6.2</span> Spatial helpers</a></li>
   <li><a href="#synthetic-test-data" id="toc-synthetic-test-data" class="nav-link" data-scroll-target="#synthetic-test-data"><span class="header-section-number">6.3</span> Synthetic test data</a></li>
-  <li><a href="#sec-cache-daily" id="toc-sec-cache-daily" class="nav-link" data-scroll-target="#sec-cache-daily"><span class="header-section-number">6.4</span> The match cache, day to day</a></li>
+  <li><a href="#unit-testing-and-regression-protection" id="toc-unit-testing-and-regression-protection" class="nav-link" data-scroll-target="#unit-testing-and-regression-protection"><span class="header-section-number">6.4</span> Unit testing and regression protection</a></li>
+  <li><a href="#sec-cache-daily" id="toc-sec-cache-daily" class="nav-link" data-scroll-target="#sec-cache-daily"><span class="header-section-number">6.5</span> The match cache, day to day</a></li>
   </ul></nav>
     </div>
 <!-- main -->
@@ -514,8 +515,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_disconnect.html">gnaf_disconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p><code>max_changes</code> caps how many perturbations are applied per address (typos, abbreviation swaps, dropped components); <code>keep_original = TRUE</code> (the default) keeps the unperturbed label alongside the perturbed one so you can compare directly.</p>
-</section><section id="sec-cache-daily" class="level2" data-number="6.4"><h2 data-number="6.4" class="anchored" data-anchor-id="sec-cache-daily">
-<span class="header-section-number">6.4</span> The match cache, day to day</h2>
+</section><section id="unit-testing-and-regression-protection" class="level2" data-number="6.4"><h2 data-number="6.4" class="anchored" data-anchor-id="unit-testing-and-regression-protection">
+<span class="header-section-number">6.4</span> Unit testing and regression protection</h2>
+<p>The package is covered by a suite of automated unit tests under <code>tests/testthat/</code>. These are run with <code>testthat</code> from the package root, typically via:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://devtools.r-lib.org/">devtools</a></span><span class="op">)</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The test files are organised by responsibility:</p>
+<ul>
+<li>
+<code>tests/testthat/test-parse.R</code> verifies the parser behaviour for Australian addresses, including street/flat notation, abbreviations, missing commas, postcode/state variations, and multiple input cases.</li>
+<li>
+<code>tests/testthat/test-score.R</code> checks the scoring calculations directly, ensuring street-type, number, postcode and flat scoring follow the package’s rules and that the total score remains the sum of all components.</li>
+<li>
+<code>tests/testthat/test-match.R</code> exercises the matching pipeline itself, including input validation and end-to-end <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> behaviour against an in-memory DuckDB database.</li>
+</ul>
+<p>Together these tests serve three goals:</p>
+<ol type="1">
+<li>
+<strong>Validate current behaviour</strong> — they codify the expected outputs for the parser, scorer, and matcher so the package behaves consistently across changes.</li>
+<li>
+<strong>Prevent regressions</strong> — when parser or scoring code is modified, the test suite catches unintended side effects immediately instead of letting them leak into production results.</li>
+<li>
+<strong>Document assumptions</strong> — test cases like “<code>Rd</code> instead of <code>Ct</code>” or “unit prefix notation” make the package’s address-handling contracts explicit and easy to understand.</li>
+</ol>
+<p>The <code><a href="https://rdrr.io/pkg/gnafr/man/address_perturb_sample.html">address_perturb_sample()</a></code> helper complements the formal tests by enabling repeatable, data-driven regression checks. It generates noisy variants of real records and lets you verify that <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> still recovers the intended address, which is especially useful when tuning parser logic or scoring weights.</p>
+</section><section id="sec-cache-daily" class="level2" data-number="6.5"><h2 data-number="6.5" class="anchored" data-anchor-id="sec-cache-daily">
+<span class="header-section-number">6.5</span> The match cache, day to day</h2>
 <p>The mechanics are covered in <a href="./03-theory.html#sec-matching-paths">How matching works</a>; day to day, the cache functions you’ll actually reach for are:</p>
 <ul>
 <li>
