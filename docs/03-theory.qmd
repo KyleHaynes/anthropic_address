@@ -8,20 +8,27 @@ the current source ([`R/parse.R`](../R/parse.R), [`R/score.R`](../R/score.R),
 look for the executed code blocks.
 
 ```{mermaid}
+%%{init: {'themeVariables': {
+  'fontSize': '12px',
+  'nodePadding': 6,
+  'rankSpacing': 16,
+  'edgeSpacing': 8,
+  'diagramPadding': 6
+}}}%%
 flowchart TD
-    A[gnaf_match input] --> B{Exact label\nmatch?}
+    A[gnaf_match input] --> B{Exact label<br/>match?}
     B -- yes --> Z[Result]
-    B -- no --> C{In match\ncache?}
+    B -- no --> C{In match<br/>cache?}
     C -- yes --> Z
     C -- no --> D[address_parse]
-    D --> E{Postcode\nparsed?}
-    E -- yes --> F[Postcode path\nDuckDB]
-    E -- no --> G[State path\nDuckDB]
-    F --> H{Best score <=\nfallback_threshold\nor unmatched?}
+    D --> E{Postcode<br/>parsed?}
+    E -- yes --> F[Postcode path<br/>DuckDB]
+    E -- no --> G[State path<br/>DuckDB]
+    F --> H{Best score <=<br/>fallback_threshold<br/>or unmatched?}
     G --> H
-    H -- yes & locality parsed --> I[Locality fallback\nfuzzy suburb -> postcode]
+    H -- yes & locality parsed --> I[Locality fallback<br/>fuzzy suburb -> postcode]
     H -- no --> Z
-    I --> J{Still unmatched &\nstreet_only_fallback=TRUE?}
+    I --> J{Still unmatched &<br/>street_only_fallback=TRUE?}
     J -- yes --> K[Street-only fallback]
     J -- no --> Z
     K --> Z
