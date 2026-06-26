@@ -1,0 +1,45 @@
+/*-- scss:defaults --*/
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;600&display=swap');
+
+$font-family-sans-serif: "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !default;
+$font-family-monospace: "Noto Sans Mono", "SFMono-Regular", Consolas, monospace !default;
+
+$primary: #5dade2 !default;
+$body-bg: #181a1f !default;
+$body-color: #d8dadd !default;
+$link-color: #6cb2eb !default;
+
+$navbar-bg: #11161b !default;
+$navbar-fg: #e6e9ec !default;
+$sidebar-bg: #1d2025 !default;
+
+$code-bg: #20242a !default;
+$code-color: #ff9ed8 !default;
+
+$callout-border-width: 4px !default;
+
+/*-- scss:rules --*/
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+#quarto-sidebar {
+  font-size: 0.92rem;
+}
+
+pre.sourceCode {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.callout {
+  border-radius: 6px;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+}
+
+.book-title, .quarto-title h1.title {
+  font-weight: 700;
+}

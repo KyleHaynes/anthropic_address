@@ -1,14 +1,63 @@
 project:
-  type: website
+  type: book
+  output-dir: .
 
-website:
-  title: "gnafr docs"
-  navbar:
-    left:
-      - text: "Home"
-        href: index.qmd
+book:
+  title: "gnafr"
+  subtitle: "Fast, fuzzy Australian address matching against the G-NAF"
+  author: "Kyle Haynes"
+  date: today
+  date-format: "D MMMM YYYY"
+  search: true
+  reader-mode: true
+  page-footer:
+    left: "gnafr — Australian Address Matching Using GNAF"
+    right: "Built with Quarto"
+  sidebar:
+    style: docked
+    collapse-level: 1
+  chapters:
+    - index.qmd
+    - part: "Getting started"
+      chapters:
+        - 01-about.qmd
+        - 02-quickstart.qmd
+    - part: "Under the hood"
+      chapters:
+        - 03-theory.qmd
+        - 04-build-database.qmd
+    - part: "Reference"
+      chapters:
+        - 05-function-reference.qmd
+        - 06-other-features.qmd
+        - 07-troubleshooting.qmd
 
 format:
   html:
-    theme: default
-    toc: false
+    theme:
+      light: [flatly, theme-light.scss]
+      dark: [darkly, theme-dark.scss]
+    mainfont: "Noto Sans"
+    fontsize: 1rem
+    linkcolor: "#2a6f97"
+    code-link: true
+    code-copy: true
+    code-fold: false
+    code-overflow: wrap
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    number-depth: 2
+    smooth-scroll: true
+    anchor-sections: true
+    highlight-style:
+      light: arrow
+      dark: arrow-dark
+    grid:
+      sidebar-width: 280px
+      body-width: 850px
+      margin-width: 250px
+
+execute:
+  freeze: auto
+  warning: false

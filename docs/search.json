@@ -2,8 +2,547 @@
   {
     "objectID": "index.html",
     "href": "index.html",
-    "title": "Hello from gnafr",
+    "title": "gnafr",
     "section": "",
-    "text": "Hello world\nWelcome to the gnafr Quarto website.\nThis is a basic Quarto template ready to be rendered to HTML.\n\nsummary(cars)\n\n     speed           dist       \n Min.   : 4.0   Min.   :  2.00  \n 1st Qu.:12.0   1st Qu.: 26.00  \n Median :15.0   Median : 36.00  \n Mean   :15.4   Mean   : 42.98  \n 3rd Qu.:19.0   3rd Qu.: 56.00  \n Max.   :25.0   Max.   :120.00"
+    "text": "Preface\nThis is the manual for gnafr — an R package for fast, fuzzy bulk matching of free-text Australian addresses against the Geocoded National Address File (G-NAF), backed by an embedded DuckDB database.\nIf you have a column of messy, human-typed addresses and want a latitude/longitude, a standardised address, and a confidence score for each one — at the scale of a few rows or a few million — this package (and this manual) is for you.",
+    "crumbs": [
+      "Preface"
+    ]
+  },
+  {
+    "objectID": "index.html#who-this-is-for",
+    "href": "index.html#who-this-is-for",
+    "title": "gnafr",
+    "section": "Who this is for",
+    "text": "Who this is for\nYou should already be comfortable with R and data.table. No DuckDB or SQL experience is assumed — gnafr handles that internally — but Under the hood explains the SQL gnafr generates, for readers who want to understand exactly what’s happening or who need to debug an unexpected result.",
+    "crumbs": [
+      "Preface"
+    ]
+  },
+  {
+    "objectID": "index.html#how-this-manual-is-organised",
+    "href": "index.html#how-this-manual-is-organised",
+    "title": "gnafr",
+    "section": "How this manual is organised",
+    "text": "How this manual is organised\nGetting started\n\n\nAbout gnafr — what G-NAF is, what problem gnafr solves, and how the package is put together.\n\nQuick guide — install the package and run your first match in a few minutes, using a tiny in-memory database (no G-NAF download required).\n\nUnder the hood\n\n\nTheory: how matching works — the parsing pipeline, the scoring formula, and the multi-path matching strategy, explained from the actual implementation rather than from the outside.\n\nBuilding a good lookup table — a guided walkthrough of build_gnaf_database.R, the reference pipeline for turning a raw G-NAF download into a database that matches well.\n\nReference\n\n\nFunction reference — every exported function, grouped by task, with arguments, return values, and examples.\n\nOther features — the Shiny geocoder app, spatial helpers (sf + leaflet), synthetic test-data generation, and the match cache.\n\nTroubleshooting & performance — common failure modes, how to read them, and how to keep large batch jobs fast.\n\n\n\n\n\n\n\nNote\n\n\n\nAlmost every code chunk in this manual that uses a real database is marked eval: false, because it points at a multi-gigabyte G-NAF file that doesn’t exist in this build environment. Chunks that do run live use a tiny synthetic database created with gnaf_connect(\":memory:\") — you’ll see their actual output printed inline, generated from the package’s current source at render time.",
+    "crumbs": [
+      "Preface"
+    ]
+  },
+  {
+    "objectID": "index.html#package-metadata",
+    "href": "index.html#package-metadata",
+    "title": "gnafr",
+    "section": "Package metadata",
+    "text": "Package metadata\n\n\n\n\n\n\n\n\nField\nValue\n\n\n\nPackage\ngnafr\n\n\nType\nPackage\n\n\nTitle\nAustralian Address Matching Using GNAF\n\n\nVersion\n0.1.0\n\n\nAuthors@R\nperson(“Kyle”, “Haynes”, role = c(“aut”, “cre”),\n\n\nemail = “kyle@kylehaynes.com.au”)\n\n\n\nDescription\nFast bulk address matching against the Geocoded National Address\n\n\n\nFile (GNAF) for Australia. Supports fuzzy matching with a confidence scoring algorithm, DuckDB-backed storage for high-performance lookups (100k+ addresses), and the ability to add custom addresses to the matching database. | |License |MIT + file LICENSE | |Encoding |UTF-8 | |LazyData |false | |Imports |cli, data.table (&gt;= 1.14.0), DBI (&gt;= 1.1.0), duckdb (&gt;= 0.9.0), stringdist (&gt;= 0.9.0), stringi, sf, ggplot2, viridisLite, leaflet, leaflet.extras | |Suggests |reactable, shiny, testthat (&gt;= 3.0.0) | |Config/testthat/edition |3 | |RoxygenNote |7.3.2 |",
+    "crumbs": [
+      "Preface"
+    ]
+  },
+  {
+    "objectID": "01-about.html",
+    "href": "01-about.html",
+    "title": "1  About gnafr",
+    "section": "",
+    "text": "1.1 What is G-NAF?\nThe Geocoded National Address File (G-NAF) is Australia’s authoritative address dataset, published by Geoscape Australia. It contains every physical address in Australia — around 15 million records — each with a unique persistent identifier, structured components (unit, street number, street name and type, locality, state, postcode), and a geocoded latitude/longitude.\nG-NAF is distributed in two forms:\ngnafr can load either (gnaf_load() for Core CSV, gnaf_load_psv() for the raw PSV product) — see Building a good lookup table for how to choose.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "01-about.html#what-is-g-naf",
+    "href": "01-about.html#what-is-g-naf",
+    "title": "1  About gnafr",
+    "section": "",
+    "text": "Format\nWhat it is\nWhen to use it\n\n\n\n\nG-NAF Core CSV\nA single, simplified, flattened CSV per state/national extract.\nDefault choice — smaller, simpler, and what most pipelines need.\n\n\nG-NAF Standard PSV\nThe full raw product: dozens of pipe-delimited (.psv) tables (ADDRESS_DETAIL, ADDRESS_ALIAS, STREET_LOCALITY_ALIAS, LOCALITY_ALIAS, …) as Geoscape ships it internally.\nWhen you want official locality/street alias records (recognised alternative suburb or street names) in addition to the core data.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "01-about.html#what-problem-does-gnafr-solve",
+    "href": "01-about.html#what-problem-does-gnafr-solve",
+    "title": "1  About gnafr",
+    "section": "1.2 What problem does gnafr solve?",
+    "text": "1.2 What problem does gnafr solve?\nReal-world address data is messy: abbreviated street types (RD vs ROAD), missing unit numbers, misspelt suburbs, inconsistent ordering, building names instead of street numbers. Joining that to G-NAF on exact string equality fails for a large fraction of real input.\ngnafr is built to take a character vector of free-text addresses — however messy — and return, for each one:\n\nthe best matching G-NAF record(s), with full structured fields and coordinates\na transparent 0–100 confidence score, broken down by component (postcode, suburb, street name, street type, number, flat), so you can decide what’s trustworthy and what needs a human to look at it\na record of why nothing matched, when nothing did\n\nIt is explicitly designed for bulk use — hundreds of thousands of addresses in a single call — not just single-address lookups, and for production reuse: the same DuckDB file persists between R sessions, is queried directly by SQL instead of being pulled into R, and remembers high-confidence matches in a cache so repeat input is free the second time.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "01-about.html#key-features",
+    "href": "01-about.html#key-features",
+    "title": "1  About gnafr",
+    "section": "1.3 Key features",
+    "text": "1.3 Key features\n\nBulk matching — a single gnaf_match() call batches all the SQL it needs, rather than looping per address.\nDuckDB backend — embedded (no server to run), columnar, and fast enough to scan millions of rows per query; the database file survives restarts.\nConfidence scoring — every match carries total_score plus six per-component scores, so callers can set their own bar for “trustworthy” per use case.\nMulti-path fallback matching — exact label lookup, a persistent match cache, postcode-blocked matching, a state-level fallback for addresses with no postcode, a locality (suburb-name) fallback for wrong/garbled postcodes, and an optional street-only fallback for addresses whose specific house number isn’t in G-NAF yet. See How matching works for the full design.\nCustom addresses — addresses that aren’t (yet) in G-NAF — new subdivisions, PO boxes, internal site codes — can be added to a separate table and are matched alongside G-NAF transparently.\ndata.table throughout — every in-memory result is a data.table; large joins and vectorised scoring stay fast even outside the database.\nSpatial helpers — point-in-polygon lookups and heatmap plotting built on sf, ggplot2, and leaflet, for joining match results to other geographies (e.g. ABS Mesh Blocks, SA2s) or visualising match density.\nInteractive Shiny app — a paste-addresses-and-go geocoder for ad hoc lookups, built on the same gnaf_match() engine.\nSynthetic test data — address_perturb_sample() generates realistic-but-messy test addresses from your own loaded data, for QA and benchmarking without needing hand-labelled examples.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "01-about.html#how-the-package-is-put-together",
+    "href": "01-about.html#how-the-package-is-put-together",
+    "title": "1  About gnafr",
+    "section": "1.4 How the package is put together",
+    "text": "1.4 How the package is put together\n\n\n\nFile\nResponsibility\n\n\n\n\ndb.R\nConnection, schema (gnaf_init), locality index, street-alias derivation, street-type canonicalisation, status/sampling.\n\n\nload.R\nLoading G-NAF Core CSVs (gnaf_load).\n\n\nload_psv.R\nLoading the raw G-NAF Standard PSV product, including official alias tables (gnaf_load_psv).\n\n\nparse.R\nTurns a raw address string into structured components (address_parse). The parsing engine — see Theory: parsing.\n\n\nscore.R\nThe scoring formula, expressed both as R (data.table) and as generated DuckDB SQL, so identical logic runs in-process or in-database.\n\n\nmatch.R\ngnaf_match() — orchestrates parsing, the match cache, and the five matching paths; combines and ranks results.\n\n\ncache.R\nThe persistent match cache: status, sampling, history, rollback, clearing.\n\n\ncustom.R\nAdding/removing custom (non-G-NAF) addresses.\n\n\napp.R\nThe Shiny geocoder app.\n\n\nsimulate.R\nSynthetic address generation for testing (address_perturb_sample).\n\n\nspatial_helpers.R\nsf-based point-in-polygon lookups and heatmap plotting.\n\n\nutils.R\nShared internals (street-type maps, alias-type SQL helpers, etc).",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "01-about.html#what-gnafr-is-not",
+    "href": "01-about.html#what-gnafr-is-not",
+    "title": "1  About gnafr",
+    "section": "1.5 What gnafr is not",
+    "text": "1.5 What gnafr is not\n\nNot a geocoder for non-Australian addresses. The parser is built specifically around Australian conventions (state abbreviations, postcode position, G-NAF street type vocabulary).\nNot a PO Box / GPO Box / Locked Bag resolver. Those have no street component to anchor matching on.\nNot a full geospatial GIS toolkit. The sf/leaflet helpers exist to make match results immediately usable (heatmaps, polygon joins), not to replace dedicated GIS tooling.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "01-about.html#license",
+    "href": "01-about.html#license",
+    "title": "1  About gnafr",
+    "section": "1.6 License",
+    "text": "1.6 License\ngnafr is released under the MIT license (see LICENSE in the package root).",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>About gnafr</span>"
+    ]
+  },
+  {
+    "objectID": "02-quickstart.html",
+    "href": "02-quickstart.html",
+    "title": "\n2  Quick guide\n",
+    "section": "",
+    "text": "2.1 Install\nThis chapter gets you from zero to a working match in a few minutes, using a tiny in-memory database so you don’t need to download G-NAF first. Everything here actually runs — the output you see below was generated by the code above it, against the current package source.\nWhen you’re ready to match against real Australian addresses, skip to Building a good lookup table.\ninstall.packages(c(\"data.table\", \"DBI\", \"duckdb\", \"stringdist\", \"stringi\", \"cli\"))\n\n# from the package source directory\ndevtools::install_local(\"gnafr\")\n# or, while developing:\ndevtools::load_all(\"gnafr\")\n\n# optional, for the Shiny app and spatial helpers\ninstall.packages(c(\"shiny\", \"reactable\", \"sf\", \"ggplot2\", \"viridisLite\",\n                    \"leaflet\", \"leaflet.extras\"))",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Quick guide</span>"
+    ]
+  },
+  {
+    "objectID": "02-quickstart.html#a-five-minute-no-download-example",
+    "href": "02-quickstart.html#a-five-minute-no-download-example",
+    "title": "\n2  Quick guide\n",
+    "section": "\n2.2 A five-minute, no-download example",
+    "text": "2.2 A five-minute, no-download example\nA real database is built from a multi-million-row G-NAF file (see Building a good lookup table). To see the whole API working end to end right now, this section builds a database with three hand-written addresses instead.\n\nlibrary(gnafr)\nlibrary(data.table)\n\n# \":memory:\" creates a database that lives only for this R session.\ncon &lt;- gnaf_connect(\":memory:\")\ngnaf_init(con)\n\ndemo_addresses &lt;- data.table(\n  address_label = c(\n    \"10 MUSGRAVE ROAD, RED HILL QLD 4059\",\n    \"120 MUSGRAVE ROAD, RED HILL QLD 4059\",\n    \"18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865\"\n  ),\n  number_first  = c(10L, 120L, 18L),\n  number_last   = c(NA_integer_, NA_integer_, 20L),\n  street_name   = c(\"MUSGRAVE\", \"MUSGRAVE\", \"DRIFT\"),\n  street_type   = c(\"ROAD\", \"ROAD\", \"CLOSE\"),\n  locality_name = c(\"RED HILL\", \"RED HILL\", \"GOLDSBOROUGH\"),\n  state         = c(\"QLD\", \"QLD\", \"QLD\"),\n  postcode      = c(4059L, 4059L, 4865L),\n  longitude     = c(153.0066, 153.0080, 145.6203),\n  latitude      = c(-27.4570, -27.4575, -17.2806)\n)\n\ngnaf_add(con, demo_addresses)\ngnaf_status(con)\n\n              table  rows\n             &lt;char&gt; &lt;num&gt;\n1:   gnaf_addresses     0\n2: custom_addresses     3\n\n\nNow match a deliberately messy input string against it:\n\nresult &lt;- gnaf_match(\n  \"unit 5 18-20 drift cl goldsborough 4865\",\n  con,\n  max_results = 2,\n  verbose = FALSE\n)\n\nresult[, .(input_raw, matched, total_score, address_label,\n           score_postcode, score_street_name, score_number)]\n\n                                 input_raw matched total_score                            address_label score_postcode score_street_name score_number\n                                    &lt;char&gt;  &lt;lgcl&gt;       &lt;int&gt;                                   &lt;char&gt;          &lt;int&gt;             &lt;int&gt;        &lt;int&gt;\n1: unit 5 18-20 drift cl goldsborough 4865    TRUE          95 18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865             20                40           10\n\n\nA perfectly clean input scores 100:\n\ngnaf_match(\"10 Musgrave Road, Red Hill QLD 4059\", con, verbose = FALSE)[\n  , .(input_raw, matched, total_score, address_label)\n]\n\n                             input_raw matched total_score                       address_label\n                                &lt;char&gt;  &lt;lgcl&gt;       &lt;int&gt;                              &lt;char&gt;\n1: 10 Musgrave Road, Red Hill QLD 4059    TRUE         100 10 MUSGRAVE ROAD, RED HILL QLD 4059\n\n\nA typo’d postcode (4058 instead of 4059) still matches, with the postcode component scored down rather than the match being rejected — see near-miss postcode credit for why:\n\ngnaf_match(\"10 Musgrave Road, Red Hill QLD 4058\", con, verbose = FALSE)[\n  , .(input_raw, matched, total_score, score_postcode, address_label)\n]\n\n                             input_raw matched total_score score_postcode                       address_label\n                                &lt;char&gt;  &lt;lgcl&gt;       &lt;int&gt;          &lt;int&gt;                              &lt;char&gt;\n1: 10 Musgrave Road, Red Hill QLD 4058    TRUE          94             14 10 MUSGRAVE ROAD, RED HILL QLD 4059\n\n\nA street number that isn’t in the database at all, by contrast, is never returned as a low-scoring match — it’s filtered out before scoring even runs (see the number pre-filter):\n\ngnaf_match(\"999 Musgrave Road, Red Hill QLD 4059\", con, min_score = 0, verbose = FALSE)[\n  , .(input_raw, matched, match_status, total_score, address_label)\n]\n\n                              input_raw matched match_status total_score address_label\n                                 &lt;char&gt;  &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;        &lt;char&gt;\n1: 999 Musgrave Road, Red Hill QLD 4059   FALSE no_candidate          NA          &lt;NA&gt;\n\n\nAlways close the connection when you’re done with it (in-memory databases simply vanish; file-backed ones should still be disconnected cleanly):\n\ngnaf_disconnect(con)",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Quick guide</span>"
+    ]
+  },
+  {
+    "objectID": "02-quickstart.html#the-two-calls-youll-use-most",
+    "href": "02-quickstart.html#the-two-calls-youll-use-most",
+    "title": "\n2  Quick guide\n",
+    "section": "\n2.3 The two calls you’ll use most",
+    "text": "2.3 The two calls you’ll use most\n\n# Connect once per session, reuse the connection across many gnaf_match() calls\ncon &lt;- gnaf_connect(\"C:/temp/gnaf.duckdb\")\n\n# Match a vector of addresses — this is the function you'll call repeatedly\nresults &lt;- gnaf_match(addresses, con, max_results = 1, min_score = 60)\n\ngnaf_match()’s two most useful tuning knobs:\n\n\n\n\n\n\n\nArgument\nDefault\nEffect\n\n\n\nmax_results\n1\nReturn up to N candidates per input, ranked best first.\n\n\nmin_score\n60\nDrop candidates scoring below this. Lower it for audit/review workflows; raise it for stricter automated pipelines.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Quick guide</span>"
+    ]
+  },
+  {
+    "objectID": "02-quickstart.html#where-to-next",
+    "href": "02-quickstart.html#where-to-next",
+    "title": "\n2  Quick guide\n",
+    "section": "\n2.4 Where to next",
+    "text": "2.4 Where to next\n\nNew to the package and want to understand why it returns what it returns? Read How matching works.\nHave a real G-NAF download ready? Read Building a good lookup table.\nKnow what you want to call? Jump straight to the Function reference.",
+    "crumbs": [
+      "Getting started",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Quick guide</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html",
+    "href": "03-theory.html",
+    "title": "\n3  How matching works\n",
+    "section": "",
+    "text": "3.1 Parsing\nThis chapter explains gnafr from the inside: how a raw string becomes structured components, how those components become a score, and how gnaf_match() decides which database rows are even worth scoring. Every number quoted here was read from the current source (R/parse.R, R/score.R, R/match.R) and, where practical, verified by actually running it — look for the executed code blocks.\naddress_parse() turns a raw string into a row of structured fields: in_postcode, in_state, in_locality, in_street_name, in_street_type, in_street_suffix, in_number_first, in_number_last, in_number_suffix, in_flat_type, in_flat_number, in_building_name.\nIt runs in two tiers:\nBefore any of that, every input has its trailing postcode/state stripped (in either order — \"...QLD 4059\" or \"...4059 QLD\"), then its rightmost street type token located.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html#sec-parsing",
+    "href": "03-theory.html#sec-parsing",
+    "title": "\n3  How matching works\n",
+    "section": "",
+    "text": "Vectorised fast paths (.parse_vectorized) — four stringi-based regex patterns, applied across the whole input vector at once, that together cover roughly 95%+ of well-formed Australian addresses:\n\n\n4a — slash notation: FLAT/NUMBER STREETNAME (\"110/120 Musgrave Rd\")\n\n4b — flat-type prefix: UNIT NUMBER NUMBER STREETNAME (\"Unit 3 120 Musgrave Rd\")\n\n4b2 — attached single-letter prefix: F8 536 STREETNAME (F=Flat, A=Apartment, U=Unit; any other letter defaults to Unit)\n\n4c — simple form: NUMBER[-NUMBER] STREETNAME (the most common case by far), with an “implied pair” sub-case for the common Australian convention &lt;unit&gt; &lt;number&gt; &lt;street&gt; written with no explicit UNIT keyword (\"10 120 Musgrave Rd\")\n\n\n\nA row-by-row fallback (.parse_single) for anything the fast patterns don’t recognise — uncommon structures, fuzzy-misspelt street types, addresses with no identifiable street type at all.\n\n\n\n\n\n\n\n\nTipThe comma hint\n\n\n\nIf the original string has a comma (\"123 St James Rode, Tamborine Mountain...\"), the word immediately before the last comma is treated as a strong hint for the street type — even fuzzily, via Jaro-Winkler against the known type list. This exists specifically to catch two failure modes of a plain rightmost-match search: coincidental abbreviation collisions inside a multi-word street name (\"St\" inside \"St James Rode\" matching the STREET abbreviation and hiding the real, misspelt type \"Rode\"), and misspelt types that a pure rightmost scan would miss entirely.\n\n\nLive example\n\nlibrary(gnafr)\n\naddress_parse(c(\n  \"unit 110 120 musgrave Road red hill 4000 QLD\",\n  \"U110 1120 musgrave rd red hill 4000\",\n  \"Cambridge on the hill 110/120 musgrave road red hill QLD 4000\",\n  \"18-20 drift cl goldsborough QLD 4865\",\n  \"F8 536 example parade brisbane 4000\"\n))\n\nNormalisation (normalize = TRUE, the default)\nAfter structural parsing, common abbreviations in in_locality and in_street_name are expanded to the form G-NAF actually uses, so they compare equal at scoring time instead of merely similar:\n\n\n\n\n\n\nPattern\nExpands to\n\n\n\n\nMNT, MT\n\nMOUNT\n\n\n\nST (as a whole word, after the street type has already been extracted)\nSAINT\n\n\n\nNTH, STH, and a leading N/S/E/W\n\n\nNORTH / SOUTH / EAST / WEST\n\n\n\nCK\nCREEK\n\n\n&\nAND\n\n\nOrdinal numerals (1ST…20TH)\nwritten words (FIRST…TWENTIETH), street name only\n\n\n\n\naddress_parse(\"Mt Gravatt East\", normalize = TRUE)[, .(in_locality)]\n\n    in_locality\n         &lt;char&gt;\n1: GRAVATT EAST\n\naddress_parse(\"Mt Gravatt East\", normalize = FALSE)[, .(in_locality)]\n\n    in_locality\n         &lt;char&gt;\n1: GRAVATT EAST\n\n\nThis matters because the suburb/street-name score is Jaro-Winkler similarity, not identity — \"MOUNT GRAVATT EAST\" vs \"MT GRAVATT EAST\" would still score well, but expanding it first means a correctly-typed-but-abbreviated suburb scores a perfect match instead of a near-miss.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html#sec-scoring",
+    "href": "03-theory.html#sec-scoring",
+    "title": "\n3  How matching works\n",
+    "section": "\n3.2 Scoring",
+    "text": "3.2 Scoring\nEvery (input, candidate) pair is scored on six components that sum to total_score (0–100). The same logic exists twice in the source — once as DuckDB SQL CASE expressions (.score_sql_exprs(), used by every matching path so scoring happens inside the database), and once as equivalent data.table vector operations (.score_pairs(), used for the exact-label fast path). The current default weights (R/score.R):\n\n\n\n\n\nComponent\nWeight\n\n\n\npostcode\npostcode\n20\n\n\nsuburb\nsuburb\n15\n\n\nstreet_name\nstreet_name\n40\n\n\nstreet_type\nstreet_type\n10\n\n\nnumber\nnumber\n10\n\n\nflat\nflat\n5\n\n\n\n\n\n\n\n\n\n\n\nImportant\n\n\n\nThese weights changed from an earlier version of the package (which used postcode 25 / suburb 20 / street_name 25 / street_type 10 / number 12 / flat 8) — street name now carries the most weight by a wide margin. If you’ve read older notes or scripts referencing the old weights, they’re stale; .default_match_weights() is always the source of truth, and gnaf_match(..., weights = list(...)) lets you override them per call (the override must still sum to 100).\n\n\nYou can pass your own weights list to bias matching — e.g. toward street number for a number-sensitive workflow — but note this disables the match cache for that call (cached scores were computed under the default weights, so reusing them under different weights would silently misreport).\nPostcode (default weight 20)\nExact match scores full weight. Unlike every other component, postcode also has near-miss partial credit — a difference of 1, 2, or 3 scores 70%, 40%, 20% of the weight respectively; anything further scores 0.\nIn practice this only ever fires on the locality fallback path (Section 3.3): the primary postcode-path query joins ON g.postcode = i.in_postcode, so by construction every row it scores already has score_postcode at full weight. The partial-credit branches only become reachable once the locality fallback widens the join to nearby postcodes (±3) or to whatever postcode a fuzzy-matched locality name points at, regardless of how far off the stated postcode was:\n\ncon &lt;- gnaf_connect(\":memory:\")\ngnaf_init(con)\ngnaf_add(con, data.table::data.table(\n  address_label = \"10 MUSGRAVE ROAD, RED HILL QLD 4059\",\n  number_first = 10L, street_name = \"MUSGRAVE\", street_type = \"ROAD\",\n  locality_name = \"RED HILL\", state = \"QLD\", postcode = 4059L\n))\n\n# Postcode typo'd by one digit (4058 vs 4059) — the number and street still\n# match exactly, so the locality fallback finds it and scores the postcode\n# component at 70% of weight (round(20 * 0.7) = 14) instead of rejecting it.\ngnaf_match(\"10 Musgrave Road, Red Hill QLD 4058\", con, verbose = FALSE)[\n  , .(matched, total_score, score_postcode, address_label)\n]\n\n   matched total_score score_postcode                       address_label\n    &lt;lgcl&gt;       &lt;int&gt;          &lt;int&gt;                              &lt;char&gt;\n1:    TRUE          94             14 10 MUSGRAVE ROAD, RED HILL QLD 4059\n\n\nSuburb / locality (default weight 15) and street name (default weight 40)\nBoth are round(weight * jaro_winkler_similarity(input, candidate)), computed by DuckDB’s built-in jaro_winkler_similarity() for every matching path except the exact-label fast path, which uses stringdist::stringdist(method = \"jw\", p = 0.1) in R — the same metric, just evaluated on whichever side of the SQL/R boundary that path runs on. Street name carries by far the largest single weight of any component, reflecting that it’s the strongest discriminator between genuinely different addresses that happen to share a postcode and number.\nStreet type (default weight 10)\nNot a similarity score — a three-tier exact comparison, because abbreviations are already canonicalised during parsing and at load time, so by the time scoring runs, “the same type” should mean string-equal, not merely similar:\n\nBoth sides agree (or both are absent) → full weight\nExactly one side has a type → 50% of weight\nBoth sides have a type, but they disagree → 40% of weight\n\nThat 40%-for-disagreement floor is deliberate: a wrong street type (\"Avenue\" typed where G-NAF has \"Drive\") is a very common, low-stakes user error and shouldn’t fully cancel out an otherwise strong match.\n\ngnaf_add(con, data.table::data.table(\n  address_label = \"13-27 FAIRWAY DRIVE, CLEAR ISLAND WATERS QLD 4226\",\n  number_first = 13L, number_last = 27L, street_name = \"FAIRWAY\", street_type = \"DRIVE\",\n  locality_name = \"CLEAR ISLAND WATERS\", state = \"QLD\", postcode = 4226L\n))\n\ngnaf_match(\"13 Fairway Avenue, Clear Island Waters QLD 4226\", con, min_score = 0, verbose = FALSE)[\n  , .(matched, total_score, score_street_type, address_label)\n]\n\n   matched total_score score_street_type                                     address_label\n    &lt;lgcl&gt;       &lt;int&gt;             &lt;int&gt;                                            &lt;char&gt;\n1:    TRUE          94                 4 13-27 FAIRWAY DRIVE, CLEAR ISLAND WATERS QLD 4226\n\n\nStreet number (default weight 10)\nThree tiers, mirrored identically in SQL and R:\n\nExact match to number_first → full weight\nFalls within number_first–number_last (a ranged G-NAF record, e.g. 13-27) → 70% of weight\nNo match → 0\n\n\ngnaf_match(\"15 Fairway Drive, Clear Island Waters QLD 4226\", con, verbose = FALSE)[\n  , .(matched, total_score, score_number, address_label)\n]\n\n   matched total_score score_number                                     address_label\n    &lt;lgcl&gt;       &lt;int&gt;        &lt;int&gt;                                            &lt;char&gt;\n1:    TRUE          97            7 13-27 FAIRWAY DRIVE, CLEAR ISLAND WATERS QLD 4226\n\n\nA parsed numeric suffix (\"190A\") is handled as its own rule layered on top: it only earns credit when the candidate’s address_label literally starts with \"&lt;number&gt;&lt;suffix&gt; \" — e.g. input 190A only matches a G-NAF row whose label starts with \"190A \", not merely a row whose number_first is 190. This avoids treating 190A and 190B (almost certainly different physical units) as equivalent just because they share a numeric prefix.\n\n\n\n\n\n\nWarningThe number filter is a gate, not a soft score\n\n\n\nUnlike every other component, an unmatched street number doesn’t just score zero — in most paths, candidates whose number doesn’t satisfy the pre-filter (exact, in range, or the suffix label-prefix rule) are excluded from the SQL join entirely and never reach scoring at all. An input with a house number that simply isn’t in G-NAF for that street comes back matched = FALSE, match_status = \"no_candidate\" — not a low-scoring row you can raise by lowering min_score:\n\ngnaf_match(\"999 Musgrave Road, Red Hill QLD 4059\", local({\n  c2 &lt;- gnaf_connect(\":memory:\"); gnaf_init(c2)\n  gnaf_add(c2, data.table::data.table(\n    address_label = \"10 MUSGRAVE ROAD, RED HILL QLD 4059\",\n    number_first = 10L, street_name = \"MUSGRAVE\", street_type = \"ROAD\",\n    locality_name = \"RED HILL\", state = \"QLD\", postcode = 4059L\n  ))\n  c2\n}), min_score = 0, verbose = FALSE)[, .(matched, match_status, total_score)]\n\n   matched match_status total_score\n    &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;\n1:   FALSE no_candidate          NA\n\n\nThe one exception is the street-only fallback (Section 3.3), which exists precisely for this situation — it matches against number-free street records so an input can still resolve to the right street when its exact number isn’t (yet) in G-NAF.\n\n\nFlat / unit (default weight 5)\nBinary: full weight if both sides have no flat (or matching flat numbers), 0 otherwise — including when only one side has a flat number. A flat number on the input that the candidate doesn’t have at all is treated as a mismatch, not a “can’t tell” no-op, since a different unit at the same street number is a meaningfully different physical address.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html#sec-matching-paths",
+    "href": "03-theory.html#sec-matching-paths",
+    "title": "\n3  How matching works\n",
+    "section": "\n3.3 Matching paths",
+    "text": "3.3 Matching paths\ngnaf_match() tries, in order, stopping as soon as an input is satisfied:\n1. Exact label match\nIf the uppercased, trimmed input string equals a G-NAF address_label exactly, it’s scored and returned immediately — no parsing-driven join needed. Built for re-processing addresses gnafr (or G-NAF itself) already standardised. Implemented as a hash join against a registered temporary table rather than a giant SQL IN (...) list, which keeps it fast even for tens of thousands of inputs.\n2. Match cache\ngnaf_match_cache stores (input_standardised → address_detail_pid, scores) for every result that previously scored at or above cache_threshold (default 95). Lookups join on input_standardised — the same building/flat/number/street/locality string gnaf_match() itself derives from the parsed input — so a future call with a differently worded but equivalently parsed address can still hit the cache. The cache is only consulted/written when weights are exactly the package defaults; non-default weights bypass it entirely for that call (see Scoring).\n3. Postcode path\nThe hot path for the overwhelming majority of inputs: an equi-join on g.postcode = i.in_postcode against the full address table, restricted by the number pre-filter and a coarse jaro_winkler_similarity(street_name) &gt;= 0.3 cutoff before scoring — both exist purely to keep the intermediate joined table small, since the actual scoring formula runs over whatever survives this filter. This is deliberately a cheap, exact equi-join: near-miss postcodes are not retrieved here at all (see the callout above) — that’s the locality fallback’s job.\n4. State path\nFor inputs with no parseable postcode at all: the same query shape, joined on g.state = i.in_state instead. Necessarily slower and noisier (a state-wide scan instead of a postcode-blocked one), so it’s only used when there’s truly no postcode to block on.\n5. Locality fallback\nFires for any input whose best score so far is at or below fallback_threshold (default 90) — including inputs with no result yet — provided a locality (suburb) name was parsed. It discovers alternative postcodes to retry two ways, unioned together:\n\n\nFuzzy locality match: jaro_winkler_similarity(g.locality_name, parsed_locality) &gt;= 0.85 against gnaf_locality_index (a deduplicated (locality_name, postcode, state) table, ~3,000 rows for a single state — small enough to scan cheaply). This finds the right postcode regardless of how wrong the stated one was.\n\nPostcode offset: the stated postcode ± 1, 2, or 3. Catches near-miss typos whose locality didn’t fuzzy-match (itself misspelt, or simply absent from the input).\n\nWhy 90 and not, say, 99? A clean correct match typically scores 95+. A coincidental match — same postcode and house number, completely unrelated street — can still reach the low-to-mid 80s (20 postcode + partial suburb/street credit + a lucky number match). 90 leaves enough margin to catch those coincidences and let the locality scan find the real candidate, without re-triggering on matches that are already correct.\n\ngnaf_add(con, data.table::data.table(\n  address_label = \"77 BROADWATER ROAD, MOUNT GRAVATT EAST QLD 4122\",\n  number_first = 77L, street_name = \"BROADWATER\", street_type = \"ROAD\",\n  locality_name = \"MOUNT GRAVATT EAST\", state = \"QLD\", postcode = 4122L\n))\n\n# Postcode is wildly wrong (9999); the suburb name (after MT -&gt; MOUNT\n# normalisation) is enough for the locality fallback to find it.\ngnaf_match(\"77 Broadwater Road, Mt Gravatt East QLD 9999\", con, min_score = 0, verbose = FALSE)[\n  , .(matched, match_status, total_score, score_postcode, score_suburb, address_label)\n]\n\n   matched match_status total_score score_postcode score_suburb                                   address_label\n    &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;          &lt;int&gt;        &lt;int&gt;                                          &lt;char&gt;\n1:    TRUE      matched          80              0           15 77 BROADWATER ROAD, MOUNT GRAVATT EAST QLD 4122\n\n\n6. Street-only fallback (opt-in: street_only_fallback = TRUE)\nFor inputs still unmatched after every other path. Matches only against alias_type = 'street_only' rows — synthetic, number-free address records derived from G-NAF by gnaf_build_street_aliases() (or the official PSV alias tables via gnaf_load_psv()). Numbered inputs never match these rows through the ordinary paths above — the number pre-filter requires number_first IS NULL on the candidate side to match a number-bearing input, and street-only rows have no number — so this path exists specifically to give those inputs something once everything number-aware has failed. Typical cause: a brand new subdivision whose house numbers G-NAF hasn’t published yet, or an input that genuinely has no street number.\n\ngnaf_disconnect(con)",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html#why-everything-runs-inside-duckdb",
+    "href": "03-theory.html#why-everything-runs-inside-duckdb",
+    "title": "\n3  How matching works\n",
+    "section": "\n3.4 Why everything runs inside DuckDB",
+    "text": "3.4 Why everything runs inside DuckDB\nEvery matching path registers the parsed inputs as a temporary DuckDB table (duckdb::duckdb_register()), builds one SQL query that joins, scores, ranks (ROW_NUMBER() OVER (PARTITION BY input_id ...)), and filters by min_score — then pulls only the surviving rows into R. A few design choices fall directly out of this:\n\n\nNo window-function aggregate before the score filter. Computing something like COUNT(*) OVER (...) before filtering on total_score would force DuckDB to fully materialise the join first, which is exactly the memory blow-up bulk matching is built to avoid.\n\nThe street-name similarity pre-filter (&gt;= 0.3) runs in the WHERE clause, before scoring — it exists purely to shrink the candidate set, since a 0.3 Jaro-Winkler floor is cheap to compute and eliminates the bulk of irrelevant rows before the (more expensive, in aggregate) full scoring expression runs over them.\n\nRegistered temp tables, not literal IN (...) lists, for the exact-label and cache lookups — duckdb_register() lets DuckDB hash-join against an R data.table directly, which scales far better than a 50,000-item SQL literal.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html#the-database-schema",
+    "href": "03-theory.html#the-database-schema",
+    "title": "\n3  How matching works\n",
+    "section": "\n3.5 The database schema",
+    "text": "3.5 The database schema\ngnaf_init() creates two structurally identical tables — gnaf_addresses and custom_addresses — every G-NAF Core column plus the alias/source bookkeeping columns gnafr adds (source, alias_type, alias_principal, principal_pid, primary_secondary, primary_pid, geocode_type), three supporting structures, and runs any schema migrations needed for databases created by an older version of gnafr (every ALTER TABLE ... ADD COLUMN IF NOT EXISTS is safe to re-run):\n\n\n\n\n\n\nObject\nPurpose\n\n\n\n\nidx_gnaf_pc, idx_cust_pc\n\nIndex on postcode — supports the state/locality paths’ coarser filtering.\n\n\n\nidx_gnaf_pcnum, idx_cust_pcnum\n\nCompound index on (postcode, number_first) — the index the hot postcode path actually relies on.\n\n\n\nidx_gnaf_label, idx_cust_label\n\nIndex on address_label — backs the exact-label fast path.\n\n\ngnaf_locality_index\nDeduplicated (locality_name, postcode, state) — the small table the locality fallback’s fuzzy suburb scan runs against, instead of scanning every address row.\n\n\ngnaf_match_cache\n\ninput_standardised → address_detail_pid plus all six score components and a cached_at timestamp.\n\n\n\ngnaf_init() is always safe to re-run, including on a database built by an older version — that’s the entire point of the IF NOT EXISTS / ADD COLUMN IF NOT EXISTS pattern throughout.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "03-theory.html#the-alias-system",
+    "href": "03-theory.html#the-alias-system",
+    "title": "\n3  How matching works\n",
+    "section": "\n3.6 The alias system",
+    "text": "3.6 The alias system\nThree independent mechanisms populate non-core rows, all distinguished by the alias_type column:\n\n\nstreet_only — derived locally by gnaf_build_street_aliases() from your own loaded gnaf_addresses: one row per unique (street_name, street_type, street_suffix, locality_name, state, postcode) combination, with number_first left NULL. PIDs are an MD5 of the key fields, so re-running without overwrite = TRUE is a no-op rather than a pile of duplicates.\n\nLOCALITY:SYN / STREET:SYN — loaded directly from G-NAF’s own official alias tables by gnaf_load_psv(), when working from the raw “Standard” PSV product rather than the simplified Core CSV. These catch a recognised alternative suburb or street name that G-NAF itself records as a synonym — something the locally derived street_only aliases can’t do, since they only ever drop the house number, never substitute a different name.\n\nalias_principal / principal_pid and primary_secondary / primary_pid — not alias rows, but columns on every row (core or alias) that capture G-NAF’s own address relationships: whether a record is the canonical PRINCIPAL address or an ALIAS of one, and whether it’s the main PRIMARY dwelling or a SECONDARY sub-dwelling/unit, with a pointer back to the related PID in each case.\n\ngnaf_match()’s alias_types argument restricts which of these are eligible candidates for a given call — NA selects core (non-alias) rows, and the default NULL matches everything regardless of alias type.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>How matching works</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html",
+    "href": "04-build-database.html",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "",
+    "text": "4.1 Step 0 — Schema\nThis chapter walks through build_gnaf_database.R, the reference build pipeline shipped in the package repository. Every step below is something gnafr actually does (or can do) to turn a raw G-NAF download into a database that gnaf_match() matches well against. It’s written to run top-to-bottom on a fresh database; each stage explains why it’s there, not just what it does.\nAll paths below are placeholders — adjust them to wherever you’ve downloaded G-NAF and want the DuckDB file to live. Every chunk in this chapter is eval: false: it references files that don’t exist in this build environment, but is otherwise exactly what you’d run.\ngnaf_init(con)\nCreates gnaf_addresses / custom_addresses (every G-NAF Core column — see below), the locality search index, and the match cache. Always call this first, even on a database you’ve built before — every CREATE is IF NOT EXISTS, and any columns added to the schema since the database was first built are migrated in via ALTER TABLE ADD COLUMN IF NOT EXISTS. It’s how older databases pick up schema changes without a rebuild.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#step-1-load-g-naf-core",
+    "href": "04-build-database.html#step-1-load-g-naf-core",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.2 Step 1 — Load G-NAF Core",
+    "text": "4.2 Step 1 — Load G-NAF Core\n\ngnaf_load(con, \"C:/temp/gnaf.qld.csv\")\n\ngnaf_load() reads the CSV straight into DuckDB with read_csv() — the file is never pulled into R, so this scales to state-sized files without RAM pressure. It captures every column G-NAF Core publishes, not just the ones obviously needed for address-string matching:\n\n\nPRIMARY_SECONDARY / PRIMARY_PID — distinguishes a main dwelling from its sub-dwellings (units/secondaries), and points a secondary back at its primary record. Without this, \"10 EXAMPLE ST\" and \"UNIT 2 10 EXAMPLE ST\" are just two unrelated rows with no way to relate them.\n\nALIAS_PRINCIPAL / PRINCIPAL_PID — flags alias address records and maps them back to the principal (canonical) record they’re an alias of.\n\nDATE_CREATED, LEGAL_PARCEL_ID, MB_CODE, GEOCODE_TYPE — free (already in the source file) and useful for downstream filtering/auditing — e.g. excluding very recently created records, or joining to ABS Mesh Block data via MB_CODE — without a second load.\n\nLoading is idempotent on ADDRESS_DETAIL_PID (ON CONFLICT DO NOTHING), so re-running this on a database that already has the same file loaded is a safe no-op, not a pile of duplicates. Pass a vector of paths to load several states in one call, or overwrite = TRUE to wipe and reload from scratch.\n\n# Multiple states in one call\ngnaf_load(con, c(\"C:/temp/gnaf.qld.csv\", \"C:/temp/gnaf.nsw.csv\"))\n\n# Wipe and reload\ngnaf_load(con, \"C:/temp/gnaf.qld.csv\", overwrite = TRUE)\n\nAll the standard G-NAF Core columns land in gnaf_addresses; the ones gnafr’s parser and scorer rely on directly:\n\n\n\n\n\n\nColumn\nExample\n\n\n\nADDRESS_DETAIL_PID\nGAQLD159783900\n\n\nADDRESS_LABEL\nUNIT 50 13-27 FAIRWAY DR, CLEAR ISLAND WATERS QLD 4226\n\n\n\nFLAT_TYPE / FLAT_NUMBER\n\n\nUNIT / 50\n\n\n\n\nNUMBER_FIRST / NUMBER_LAST\n\n\n13 / 27\n\n\n\n\nSTREET_NAME / STREET_TYPE\n\n\nFAIRWAY / DRIVE\n\n\n\nLOCALITY_NAME\nCLEAR ISLAND WATERS\n\n\n\nSTATE / POSTCODE\n\n\nQLD / 4226\n\n\n\n\nLONGITUDE / LATITUDE\n\n\n153.4023 / -28.03448",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#step-2-canonicalise-street-types-usually-a-no-op",
+    "href": "04-build-database.html#step-2-canonicalise-street-types-usually-a-no-op",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.3 Step 2 — Canonicalise street types (usually a no-op)",
+    "text": "4.3 Step 2 — Canonicalise street types (usually a no-op)\n\ngnaf_canonicalize_street_types(con)\n\nFree-text addresses mix abbreviated and full street types (\"RD\" vs \"ROAD\", \"AV\" vs \"AVENUE\"), and gnaf_match()’s street-type score (Section 3.2) expects both sides of a comparison to use the same convention to award full credit. gnaf_load() already canonicalises STREET_TYPE inline at insert time, so immediately after Step 1 this is a no-op.\nIt earns its place in the pipeline for one reason: it’s the fix for any database built before that inline canonicalisation existed. Running it here makes the script idempotent regardless of how old the underlying database is, instead of silently leaving stale street types behind after an upgrade.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#step-3-build-street-only-aliases",
+    "href": "04-build-database.html#step-3-build-street-only-aliases",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.4 Step 3 — Build street-only aliases",
+    "text": "4.4 Step 3 — Build street-only aliases\n\ngnaf_build_street_aliases(con)\n\nDerives new rows from gnaf_addresses itself — no new file read — one per unique (street_name, street_type, street_suffix, locality, state, postcode) combination already loaded, with a synthetic, number-free address_label and alias_type = \"street_only\".\nWhy it matters: gnaf_match()’s number pre-filter (Section 3.2) requires an input with a parsed house number to match a candidate row whose number is NULL or in range — a numbered input can never accidentally match a number-free row. That means street-only rows are inert for normal matching and only ever get used by the street-only fallback (street_only_fallback = TRUE in gnaf_match()), for inputs that survive every other path unmatched — typically because the specific house number is missing from G-NAF (a new subdivision G-NAF hasn’t caught up to) or the input genuinely has no number. Without these rows, those inputs have nothing to fall back to.\nIt’s idempotent: derived PIDs are an MD5 of the key fields, so re-running without overwrite = TRUE silently skips aliases that already exist.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#step-4-rebuild-the-locality-search-index-usually-automatic",
+    "href": "04-build-database.html#step-4-rebuild-the-locality-search-index-usually-automatic",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.5 Step 4 — Rebuild the locality search index (usually automatic)",
+    "text": "4.5 Step 4 — Rebuild the locality search index (usually automatic)\n\ngnaf_rebuild_locality_index(con)\n\ngnaf_load(), gnaf_load_psv(), and gnaf_add() all rebuild gnaf_locality_index for you after they finish, so this is normally nothing to think about. It exists as a callable step because gnaf_match()’s locality fallback (mistyped or wrong postcode, but a recognisable suburb name) runs a Jaro-Winkler scan over this ~3,000-row index rather than the full multi-million-row address table — that’s the whole reason it’s fast. The only time you need to call it yourself is after bulk deletes/updates run outside gnafr’s own load functions (e.g. raw DBI::dbExecute() DELETEs) — rare enough to be worth calling explicitly here as cheap insurance.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#step-5-optional-custom-addresses",
+    "href": "04-build-database.html#step-5-optional-custom-addresses",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.6 Step 5 (optional) — Custom addresses",
+    "text": "4.6 Step 5 (optional) — Custom addresses\n\ngnaf_add(con, data.table::data.table(\n  number_first  = 1,\n  street_name   = \"EXAMPLE\",\n  street_type   = \"STREET\",\n  locality_name = \"SAMPLETON\",\n  state         = \"QLD\",\n  postcode      = 4999\n))\n\nAnything not in G-NAF — a brand-new subdivision G-NAF hasn’t published yet, a PO box, an internal site code — can be added to a separate custom_addresses table via gnaf_add(). It’s unioned into gnaf_match() transparently (include_custom = TRUE, the default), scored with the exact same logic as G-NAF rows, and kept in its own table specifically so it’s never confused with or overwritten by a future gnaf_load(overwrite = TRUE).\nLeft commented out in the reference script since it’s data-specific, not a universal build step — uncomment and adapt when you actually have custom records to add.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#step-6-verify",
+    "href": "04-build-database.html#step-6-verify",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.7 Step 6 — Verify",
+    "text": "4.7 Step 6 — Verify\n\ngnaf_status(con)\nsample_gnaf(con, n = 5)\n\ngnaf_disconnect(con)\n\ngnaf_status() confirms both tables exist and reports row counts at a glance — the cheapest possible sanity check that Step 1 actually loaded what you expected. sample_gnaf() pulls a few random rows so you can eyeball that columns landed where expected (street types canonicalised, PRIMARY_SECONDARY/PRINCIPAL_PID populated, etc.) before trusting the database with real matching.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#alternative-ingestion-path-gnaf_load_psv",
+    "href": "04-build-database.html#alternative-ingestion-path-gnaf_load_psv",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.8 Alternative ingestion path: gnaf_load_psv()\n",
+    "text": "4.8 Alternative ingestion path: gnaf_load_psv()\n\nEverything above starts from the G-NAF Core CSV — the simplified, single-file product Geoscape publishes. If you instead have the full raw G-NAF PSV product (the \"Standard\" directory with ADDRESS_DETAIL, ADDRESS_ALIAS, STREET_LOCALITY_ALIAS, LOCALITY_ALIAS, etc.), gnaf_load_psv() is a richer alternative to Steps 1 and 3 combined:\n\ngnaf_load_psv(con, \"C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard\")\n\nIt derives real locality-name and street-name alias records (alias_type \"LOCALITY:SYN\" / \"STREET:SYN\") directly from G-NAF’s own official alias tables, rather than the number-stripped street_only aliases Step 3 builds. That catches inputs using a recognised alternative suburb or street name G-NAF itself records as a synonym — something Step 3’s street-only derivation can’t do, since it only ever drops the house number, never substitutes a different name.\n\n\n\n\n\n\nImportantCSV vs PSV are alternatives, not complements\n\n\n\nEach path loads its own complete set of source = 'gnaf' rows — running both against the same database duplicates everything. Pick one:\n\n\nPrefer gnaf_load() (Steps 1+3 above) when the simplified Core CSV is all you have, or you don’t need locality/street synonym coverage.\n\nPrefer gnaf_load_psv() when you have the full raw product and want that extra alias coverage out of the box.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "04-build-database.html#keeping-a-database-current",
+    "href": "04-build-database.html#keeping-a-database-current",
+    "title": "\n4  Building a good lookup table\n",
+    "section": "\n4.9 Keeping a database current",
+    "text": "4.9 Keeping a database current\nG-NAF is republished quarterly. The whole pipeline above is written to be safely re-run end to end on an existing database:\n\n\ngnaf_init(con) — picks up any schema changes from a newer gnafr version.\n\ngnaf_load(con, new_extract_path, overwrite = FALSE) — new/changed PIDs are inserted; existing ones are left alone (no destructive overwrite by default).\n\ngnaf_canonicalize_street_types(con) — a no-op unless the database predates inline canonicalisation.\n\ngnaf_build_street_aliases(con) — only inserts aliases for combinations that didn’t already have one.\n\ngnaf_status(con) — confirm the row count moved in the direction you expected.\n\nThere’s deliberately no step that deletes anything by default — overwrite = TRUE on gnaf_load() is an explicit, opt-in choice for a full rebuild, not the default refresh path.",
+    "crumbs": [
+      "Under the hood",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Building a good lookup table</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html",
+    "href": "05-function-reference.html",
+    "title": "\n5  Function reference\n",
+    "section": "",
+    "text": "5.1 Connection & setup\nEvery exported function in gnafr, grouped by task. Each entry shows the call signature, every argument, the return value, and — where it doesn’t require a multi-gigabyte G-NAF file — a live example. The shared in-memory database used by the executable examples below is set up once here and reused through this chapter.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#connection-setup",
+    "href": "05-function-reference.html#connection-setup",
+    "title": "\n5  Function reference\n",
+    "section": "",
+    "text": "gnaf_connect()\ngnaf_connect(path, read_only = FALSE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\npath\nPath to the DuckDB file. Pass \":memory:\" for an in-memory database.\n\n\nread_only\nOpen in read-only mode — for concurrent read access from multiple R processes.\n\n\n\nReturns a DBI connection object.\ngnaf_disconnect()\ngnaf_disconnect(con)\nCloses the connection cleanly (DBI::dbDisconnect(con, shutdown = TRUE)). Always call this before your script exits.\ngnaf_init()\ngnaf_init(con)\nCreates gnaf_addresses and custom_addresses and their indexes, the locality search index, and the match cache (see the database schema for full detail). Safe to call on an existing database — every statement is IF NOT EXISTS, and missing columns on older databases are migrated in automatically.\ngnaf_status()\ngnaf_status(con)\nReturns a data.table with one row per table and its row count.\n\ngnaf_status(con)\n\n              table  rows\n             &lt;char&gt; &lt;num&gt;\n1:   gnaf_addresses     0\n2: custom_addresses     2\n\n\nsample_gnaf()\nsample_gnaf(con, n = 10L)\n\n\nArgument\nDescription\n\n\n\ncon\nDBI connection.\n\n\nn\nNumber of rows to sample per table.\n\n\n\nReturns a data.table for a single-table database, or a named list of data.tables keyed by table name when several tables exist.\n\nsample_gnaf(con, n = 2)\n\n$custom_addresses\n   address_detail_pid                        address_label address_site_name building_name flat_type flat_number level_type level_number number_first number_last lot_number street_name street_type street_suffix locality_name  state postcode longitude latitude source alias_type date_created legal_parcel_id mb_code alias_principal principal_pid primary_secondary primary_pid geocode_type\n               &lt;char&gt;                               &lt;char&gt;            &lt;char&gt;        &lt;char&gt;    &lt;char&gt;      &lt;char&gt;     &lt;char&gt;       &lt;char&gt;        &lt;int&gt;       &lt;int&gt;     &lt;char&gt;      &lt;char&gt;      &lt;char&gt;        &lt;char&gt;        &lt;char&gt; &lt;char&gt;    &lt;int&gt;     &lt;num&gt;    &lt;num&gt; &lt;char&gt;     &lt;char&gt;       &lt;Date&gt;          &lt;char&gt;  &lt;char&gt;          &lt;char&gt;        &lt;char&gt;            &lt;char&gt;      &lt;char&gt;       &lt;char&gt;\n1:           CUSTOM_2 120 MUSGRAVE ROAD, RED HILL QLD 4059              &lt;NA&gt;          &lt;NA&gt;      &lt;NA&gt;        &lt;NA&gt;       &lt;NA&gt;         &lt;NA&gt;          120          NA       &lt;NA&gt;    MUSGRAVE        ROAD          &lt;NA&gt;      RED HILL    QLD     4059  153.0080 -27.4575 custom       &lt;NA&gt;         &lt;NA&gt;            &lt;NA&gt;    &lt;NA&gt;            &lt;NA&gt;          &lt;NA&gt;              &lt;NA&gt;        &lt;NA&gt;         &lt;NA&gt;\n2:           CUSTOM_1  10 MUSGRAVE ROAD, RED HILL QLD 4059              &lt;NA&gt;          &lt;NA&gt;      &lt;NA&gt;        &lt;NA&gt;       &lt;NA&gt;         &lt;NA&gt;           10          NA       &lt;NA&gt;    MUSGRAVE        ROAD          &lt;NA&gt;      RED HILL    QLD     4059  153.0066 -27.4570 custom       &lt;NA&gt;         &lt;NA&gt;            &lt;NA&gt;    &lt;NA&gt;            &lt;NA&gt;          &lt;NA&gt;              &lt;NA&gt;        &lt;NA&gt;         &lt;NA&gt;\n\n$gnaf_addresses\nEmpty data.table (0 rows and 29 cols): address_detail_pid,address_label,address_site_name,building_name,flat_type,flat_number...\n\n$gnaf_locality_index\n   locality_name postcode  state\n          &lt;char&gt;    &lt;int&gt; &lt;char&gt;\n1:      RED HILL     4059    QLD\n\n$gnaf_match_cache\nEmpty data.table (0 rows and 10 cols): input_standardised,address_detail_pid,total_score,score_postcode,score_suburb,score_street_name...",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#loading-data",
+    "href": "05-function-reference.html#loading-data",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.2 Loading data",
+    "text": "5.2 Loading data\ngnaf_load()\ngnaf_load(con, path, overwrite = FALSE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\ncon\nDBI connection from gnaf_connect().\n\n\npath\nCharacter vector of one or more paths to G-NAF Core CSV files.\n\n\noverwrite\nIf TRUE, deletes existing G-NAF rows before loading.\n\n\n\nLoads one or more G-NAF Core CSV files via DuckDB’s native read_csv — the file is never pulled into R first. Duplicate PIDs are silently skipped unless overwrite = TRUE. Returns, invisibly, the total number of G-NAF rows now in the database. See Building a good lookup table for a full walkthrough.\ngnaf_load(con, \"C:/temp/gnaf.qld.csv\")\ngnaf_load(con, c(\"C:/temp/gnaf.qld.csv\", \"C:/temp/gnaf.nsw.csv\"))\ngnaf_load_psv()\ngnaf_load_psv(con, gnaf_dir, overwrite = FALSE, load_aliases = TRUE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\ncon\nDBI connection. The database must have been initialised with gnaf_init().\n\n\ngnaf_dir\nPath to the G-NAF Standard directory containing the *_psv.psv files (e.g. \"G-NAF MAY 2026/Standard\").\n\n\noverwrite\nIf TRUE, deletes all existing source = 'gnaf' rows before loading.\n\n\nload_aliases\nIf TRUE (default), also loads official locality/street alias variants.\n\n\n\nReturns, invisibly, the total number of G-NAF rows in the database after loading. An alternative to gnaf_load() for the full raw PSV product — see CSV vs PSV for when to prefer each.\ngnaf_load_psv(con, \"C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard\")",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#schema-maintenance",
+    "href": "05-function-reference.html#schema-maintenance",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.3 Schema maintenance",
+    "text": "5.3 Schema maintenance\ngnaf_canonicalize_street_types()\ngnaf_canonicalize_street_types(con)\nReplaces abbreviated street_type values (\"RD\", \"AV\") with their canonical forms (\"ROAD\", \"AVENUE\") in both tables. New loads are canonicalised automatically at insert time; this exists to fix databases built before that was true. Returns, invisibly, the total number of rows updated.\n\ngnaf_canonicalize_street_types(con)\n\ngnaf_build_street_aliases()\ngnaf_build_street_aliases(con, overwrite = FALSE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\ncon\nDBI connection.\n\n\noverwrite\nIf TRUE, removes all existing street_only aliases before rebuilding.\n\n\n\nDerives number-free street_only alias rows from your loaded G-NAF data — see Step 3 for why this matters. Returns, invisibly, the number of street-only aliases now in the database. Idempotent: derived PIDs are an MD5 of the key fields, so re-running without overwrite = TRUE skips existing rows.\n\ngnaf_build_street_aliases(con)\n\ngnaf_rebuild_locality_index()\ngnaf_rebuild_locality_index(con)\nRebuilds gnaf_locality_index from the current contents of gnaf_addresses and custom_addresses. Called automatically by gnaf_load(), gnaf_load_psv(), and gnaf_add() — call it manually only after bulk deletes/updates run outside those functions. Returns, invisibly, the number of unique locality rows now in the index.\n\ngnaf_rebuild_locality_index(con)",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#parsing-matching",
+    "href": "05-function-reference.html#parsing-matching",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.4 Parsing & matching",
+    "text": "5.4 Parsing & matching\naddress_parse()\naddress_parse(addresses, normalize = TRUE)\n\n\nArgument\nDescription\n\n\n\naddresses\nCharacter vector of raw address strings.\n\n\nnormalize\nIf TRUE (default), expands common abbreviations in in_locality/in_street_name to their G-NAF canonical forms after parsing (see Normalisation). Set FALSE to skip.\n\n\n\nReturns a data.table with one row per input and columns input_id, input_raw, in_postcode, in_state, in_locality, in_street_name, in_street_type, in_street_suffix, in_number_first, in_number_last, in_number_suffix, in_flat_type, in_flat_number, in_building_name. Useful standalone for debugging, data profiling, or pre-processing — it never touches the database.\n\naddress_parse(\"Unit 5, 110/120 Musgrave Rd, Red Hill QLD 4059\")\n\ngnaf_match()\ngnaf_match(\n  addresses, con,\n  max_results = 1L, min_score = 60L,\n  include_custom = TRUE, alias_types = NULL,\n  locality_fallback = TRUE, street_only_fallback = FALSE,\n  fallback_threshold = 90L,\n  weights = .default_match_weights(),\n  normalize = TRUE,\n  cache = TRUE, cache_threshold = 95L,\n  verbose = TRUE\n)\n\n\n\n\n\n\n\nArgument\nDefault\nDescription\n\n\n\naddresses\n—\nCharacter vector of address strings to match.\n\n\ncon\n—\nDBI connection from gnaf_connect().\n\n\nmax_results\n1\nMaximum matches returned per input.\n\n\nmin_score\n60\nMinimum total_score (0–100) to include in results.\n\n\ninclude_custom\nTRUE\nInclude custom_addresses rows in matching.\n\n\nalias_types\nNULL\nRestrict to specific alias_type values. NA selects core (non-alias) rows only; NULL (default) matches every alias type. Example: c(NA, \"street_only\").\n\n\nlocality_fallback\nTRUE\nRe-search by locality name for inputs scoring at or below fallback_threshold.\n\n\nstreet_only_fallback\nFALSE\nRe-match still-unmatched inputs against street-level aliases. Requires gnaf_build_street_aliases() to have been run.\n\n\nfallback_threshold\n90\nScore at or below which the locality fallback fires.\n\n\nweights\npackage defaults\nNamed list of score weights (must sum to 100). Non-default weights bypass the match cache for the call.\n\n\nnormalize\nTRUE\nPassed through to address_parse().\n\n\ncache\nTRUE\nCheck/populate gnaf_match_cache.\n\n\ncache_threshold\n95\nMinimum score for a new result to be cached.\n\n\nverbose\nTRUE\nPrint coloured progress, timings, and a summary via cli.\n\n\n\nReturns a data.table ordered by input_id then descending total_score, including a standardised input string for every row, and retaining unmatched inputs with NA match columns and a match_status explaining why. See How matching works for the full mechanics.\n\ngnaf_match(\n  c(\"10 musgrave rd red hill 4059 qld\", \"999 fake st nowhere 9999\"),\n  con, max_results = 1, verbose = FALSE\n)[, .(input_raw, matched, match_status, total_score, address_label)]\n\n                          input_raw matched match_status total_score                       address_label\n                             &lt;char&gt;  &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;                              &lt;char&gt;\n1: 10 musgrave rd red hill 4059 qld    TRUE      matched         100 10 MUSGRAVE ROAD, RED HILL QLD 4059\n2:         999 fake st nowhere 9999   FALSE no_candidate          NA                                &lt;NA&gt;",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#custom-addresses",
+    "href": "05-function-reference.html#custom-addresses",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.5 Custom addresses",
+    "text": "5.5 Custom addresses\ngnaf_add()\ngnaf_add(con, addresses, upsert = FALSE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\ncon\nDBI connection.\n\n\naddresses\nA data.table/data.frame, one row per address. Required columns: number_first, street_name, street_type, locality_name, state, postcode. Optional: address_detail_pid (auto-generated as CUSTOM_1, CUSTOM_2, … if absent), address_label, building_name, flat_type, flat_number, number_last, street_suffix, longitude, latitude, and the G-NAF bookkeeping columns (date_created, legal_parcel_id, mb_code, alias_principal, principal_pid, primary_secondary, primary_pid, geocode_type).\n\n\nupsert\nIf FALSE (default), duplicate PIDs are silently skipped. If TRUE, existing rows with the same PID are replaced.\n\n\n\nReturns, invisibly, the number of rows inserted or updated.\n\ngnaf_add(con, data.table(\n  address_detail_pid = \"CUSTOM_DEMO\",\n  number_first = 1L, street_name = \"EXAMPLE\", street_type = \"STREET\",\n  locality_name = \"SAMPLETON\", state = \"QLD\", postcode = 4999L\n))\n\ngnaf_remove_custom()\ngnaf_remove_custom(con, pids)\n\n\nArgument\nDescription\n\n\n\ncon\nDBI connection.\n\n\npids\nCharacter vector of address_detail_pid values to remove.\n\n\n\nReturns, invisibly, the number of rows deleted.\n\ngnaf_remove_custom(con, \"CUSTOM_DEMO\")",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#match-cache",
+    "href": "05-function-reference.html#match-cache",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.6 Match cache",
+    "text": "5.6 Match cache\nThese all operate on gnaf_match_cache, populated automatically by gnaf_match() (see The match cache). Run a match first so there’s something to inspect:\n\ninvisible(gnaf_match(\"10 Musgrave Road, Red Hill QLD 4059\", con, verbose = FALSE))\n\ngnaf_cache_status()\ngnaf_cache_status(con)\nReturns a data.table with row count and oldest/newest cached_at timestamp.\n\ngnaf_cache_status(con)\n\ngnaf_cache_sample()\ngnaf_cache_sample(con, n = 10L, cached_on = NULL, from = NULL, to = NULL,\n                  include_custom = TRUE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\nn\nNumber of rows to sample.\n\n\ncached_on\nOptional single Date/\"YYYY-MM-DD\" string — restrict to that calendar date.\n\n\n\nfrom, to\n\nOptional inclusive cached_at bounds (POSIXct, Date, or ISO-8601 string). Use either cached_on or from/to, not both.\n\n\ninclude_custom\nIf TRUE (default), joined address details may come from either table.\n\n\n\nReturns a data.table of sampled cache rows joined to their matched address.\n\ngnaf_cache_sample(con, n = 5)\n\ngnaf_cache_history()\ngnaf_cache_history(con, by = c(\"day\", \"hour\"))\nReturns a data.table with one row per time bucket: rows, min_score, avg_score, max_score.\n\ngnaf_cache_history(con, by = \"day\")\n\ngnaf_cache_rollback()\ngnaf_cache_rollback(con, after, ask = TRUE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\nafter\nA POSIXct, Date, or ISO-8601 string. Entries cached at or after this time are removed.\n\n\nask\nIf TRUE (default), prompts for confirmation; requires an interactive session. Pass FALSE for scripts.\n\n\n\nRemoves cache entries added on or after a timestamp — useful when a batch was matched poorly and you want to force re-matching without clearing the whole cache. Returns, invisibly, the number of rows removed.\n\ngnaf_cache_rollback(con, after = Sys.time() - 3600, ask = FALSE)\n\ngnaf_cache_clear()\ngnaf_cache_clear(con, ask = TRUE)\nRemoves every cache entry. ask = TRUE (default) requires an interactive session; pass FALSE for scripted use. Returns, invisibly, the number of rows removed.\n\ngnaf_cache_clear(con, ask = FALSE)",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#synthetic-data",
+    "href": "05-function-reference.html#synthetic-data",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.7 Synthetic data",
+    "text": "5.7 Synthetic data\naddress_perturb_sample()\naddress_perturb_sample(x, n = min(1000L, nrow(x)), replace = FALSE,\n                       seed = NULL, max_changes = 2L, keep_original = TRUE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\nx\nA data.table/data.frame with an ADDRESS_LABEL or address_label column.\n\n\nn\nNumber of rows to sample.\n\n\nreplace\nSample with replacement.\n\n\nseed\nOptional seed for reproducible output.\n\n\nmax_changes\nMaximum perturbations applied per address.\n\n\nkeep_original\nIf TRUE (default), include the original label in the output.\n\n\n\nReturns a data.table of sampled rows plus simulated_address and perturbations columns. Useful for generating realistic-but-messy QA/benchmark input without hand-labelling — see Synthetic test data.\n\n# sample_gnaf() returns a named list here (gnaf_init() always creates four base\n# tables); address_perturb_sample() needs the one with actual address rows.\nsample_rows &lt;- sample_gnaf(con, n = 2)$custom_addresses\naddress_perturb_sample(sample_rows, n = 2, seed = 42, max_changes = 2L)[\n  , .(address_label, simulated_address, perturbations)\n]\n\n                          address_label                  simulated_address                           perturbations\n                                 &lt;char&gt;                             &lt;char&gt;                                  &lt;char&gt;\n1:  10 MUSGRAVE ROAD, RED HILL QLD 4059  10 MUSGRAVE RD, RED HILL 4059 QLD street_type_abbrev, state_postcode_swap\n2: 120 MUSGRAVE ROAD, RED HILL QLD 4059 120 MUSGRAVE RD, ERD HILL QLD 4059         suburb_typo, street_type_abbrev",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#interactive-app",
+    "href": "05-function-reference.html#interactive-app",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.8 Interactive app",
+    "text": "5.8 Interactive app\ngnaf_app()\ngnaf_app(con = NULL, db_path = NULL, launch.browser = interactive(), run = TRUE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\ncon\nOptional existing connection from gnaf_connect().\n\n\ndb_path\nOptional DuckDB path to pre-fill and connect to when con is NULL.\n\n\nlaunch.browser\nPassed to shiny::runApp().\n\n\nrun\nIf TRUE (default), launches immediately. If FALSE, returns the shiny.appobj for embedding/testing instead.\n\n\n\nReturns, invisibly, the app object when run, otherwise the app object itself. See The Shiny geocoder app for a full walkthrough.\ngnaf_app(db_path = \"C:/temp/gnaf.duckdb\")",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "05-function-reference.html#spatial-helpers",
+    "href": "05-function-reference.html#spatial-helpers",
+    "title": "\n5  Function reference\n",
+    "section": "\n5.9 Spatial helpers",
+    "text": "5.9 Spatial helpers\nThese wrap sf, ggplot2, viridisLite, and leaflet/leaflet.extras — see Spatial helpers for a worked example with a real shapefile.\nread_shapefile()\nread_shapefile(path, quiet = FALSE, ...)\nReads a shapefile and prints its available columns. ... is passed to sf::st_read(). Returns an sf object (invisibly).\nsubset_shapefile()\nsubset_shapefile(sf_obj, var, values, invert = FALSE)\n\n\nArgument\nDescription\n\n\n\nsf_obj\nAn sf polygon object.\n\n\nvar\nColumn name to filter on.\n\n\nvalues\nValue(s) to keep (%in%).\n\n\ninvert\nIf TRUE, keep rows not matching values.\n\n\n\nReturns the filtered sf object.\nspatial_lookup()\nspatial_lookup(points_dt, shapes, lat = \"latitude\", lon = \"longitude\",\n               return_cols = NULL, chunk_size = 100000L,\n               multiple = c(\"first\", \"all\"), verbose = TRUE)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\npoints_dt\nA data.table/coercible object with longitude/latitude columns.\n\n\nshapes\nAn sf polygon object (e.g. from read_shapefile()).\n\n\n\nlat, lon\n\nColumn names in points_dt.\n\n\nreturn_cols\nColumns from shapes to return (default: all non-geometry columns).\n\n\nchunk_size\nPoints processed per chunk — tune for memory.\n\n\nmultiple\n\n\"first\" (default) returns the first matching polygon per point; \"all\" returns every match.\n\n\nverbose\nPrint progress.\n\n\n\nFast point-in-polygon lookup built on sf + data.table. Returns a data.table combining input point columns with the requested polygon attributes — e.g. joining gnaf_match() results to ABS Mesh Blocks or SA2 regions by coordinate.\nplot_boundaries_heatmap()\nplot_boundaries_heatmap(\n  shapes, points_dt = NULL, lat = \"latitude\", lon = \"longitude\",\n  simplify_tolerance = NULL, bins = 150, alpha = 0.6,\n  palette = viridisLite::viridis, verbose = TRUE,\n  use_leaflet = FALSE, heatmap_options = list()\n)\n\n\n\n\n\n\nArgument\nDescription\n\n\n\nshapes\nAn sf polygon object.\n\n\npoints_dt\nOptional point data with lat/lon columns to overlay as a density heatmap.\n\n\nsimplify_tolerance\nIf provided, simplifies geometries with this tolerance before plotting.\n\n\nbins\nGrid cells for density estimation — higher is finer.\n\n\nalpha\nDensity raster transparency.\n\n\npalette\nColour palette function (default viridisLite::viridis).\n\n\nuse_leaflet\nIf TRUE, render an interactive leaflet map (leaflet.extras::addHeatmap) instead of a static plot.\n\n\nheatmap_options\nNamed list passed to the leaflet heatmap (radius, blur, max, minOpacity, …).\n\n\n\nReturns a ggplot object (static) or a leaflet map object (use_leaflet = TRUE) — plots polygon boundaries with an optional density heatmap of matched coordinates over them.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Function reference</span>"
+    ]
+  },
+  {
+    "objectID": "06-other-features.html",
+    "href": "06-other-features.html",
+    "title": "\n6  Other features\n",
+    "section": "",
+    "text": "6.1 The Shiny geocoder app\nBeyond the core parse-score-match pipeline, gnafr includes an interactive geocoder app, spatial join/plotting helpers, and synthetic address generation for testing. This chapter covers all three, plus a closer look at the match cache from a usage (rather than mechanism) angle.\ngnaf_app() launches an interactive geocoder built on the same gnaf_match() engine as everything else in this manual — nothing in the app does its own matching. You paste one address per line, it runs gnaf_match() against your connected database, and shows results in a reactable table.\nTwo diagnostics are added on top of the usual match columns specifically for manual review: full-string Jaro-Winkler and Jaccard similarity between the raw input and the matched address_label, with gradient highlighting so a low-confidence lexical match stands out even when the structured score looks fine (e.g. a match that’s structurally correct — same number, postcode, type — but textually quite different from the original string, which can be a sign the parse went down an unexpected path).\nPass run = FALSE to get the shiny.appobj back without launching it — useful for embedding the geocoder inside a larger Shiny app, or for testing.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Other features</span>"
+    ]
+  },
+  {
+    "objectID": "06-other-features.html#the-shiny-geocoder-app",
+    "href": "06-other-features.html#the-shiny-geocoder-app",
+    "title": "\n6  Other features\n",
+    "section": "",
+    "text": "gnaf_app(db_path = \"C:/temp/gnaf.duckdb\")\n# or, reusing an existing connection:\ngnaf_app(con = con)\n\n\n\napp_obj &lt;- gnaf_app(con = con, run = FALSE)",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Other features</span>"
+    ]
+  },
+  {
+    "objectID": "06-other-features.html#spatial-helpers",
+    "href": "06-other-features.html#spatial-helpers",
+    "title": "\n6  Other features\n",
+    "section": "\n6.2 Spatial helpers",
+    "text": "6.2 Spatial helpers\ngnaf_match() returns longitude/latitude for every match — the spatial helpers exist to take that coordinate and join it to other geographies (ABS Mesh Blocks, SA2 regions, custom catchment polygons) or visualise it.\nlibrary(gnafr)\n\n# 1. Read a polygon shapefile and see what columns it has\nsa2 &lt;- read_shapefile(\"C:/temp/sa2/SA2_2021_AUST_GDA2020.shp\")\n\n# 2. Optionally subset to the area you care about\nsa2_qld &lt;- subset_shapefile(sa2, var = \"STE_NAME21\", values = \"Queensland\")\n\n# 3. Point-in-polygon join: attach SA2 attributes to your matched addresses\nmatched &lt;- gnaf_match(addresses, con, max_results = 1)\ngeo &lt;- spatial_lookup(\n  matched[matched == TRUE], sa2_qld,\n  lat = \"latitude\", lon = \"longitude\",\n  return_cols = c(\"SA2_CODE21\", \"SA2_NAME21\")\n)\n\n# 4. Visualise match density against the polygon boundaries\nplot_boundaries_heatmap(sa2_qld, points_dt = geo, bins = 200)\n\n# ...or as an interactive leaflet map\nplot_boundaries_heatmap(sa2_qld, points_dt = geo, use_leaflet = TRUE)\nspatial_lookup() processes points in chunks (chunk_size, default 100,000) to bound memory use on large batches, and supports multiple = \"all\" for the (rare) case where your polygons overlap and you want every match, not just the first.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Other features</span>"
+    ]
+  },
+  {
+    "objectID": "06-other-features.html#synthetic-test-data",
+    "href": "06-other-features.html#synthetic-test-data",
+    "title": "\n6  Other features\n",
+    "section": "\n6.3 Synthetic test data",
+    "text": "6.3 Synthetic test data\naddress_perturb_sample() generates realistic-but-messy test addresses by sampling real rows from your loaded data and perturbing them — useful for QA and benchmarking gnaf_match() without hand-labelling a test set.\n\nlibrary(gnafr)\nlibrary(data.table)\n\ncon &lt;- gnaf_connect(\":memory:\")\ngnaf_init(con)\ngnaf_add(con, data.table(\n  address_label = c(\n    \"10 MUSGRAVE ROAD, RED HILL QLD 4059\",\n    \"18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865\"\n  ),\n  number_first  = c(10L, 18L), number_last = c(NA_integer_, 20L),\n  street_name   = c(\"MUSGRAVE\", \"DRIFT\"),\n  street_type   = c(\"ROAD\", \"CLOSE\"),\n  locality_name = c(\"RED HILL\", \"GOLDSBOROUGH\"),\n  state = c(\"QLD\", \"QLD\"), postcode = c(4059L, 4865L)\n))\n\nsample_rows &lt;- sample_gnaf(con, n = 100)\n# gnaf_init() always creates four base tables (gnaf_addresses, custom_addresses,\n# gnaf_locality_index, gnaf_match_cache), so sample_gnaf() returns a named list —\n# pick whichever address table actually has rows in it.\nsample_source &lt;- if (is.list(sample_rows) && !is.data.frame(sample_rows)) {\n  sample_rows$custom_addresses\n} else {\n  sample_rows\n}\n\nsynthetic &lt;- address_perturb_sample(\n  sample_source, n = 5, replace = TRUE, seed = 42, max_changes = 2L\n)\nsynthetic[, .(address_label, simulated_address, perturbations)]\n\n                              address_label                        simulated_address                      perturbations\n                                     &lt;char&gt;                                   &lt;char&gt;                             &lt;char&gt;\n1:      10 MUSGRAVE ROAD, RED HILL QLD 4059        10 MUSGRAVE ROD RED HILL QLD 4059         remove_commas, street_typo\n2:      10 MUSGRAVE ROAD, RED HILL QLD 4059      10 Musgrave Roa,  Red Hill Qld 4059            case_noise, street_typo\n3:      10 MUSGRAVE ROAD, RED HILL QLD 4059       10 Musgrave Road Red Hill Qld 4059          case_noise, remove_commas\n4:      10 MUSGRAVE ROAD, RED HILL QLD 4059       10 MUSGRAVE ROAD RED HILL 4059 QLD remove_commas, state_postcode_swap\n5: 18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865 18-20 Drift Clos,  Goldsborough Qld 4865            case_noise, street_typo\n\n\nRound-trip it straight back through gnaf_match() to see how well the matcher recovers the original record from its own perturbed output — a quick, repeatable regression check after changing scoring weights or parser logic:\n\nroundtrip &lt;- gnaf_match(synthetic$simulated_address, con, max_results = 1, verbose = FALSE)\nroundtrip[, .(input_raw, matched, total_score, address_label)]\n\n                                  input_raw matched total_score                            address_label\n                                     &lt;char&gt;  &lt;lgcl&gt;       &lt;int&gt;                                   &lt;char&gt;\n1:        10 MUSGRAVE ROD RED HILL QLD 4059    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059\n2:      10 Musgrave Roa,  Red Hill Qld 4059    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059\n3:       10 Musgrave Road Red Hill Qld 4059    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059\n4:       10 MUSGRAVE ROAD RED HILL 4059 QLD    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059\n5: 18-20 Drift Clos,  Goldsborough Qld 4865    TRUE         100 18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865\n\ngnaf_disconnect(con)\n\nmax_changes caps how many perturbations are applied per address (typos, abbreviation swaps, dropped components); keep_original = TRUE (the default) keeps the unperturbed label alongside the perturbed one so you can compare directly.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Other features</span>"
+    ]
+  },
+  {
+    "objectID": "06-other-features.html#sec-cache-daily",
+    "href": "06-other-features.html#sec-cache-daily",
+    "title": "\n6  Other features\n",
+    "section": "\n6.4 The match cache, day to day",
+    "text": "6.4 The match cache, day to day\nThe mechanics are covered in How matching works; day to day, the cache functions you’ll actually reach for are:\n\n\ngnaf_cache_status(con) — quick sanity check: how many entries, how old is the oldest one. Good first thing to check if a batch job feels slower than expected (an empty or stale cache means every input is going through the full pipeline).\n\ngnaf_cache_history(con, by = \"day\") — cache growth over time, plus the score distribution of what’s been cached. A sudden drop in avg_score for a given day is worth investigating — it usually means a batch of genuinely harder or messier input, not a regression in the matcher.\n\ngnaf_cache_rollback(con, after = ...) — when a batch was matched under conditions you later realise were wrong (bad input data, a bug since fixed) and you want exactly that batch re-matched on the next run, without discarding everything else the cache has learned.\n\ngnaf_cache_clear(con) — the blunt instrument. Reasonable after a major scoring or parsing change you don’t trust the old cached results under, but prefer gnaf_cache_rollback() when you can scope it to a time window instead.\n\nRemember the cache only applies when gnaf_match() is called with the default weights (Section 3.2) — if you’re routinely calling with custom weights, the cache functions above will simply stay empty, which is expected, not a bug.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Other features</span>"
+    ]
+  },
+  {
+    "objectID": "07-troubleshooting.html",
+    "href": "07-troubleshooting.html",
+    "title": "\n7  Troubleshooting & performance\n",
+    "section": "",
+    "text": "7.1 Working with results",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Troubleshooting & performance</span>"
+    ]
+  },
+  {
+    "objectID": "07-troubleshooting.html#working-with-results",
+    "href": "07-troubleshooting.html#working-with-results",
+    "title": "\n7  Troubleshooting & performance\n",
+    "section": "",
+    "text": "Extracting the best match per input\nbest &lt;- results[match_rank == 1]\nFiltering by confidence\n# Only high-confidence matches for automated processing\nhigh_conf &lt;- results[match_rank == 1 & total_score &gt;= 80]\n\n# Flag low-confidence matches for manual review instead of dropping them\nresults[, needs_review := total_score &lt; 70]\nFinding inputs that didn’t match\ngnaf_match() keeps every input in its output — even unmatched ones — with NA score/address columns and a match_status explaining why:\n\nlibrary(gnafr)\ncon &lt;- gnaf_connect(\":memory:\")\ngnaf_init(con)\ngnaf_add(con, data.table::data.table(\n  address_label = \"10 MUSGRAVE ROAD, RED HILL QLD 4059\",\n  number_first = 10L, street_name = \"MUSGRAVE\", street_type = \"ROAD\",\n  locality_name = \"RED HILL\", state = \"QLD\", postcode = 4059L\n))\n\nresults &lt;- gnaf_match(\n  c(\"10 Musgrave Road, Red Hill QLD 4059\", \"1 Nowhere Street, Fakesuburb QLD 9999\"),\n  con, verbose = FALSE\n)\nresults[, .(input_raw, matched, match_status, total_score)]\n\n                               input_raw matched match_status total_score\n                                  &lt;char&gt;  &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;\n1:   10 Musgrave Road, Red Hill QLD 4059    TRUE      matched         100\n2: 1 Nowhere Street, Fakesuburb QLD 9999   FALSE no_candidate          NA\n\n\nmatch_status takes one of four values:\n\n\nValue\nMeaning\n\n\n\nmatched\nAt least one candidate scored at or above min_score.\n\n\nbelow_min_score\nCandidates existed but none cleared min_score — try lowering it, or inspect with min_score = 0 to see what was found.\n\n\ninsufficient_parse\nThe parser couldn’t extract a street name, or found none of postcode/state/locality to search by. Check with address_parse().\n\n\nno_candidate\nParsing succeeded but no database row satisfied even the coarse pre-filters (most commonly: the street number genuinely isn’t in the database — see the number filter).\n\n\nJoining match results back to your input data\ndt_in[, input_id := .I]\n\ngeo &lt;- results[match_rank == 1, .(input_id, total_score, longitude, latitude,\n                                   address_label, address_detail_pid)]\n\ndt_out &lt;- geo[dt_in, on = \"input_id\"]\nDiagnosing a specific low score\nparsed &lt;- address_parse(\"my problem address\")\nprint(parsed)\n\nresult &lt;- gnaf_match(\"my problem address\", con, max_results = 5, min_score = 0)\nprint(result[, .(match_rank, total_score, score_postcode, score_suburb,\n                  score_street_name, score_number, address_label)])\nCommon causes of an unexpectedly low (or missing) score, in roughly descending order of how often they come up:\n\nStreet number not in the database for that street. Returns no_candidate, not a low score — see the callout in Scoring. Confirm with address_parse() that the number parsed as expected, then check DBI::dbGetQuery(con, \"SELECT COUNT(*) FROM gnaf_addresses WHERE postcode = ... AND street_name = '...'\").\n\nPostcode not loaded. If you loaded one state’s extract and the address is from another, the postcode genuinely isn’t in the database:\nDBI::dbGetQuery(con, \"SELECT COUNT(*) FROM gnaf_addresses WHERE postcode = 4001\")\nA count of 0 means the postcode isn’t in your loaded data, not a matching bug.\n\nSuburb spelling diverges sharply (\"MT GRAVATT\" vs \"MOUNT GRAVATT EAST\"). Jaro-Winkler handles small differences and the abbreviations normalize = TRUE expands, but not radical abbreviations or missing qualifying words.\n\nStreet type not recognised. If score_street_type is consistently the 40%-of-weight “disagreement” tier instead of full credit, the input’s abbreviation may not be in the lookup table:\ndata.table::fread(system.file(\"extdata\", \"street_types.csv\", package = \"gnafr\"))\nAdd the missing abbreviation/canonical pair if it’s genuinely absent.\n\nA long building name is confusing the parser. Building names before the flat/number can occasionally prevent number extraction — check with address_parse() whether in_number_first actually came through.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Troubleshooting & performance</span>"
+    ]
+  },
+  {
+    "objectID": "07-troubleshooting.html#performance",
+    "href": "07-troubleshooting.html#performance",
+    "title": "\n7  Troubleshooting & performance\n",
+    "section": "\n7.2 Performance",
+    "text": "7.2 Performance\nTypical throughput\n\n\nInput size\nEstimated time\n\n\n\n1,000\n&lt; 1 second\n\n\n10,000\n2–5 seconds\n\n\n100,000\n15–45 seconds\n\n\n500,000\n2–5 minutes (chunking recommended)\n\n\n\nTimes assume a laptop with an SSD and a few million G-NAF rows loaded for the relevant state(s). Results vary with CPU, how concentrated the input postcodes are, and the proportion of addresses with no parseable postcode.\nWhat actually drives runtime\n\n\nParsing. For inputs that miss every vectorised fast pattern (Section 3.1), address_parse() falls back to a row-by-row parser, which is the dominant cost for large batches of unusual input. It parallelises trivially since each row is independent:\nlibrary(parallel)\nn_cores &lt;- detectCores() - 1L\nchunks  &lt;- split(addresses, cut(seq_along(addresses), n_cores, labels = FALSE))\nparsed_list &lt;- mclapply(chunks, address_parse, mc.cores = n_cores)\nparsed &lt;- data.table::rbindlist(parsed_list)\n\nPostcode concentration. If a huge share of input addresses share one postcode, the candidate set for that postcode’s join gets large — the (postcode, number_first) index keeps the join itself cheap, but a very postcode-concentrated batch with a wide spread of house numbers still touches more rows than a postcode-diverse one.\nThe locality fallback firing often. It only runs for inputs scoring at or below fallback_threshold (default 90), but if a large fraction of your input has bad postcodes, you’re paying for two passes (postcode path, then locality fallback) instead of one. Worth checking gnaf_cache_history() / a sample of match_status values if a batch feels slow — a high proportion of below_min_score or unmatched rows usually means the locality fallback is doing a lot of work for not much payoff, and the input data quality is the actual problem.\nRe-establishing the connection per call. Reuse a single con across many gnaf_match() calls — for Shiny apps or API services, keep it in a global or module-level variable rather than reconnecting per request.\nChunking very large batches\nFor inputs exceeding ~500k rows or spanning many postcodes, splitting into chunks caps peak memory:\nchunk_size &lt;- 50000L\nids &lt;- seq_len(nrow(dt_in))\nchunks &lt;- split(ids, ceiling(ids / chunk_size))\n\nresults_list &lt;- lapply(chunks, function(idx) {\n  gnaf_match(dt_in$address_string[idx], con, max_results = 1, min_score = 60)\n})\n\nresults &lt;- data.table::rbindlist(results_list)\nThe match cache makes a second run over previously-seen input close to free, regardless of chunking — high-confidence results from any earlier chunk (or earlier run) are served from gnaf_match_cache rather than re-matched.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Troubleshooting & performance</span>"
+    ]
+  },
+  {
+    "objectID": "07-troubleshooting.html#common-errors",
+    "href": "07-troubleshooting.html#common-errors",
+    "title": "\n7  Troubleshooting & performance\n",
+    "section": "\n7.3 Common errors",
+    "text": "7.3 Common errors\n“File not found” from gnaf_load()\n\nUse forward slashes or doubled backslashes — a single backslash is an escape character in an R string literal:\ngnaf_load(con, \"C:/temp/gnaf.qld.csv\")      # OK\ngnaf_load(con, \"C:\\\\temp\\\\gnaf.qld.csv\")    # also OK\ngnaf_load(con, \"C:\\temp\\gnaf.qld.csv\")      # wrong — \\t is a tab escape\nDuckDB version errors after upgrading the duckdb package\nDuckDB database files are tied to the format version of the engine that created them. If you see an incompatible-version error after upgrading the duckdb R package, the database file needs rebuilding from source data — there’s no in-place upgrade path:\nfile.remove(\"C:/temp/gnaf.duckdb\")\ncon &lt;- gnaf_connect(\"C:/temp/gnaf.duckdb\")\ngnaf_init(con)\ngnaf_load(con, \"C:/temp/gnaf.qld.csv\")\n\ngnaf_cache_clear() / gnaf_cache_rollback() error in a script\nBoth prompt for confirmation by default (ask = TRUE), which requires an interactive session. Pass ask = FALSE for scripted or scheduled use — you’re opting out of the safety prompt deliberately, so make sure the call is scoped correctly first (see the cache walkthrough).\nWeights error: 'weights' must sum to 100\n\ngnaf_match(..., weights = list(...)) validates that every required component is present, numeric, non-negative, and sums to exactly 100 (within floating-point tolerance). The required names are postcode, suburb, street_name, street_type, number, flat — see current default weights for a sensible starting point to adjust from.",
+    "crumbs": [
+      "Reference",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Troubleshooting & performance</span>"
+    ]
   }
 ]

@@ -1,0 +1,101 @@
+# About gnafr
+
+## What is G-NAF?
+
+The **Geocoded National Address File (G-NAF)** is Australia's authoritative address
+dataset, published by [Geoscape Australia](https://geoscape.com.au/data/g-naf/). It
+contains every physical address in Australia — around 15 million records — each with
+a unique persistent identifier, structured components (unit, street number, street
+name and type, locality, state, postcode), and a geocoded latitude/longitude.
+
+G-NAF is distributed in two forms:
+
+| Format | What it is | When to use it |
+|---|---|---|
+| **G-NAF Core CSV** | A single, simplified, flattened CSV per state/national extract. | Default choice — smaller, simpler, and what most pipelines need. |
+| **G-NAF Standard PSV** | The full raw product: dozens of pipe-delimited (`.psv`) tables (`ADDRESS_DETAIL`, `ADDRESS_ALIAS`, `STREET_LOCALITY_ALIAS`, `LOCALITY_ALIAS`, …) as Geoscape ships it internally. | When you want official locality/street *alias* records (recognised alternative suburb or street names) in addition to the core data. |
+
+gnafr can load either ([`gnaf_load()`](05-function-reference.qmd#gnaf_load) for Core
+CSV, [`gnaf_load_psv()`](05-function-reference.qmd#gnaf_load_psv) for the raw PSV
+product) — see [Building a good lookup table](04-build-database.qmd) for how to choose.
+
+## What problem does gnafr solve?
+
+Real-world address data is messy: abbreviated street types (`RD` vs `ROAD`), missing
+unit numbers, misspelt suburbs, inconsistent ordering, building names instead of
+street numbers. Joining that to G-NAF on exact string equality fails for a large
+fraction of real input.
+
+gnafr is built to take a **character vector of free-text addresses** — however messy
+— and return, for each one:
+
+- the **best matching G-NAF record(s)**, with full structured fields and coordinates
+- a **transparent 0–100 confidence score**, broken down by component (postcode,
+  suburb, street name, street type, number, flat), so you can decide what's
+  trustworthy and what needs a human to look at it
+- a record of *why* nothing matched, when nothing did
+
+It is explicitly designed for **bulk** use — hundreds of thousands of addresses in a
+single call — not just single-address lookups, and for **production reuse**: the same
+DuckDB file persists between R sessions, is queried directly by SQL instead of being
+pulled into R, and remembers high-confidence matches in a cache so repeat input is
+free the second time.
+
+## Key features
+
+- **Bulk matching** — a single `gnaf_match()` call batches all the SQL it needs,
+  rather than looping per address.
+- **DuckDB backend** — embedded (no server to run), columnar, and fast enough to
+  scan millions of rows per query; the database file survives restarts.
+- **Confidence scoring** — every match carries `total_score` plus six per-component
+  scores, so callers can set their own bar for "trustworthy" per use case.
+- **Multi-path fallback matching** — exact label lookup, a persistent match cache,
+  postcode-blocked matching, a state-level fallback for addresses with no postcode,
+  a locality (suburb-name) fallback for wrong/garbled postcodes, and an optional
+  street-only fallback for addresses whose specific house number isn't in G-NAF yet.
+  See [How matching works](03-theory.qmd#sec-matching-paths) for the full design.
+- **Custom addresses** — addresses that aren't (yet) in G-NAF — new subdivisions, PO
+  boxes, internal site codes — can be added to a separate table and are matched
+  alongside G-NAF transparently.
+- **`data.table` throughout** — every in-memory result is a `data.table`; large joins
+  and vectorised scoring stay fast even outside the database.
+- **Spatial helpers** — point-in-polygon lookups and heatmap plotting built on `sf`,
+  `ggplot2`, and `leaflet`, for joining match results to other geographies (e.g. ABS
+  Mesh Blocks, SA2s) or visualising match density.
+- **Interactive Shiny app** — a paste-addresses-and-go geocoder for ad hoc lookups,
+  built on the same `gnaf_match()` engine.
+- **Synthetic test data** — `address_perturb_sample()` generates realistic-but-messy
+  test addresses from your own loaded data, for QA and benchmarking without needing
+  hand-labelled examples.
+
+## How the package is put together
+
+| File | Responsibility |
+|---|---|
+| `db.R` | Connection, schema (`gnaf_init`), locality index, street-alias derivation, street-type canonicalisation, status/sampling. |
+| `load.R` | Loading G-NAF Core CSVs (`gnaf_load`). |
+| `load_psv.R` | Loading the raw G-NAF Standard PSV product, including official alias tables (`gnaf_load_psv`). |
+| `parse.R` | Turns a raw address string into structured components (`address_parse`). The parsing engine — see [Theory: parsing](03-theory.qmd#sec-parsing). |
+| `score.R` | The scoring formula, expressed both as R (`data.table`) and as generated DuckDB SQL, so identical logic runs in-process or in-database. |
+| `match.R` | `gnaf_match()` — orchestrates parsing, the match cache, and the five matching paths; combines and ranks results. |
+| `cache.R` | The persistent match cache: status, sampling, history, rollback, clearing. |
+| `custom.R` | Adding/removing custom (non-G-NAF) addresses. |
+| `app.R` | The Shiny geocoder app. |
+| `simulate.R` | Synthetic address generation for testing (`address_perturb_sample`). |
+| `spatial_helpers.R` | `sf`-based point-in-polygon lookups and heatmap plotting. |
+| `utils.R` | Shared internals (street-type maps, alias-type SQL helpers, etc). |
+
+## What gnafr is not
+
+- **Not a geocoder for non-Australian addresses.** The parser is built specifically
+  around Australian conventions (state abbreviations, postcode position, G-NAF street
+  type vocabulary).
+- **Not a PO Box / GPO Box / Locked Bag resolver.** Those have no street component to
+  anchor matching on.
+- **Not a full geospatial GIS toolkit.** The `sf`/`leaflet` helpers exist to make
+  match results immediately usable (heatmaps, polygon joins), not to replace
+  dedicated GIS tooling.
+
+## License
+
+gnafr is released under the MIT license (see `LICENSE` in the package root).

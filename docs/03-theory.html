@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>3&nbsp; How matching works – gnafr</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./04-build-database.html" rel="next">
+<link href="./02-quickstart.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-90da5b13ae942b47784375143f8d2ef3.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-25db13ffafacac8718dcb08e13c69784.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-90da5b13ae942b47784375143f8d2ef3.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-adc770f3e85a40ed08f857da2325632e.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-5da3d176e6a07b8a932cd584db14f99f.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-adc770f3e85a40ed08f857da2325632e.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light"><script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script><style>html{ scroll-behavior: smooth; }</style>
+<script src="site_libs/quarto-diagram/mermaid.min.js"></script><script src="site_libs/quarto-diagram/mermaid-init.js"></script><link href="site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+</head>
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top"><nav class="quarto-secondary-nav"><div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./03-theory.html">Under the hood</a></li><li class="breadcrumb-item"><a href="./03-theory.html"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">How matching works</span></a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav></header><!-- content --><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto"><div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="./">gnafr</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+  <a href="" class="quarto-reader-toggle quarto-navigation-tool px-1" onclick="window.quartoToggleReader(); return false;" title="Toggle reader mode">
+  <div class="quarto-reader-toggle-btn">
+  <i class="bi"></i>
+  </div>
+</a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Preface</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Getting started</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./01-about.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">About gnafr</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./02-quickstart.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Quick guide</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Under the hood</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./03-theory.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">How matching works</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./04-build-database.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Reference</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">
+<li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./05-function-reference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Function reference</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./06-other-features.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Other features</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./07-troubleshooting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></span></a>
+  </div>
+</li>
+      </ul>
+</li>
+    </ul>
+</div>
+</nav><div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+<li>
+<a href="#sec-parsing" id="toc-sec-parsing" class="nav-link active" data-scroll-target="#sec-parsing"><span class="header-section-number">3.1</span> Parsing</a>
+  <ul class="collapse">
+<li><a href="#live-example" id="toc-live-example" class="nav-link" data-scroll-target="#live-example">Live example</a></li>
+  <li><a href="#normalisation-normalize-true-the-default" id="toc-normalisation-normalize-true-the-default" class="nav-link" data-scroll-target="#normalisation-normalize-true-the-default">Normalisation (<code>normalize = TRUE</code>, the default)</a></li>
+  </ul>
+</li>
+  <li>
+<a href="#sec-scoring" id="toc-sec-scoring" class="nav-link" data-scroll-target="#sec-scoring"><span class="header-section-number">3.2</span> Scoring</a>
+  <ul class="collapse">
+<li><a href="#postcode-default-weight-20" id="toc-postcode-default-weight-20" class="nav-link" data-scroll-target="#postcode-default-weight-20">Postcode (default weight 20)</a></li>
+  <li><a href="#suburb-locality-default-weight-15-and-street-name-default-weight-40" id="toc-suburb-locality-default-weight-15-and-street-name-default-weight-40" class="nav-link" data-scroll-target="#suburb-locality-default-weight-15-and-street-name-default-weight-40">Suburb / locality (default weight 15) and street name (default weight 40)</a></li>
+  <li><a href="#street-type-default-weight-10" id="toc-street-type-default-weight-10" class="nav-link" data-scroll-target="#street-type-default-weight-10">Street type (default weight 10)</a></li>
+  <li><a href="#street-number-default-weight-10" id="toc-street-number-default-weight-10" class="nav-link" data-scroll-target="#street-number-default-weight-10">Street number (default weight 10)</a></li>
+  <li><a href="#flat-unit-default-weight-5" id="toc-flat-unit-default-weight-5" class="nav-link" data-scroll-target="#flat-unit-default-weight-5">Flat / unit (default weight 5)</a></li>
+  </ul>
+</li>
+  <li>
+<a href="#sec-matching-paths" id="toc-sec-matching-paths" class="nav-link" data-scroll-target="#sec-matching-paths"><span class="header-section-number">3.3</span> Matching paths</a>
+  <ul class="collapse">
+<li><a href="#exact-label-match" id="toc-exact-label-match" class="nav-link" data-scroll-target="#exact-label-match">1. Exact label match</a></li>
+  <li><a href="#match-cache" id="toc-match-cache" class="nav-link" data-scroll-target="#match-cache">2. Match cache</a></li>
+  <li><a href="#postcode-path" id="toc-postcode-path" class="nav-link" data-scroll-target="#postcode-path">3. Postcode path</a></li>
+  <li><a href="#state-path" id="toc-state-path" class="nav-link" data-scroll-target="#state-path">4. State path</a></li>
+  <li><a href="#locality-fallback" id="toc-locality-fallback" class="nav-link" data-scroll-target="#locality-fallback">5. Locality fallback</a></li>
+  <li><a href="#street-only-fallback-opt-in-street_only_fallback-true" id="toc-street-only-fallback-opt-in-street_only_fallback-true" class="nav-link" data-scroll-target="#street-only-fallback-opt-in-street_only_fallback-true">6. Street-only fallback (opt-in: <code>street_only_fallback = TRUE</code>)</a></li>
+  </ul>
+</li>
+  <li><a href="#why-everything-runs-inside-duckdb" id="toc-why-everything-runs-inside-duckdb" class="nav-link" data-scroll-target="#why-everything-runs-inside-duckdb"><span class="header-section-number">3.4</span> Why everything runs inside DuckDB</a></li>
+  <li><a href="#the-database-schema" id="toc-the-database-schema" class="nav-link" data-scroll-target="#the-database-schema"><span class="header-section-number">3.5</span> The database schema</a></li>
+  <li><a href="#the-alias-system" id="toc-the-alias-system" class="nav-link" data-scroll-target="#the-alias-system"><span class="header-section-number">3.6</span> The alias system</a></li>
+  </ul></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./03-theory.html">Under the hood</a></li><li class="breadcrumb-item"><a href="./03-theory.html"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">How matching works</span></a></li></ol></nav><div class="quarto-title">
+<h1 class="title">
+<span class="chapter-number">3</span>&nbsp; <span class="chapter-title">How matching works</span>
+</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header><p>This chapter explains gnafr from the inside: how a raw string becomes structured components, how those components become a score, and how <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> decides which database rows are even worth scoring. Every number quoted here was read from the current source (<a href="../R/parse.R"><code>R/parse.R</code></a>, <a href="../R/score.R"><code>R/score.R</code></a>, <a href="../R/match.R"><code>R/match.R</code></a>) and, where practical, verified by actually running it — look for the executed code blocks.</p>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"></figure><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart TD
+    A[gnaf_match input] --&gt; B{Exact label\nmatch?}
+    B -- yes --&gt; Z[Result]
+    B -- no --&gt; C{In match\ncache?}
+    C -- yes --&gt; Z
+    C -- no --&gt; D[address_parse]
+    D --&gt; E{Postcode\nparsed?}
+    E -- yes --&gt; F[Postcode path\nDuckDB]
+    E -- no --&gt; G[State path\nDuckDB]
+    F --&gt; H{Best score &lt;=\nfallback_threshold\nor unmatched?}
+    G --&gt; H
+    H -- yes &amp; locality parsed --&gt; I[Locality fallback\nfuzzy suburb -&gt; postcode]
+    H -- no --&gt; Z
+    I --&gt; J{Still unmatched &amp;\nstreet_only_fallback=TRUE?}
+    J -- yes --&gt; K[Street-only fallback]
+    J -- no --&gt; Z
+    K --&gt; Z
+</pre>
+</div>
+<p></p>
+</div>
+</div>
+</div>
+<section id="sec-parsing" class="level2" data-number="3.1"><h2 data-number="3.1" class="anchored" data-anchor-id="sec-parsing">
+<span class="header-section-number">3.1</span> Parsing</h2>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> turns a raw string into a row of structured fields: <code>in_postcode</code>, <code>in_state</code>, <code>in_locality</code>, <code>in_street_name</code>, <code>in_street_type</code>, <code>in_street_suffix</code>, <code>in_number_first</code>, <code>in_number_last</code>, <code>in_number_suffix</code>, <code>in_flat_type</code>, <code>in_flat_number</code>, <code>in_building_name</code>.</p>
+<p>It runs in two tiers:</p>
+<ol type="1">
+<li>
+<strong>Vectorised fast paths</strong> (<code>.parse_vectorized</code>) — four <code>stringi</code>-based regex patterns, applied across the <em>whole</em> input vector at once, that together cover roughly 95%+ of well-formed Australian addresses:
+<ul>
+<li>
+<strong>4a — slash notation</strong>: <code>FLAT/NUMBER STREETNAME</code> (<code>"110/120 Musgrave Rd"</code>)</li>
+<li>
+<strong>4b — flat-type prefix</strong>: <code>UNIT NUMBER NUMBER STREETNAME</code> (<code>"Unit 3 120 Musgrave Rd"</code>)</li>
+<li>
+<strong>4b2 — attached single-letter prefix</strong>: <code>F8 536 STREETNAME</code> (<code>F</code>=Flat, <code>A</code>=Apartment, <code>U</code>=Unit; any other letter defaults to Unit)</li>
+<li>
+<strong>4c — simple form</strong>: <code>NUMBER[-NUMBER] STREETNAME</code> (the most common case by far), with an “implied pair” sub-case for the common Australian convention <code>&lt;unit&gt; &lt;number&gt; &lt;street&gt;</code> written with no explicit <code>UNIT</code> keyword (<code>"10 120 Musgrave Rd"</code>)</li>
+</ul>
+</li>
+<li>
+<strong>A row-by-row fallback</strong> (<code>.parse_single</code>) for anything the fast patterns don’t recognise — uncommon structures, fuzzy-misspelt street types, addresses with no identifiable street type at all.</li>
+</ol>
+<p>Before any of that, every input has its trailing <strong>postcode/state</strong> stripped (in either order — <code>"...QLD 4059"</code> or <code>"...4059 QLD"</code>), then its rightmost <strong>street type</strong> token located.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>The comma hint
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>If the original string has a comma (<code>"123 St James Rode, Tamborine Mountain..."</code>), the word immediately before the <em>last</em> comma is treated as a strong hint for the street type — even fuzzily, via Jaro-Winkler against the known type list. This exists specifically to catch two failure modes of a plain rightmost-match search: coincidental abbreviation collisions inside a multi-word street name (<code>"St"</code> inside <code>"St James Rode"</code> matching the <code>STREET</code> abbreviation and hiding the real, misspelt type <code>"Rode"</code>), and misspelt types that a pure rightmost scan would miss entirely.</p>
+</div>
+</div>
+<section id="live-example" class="level3"><h3 class="anchored" data-anchor-id="live-example">Live example</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"unit 110 120 musgrave Road red hill 4000 QLD"</span>,</span>
+<span>  <span class="st">"U110 1120 musgrave rd red hill 4000"</span>,</span>
+<span>  <span class="st">"Cambridge on the hill 110/120 musgrave road red hill QLD 4000"</span>,</span>
+<span>  <span class="st">"18-20 drift cl goldsborough QLD 4865"</span>,</span>
+<span>  <span class="st">"F8 536 example parade brisbane 4000"</span></span>
+<span><span class="op">)</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section><section id="normalisation-normalize-true-the-default" class="level3"><h3 class="anchored" data-anchor-id="normalisation-normalize-true-the-default">Normalisation (<code>normalize = TRUE</code>, the default)</h3>
+<p>After structural parsing, common abbreviations in <code>in_locality</code> and <code>in_street_name</code> are expanded to the form G-NAF actually uses, so they compare equal at scoring time instead of merely <em>similar</em>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead><tr class="header">
+<th>Pattern</th>
+<th>Expands to</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>
+<code>MNT</code>, <code>MT</code>
+</td>
+<td><code>MOUNT</code></td>
+</tr>
+<tr class="even">
+<td>
+<code>ST</code> (as a whole word, after the street type has already been extracted)</td>
+<td><code>SAINT</code></td>
+</tr>
+<tr class="odd">
+<td>
+<code>NTH</code>, <code>STH</code>, and a leading <code>N</code>/<code>S</code>/<code>E</code>/<code>W</code>
+</td>
+<td>
+<code>NORTH</code> / <code>SOUTH</code> / <code>EAST</code> / <code>WEST</code>
+</td>
+</tr>
+<tr class="even">
+<td><code>CK</code></td>
+<td><code>CREEK</code></td>
+</tr>
+<tr class="odd">
+<td><code>&amp;</code></td>
+<td><code>AND</code></td>
+</tr>
+<tr class="even">
+<td>Ordinal numerals (<code>1ST</code>…<code>20TH</code>)</td>
+<td>written words (<code>FIRST</code>…<code>TWENTIETH</code>), street name only</td>
+</tr>
+</tbody>
+</table>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse</a></span><span class="op">(</span><span class="st">"Mt Gravatt East"</span>, normalize <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">in_locality</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>    in_locality
+         &lt;char&gt;
+1: GRAVATT EAST</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse</a></span><span class="op">(</span><span class="st">"Mt Gravatt East"</span>, normalize <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">in_locality</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>    in_locality
+         &lt;char&gt;
+1: GRAVATT EAST</code></pre>
+</div>
+</div>
+<p>This matters because the suburb/street-name score is Jaro-Winkler <em>similarity</em>, not identity — <code>"MOUNT GRAVATT EAST"</code> vs <code>"MT GRAVATT EAST"</code> would still score well, but expanding it first means a correctly-typed-but-abbreviated suburb scores a perfect match instead of a near-miss.</p>
+</section></section><section id="sec-scoring" class="level2" data-number="3.2"><h2 data-number="3.2" class="anchored" data-anchor-id="sec-scoring">
+<span class="header-section-number">3.2</span> Scoring</h2>
+<p>Every (input, candidate) pair is scored on six components that sum to <code>total_score</code> (0–100). The same logic exists twice in the source — once as DuckDB SQL <code>CASE</code> expressions (<code>.score_sql_exprs()</code>, used by every matching path so scoring happens inside the database), and once as equivalent <code>data.table</code> vector operations (<code>.score_pairs()</code>, used for the exact-label fast path). <strong>The current default weights</strong> (<code>R/score.R</code>):</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<thead><tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: left;">Component</th>
+<th style="text-align: right;">Weight</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">postcode</td>
+<td style="text-align: left;">postcode</td>
+<td style="text-align: right;">20</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">suburb</td>
+<td style="text-align: left;">suburb</td>
+<td style="text-align: right;">15</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">street_name</td>
+<td style="text-align: left;">street_name</td>
+<td style="text-align: right;">40</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">street_type</td>
+<td style="text-align: left;">street_type</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">number</td>
+<td style="text-align: left;">number</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">flat</td>
+<td style="text-align: left;">flat</td>
+<td style="text-align: right;">5</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>These weights changed from an earlier version of the package (which used postcode 25 / suburb 20 / street_name 25 / street_type 10 / number 12 / flat 8) — street name now carries the most weight by a wide margin. If you’ve read older notes or scripts referencing the old weights, they’re stale; <code>.default_match_weights()</code> is always the source of truth, and <code>gnaf_match(..., weights = list(...))</code> lets you override them per call (the override must still sum to 100).</p>
+</div>
+</div>
+<p>You can pass your own <code>weights</code> list to bias matching — e.g.&nbsp;toward street number for a number-sensitive workflow — but note this <strong>disables the match cache for that call</strong> (cached scores were computed under the default weights, so reusing them under different weights would silently misreport).</p>
+<section id="postcode-default-weight-20" class="level3"><h3 class="anchored" data-anchor-id="postcode-default-weight-20">Postcode (default weight 20)</h3>
+<p>Exact match scores full weight. Unlike every other component, postcode also has <strong>near-miss partial credit</strong> — a difference of 1, 2, or 3 scores 70%, 40%, 20% of the weight respectively; anything further scores 0.</p>
+<p>In practice this only ever fires on the <strong>locality fallback</strong> path (<a href="#sec-matching-paths" class="quarto-xref"><span>Section 3.3</span></a>): the primary postcode-path query joins <code>ON g.postcode = i.in_postcode</code>, so by construction every row it scores already has <code>score_postcode</code> at full weight. The partial-credit branches only become reachable once the locality fallback widens the join to nearby postcodes (±3) or to whatever postcode a fuzzy-matched locality name points at, regardless of how far off the stated postcode was:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  address_label <span class="op">=</span> <span class="st">"10 MUSGRAVE ROAD, RED HILL QLD 4059"</span>,</span>
+<span>  number_first <span class="op">=</span> <span class="fl">10L</span>, street_name <span class="op">=</span> <span class="st">"MUSGRAVE"</span>, street_type <span class="op">=</span> <span class="st">"ROAD"</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="st">"RED HILL"</span>, state <span class="op">=</span> <span class="st">"QLD"</span>, postcode <span class="op">=</span> <span class="fl">4059L</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Postcode typo'd by one digit (4058 vs 4059) — the number and street still</span></span>
+<span><span class="co"># match exactly, so the locality fallback finds it and scores the postcode</span></span>
+<span><span class="co"># component at 70% of weight (round(20 * 0.7) = 14) instead of rejecting it.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"10 Musgrave Road, Red Hill QLD 4058"</span>, <span class="va">con</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu">.</span><span class="op">(</span><span class="va">matched</span>, <span class="va">total_score</span>, <span class="va">score_postcode</span>, <span class="va">address_label</span><span class="op">)</span></span>
+<span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   matched total_score score_postcode                       address_label
+    &lt;lgcl&gt;       &lt;int&gt;          &lt;int&gt;                              &lt;char&gt;
+1:    TRUE          94             14 10 MUSGRAVE ROAD, RED HILL QLD 4059</code></pre>
+</div>
+</div>
+</section><section id="suburb-locality-default-weight-15-and-street-name-default-weight-40" class="level3"><h3 class="anchored" data-anchor-id="suburb-locality-default-weight-15-and-street-name-default-weight-40">Suburb / locality (default weight 15) and street name (default weight 40)</h3>
+<p>Both are <code>round(weight * jaro_winkler_similarity(input, candidate))</code>, computed by DuckDB’s built-in <code>jaro_winkler_similarity()</code> for every matching path except the exact-label fast path, which uses <code>stringdist::stringdist(method = "jw", p = 0.1)</code> in R — the same metric, just evaluated on whichever side of the SQL/R boundary that path runs on. Street name carries by far the largest single weight of any component, reflecting that it’s the strongest discriminator between genuinely different addresses that happen to share a postcode and number.</p>
+</section><section id="street-type-default-weight-10" class="level3"><h3 class="anchored" data-anchor-id="street-type-default-weight-10">Street type (default weight 10)</h3>
+<p>Not a similarity score — a three-tier exact comparison, because abbreviations are already canonicalised during parsing and at load time, so by the time scoring runs, “the same type” should mean <em>string-equal</em>, not merely similar:</p>
+<ul>
+<li>Both sides agree (or both are absent) → full weight</li>
+<li>Exactly one side has a type → 50% of weight</li>
+<li>Both sides have a type, but they disagree → 40% of weight</li>
+</ul>
+<p>That 40%-for-disagreement floor is deliberate: a wrong street type (<code>"Avenue"</code> typed where G-NAF has <code>"Drive"</code>) is a very common, low-stakes user error and shouldn’t fully cancel out an otherwise strong match.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  address_label <span class="op">=</span> <span class="st">"13-27 FAIRWAY DRIVE, CLEAR ISLAND WATERS QLD 4226"</span>,</span>
+<span>  number_first <span class="op">=</span> <span class="fl">13L</span>, number_last <span class="op">=</span> <span class="fl">27L</span>, street_name <span class="op">=</span> <span class="st">"FAIRWAY"</span>, street_type <span class="op">=</span> <span class="st">"DRIVE"</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="st">"CLEAR ISLAND WATERS"</span>, state <span class="op">=</span> <span class="st">"QLD"</span>, postcode <span class="op">=</span> <span class="fl">4226L</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"13 Fairway Avenue, Clear Island Waters QLD 4226"</span>, <span class="va">con</span>, min_score <span class="op">=</span> <span class="fl">0</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu">.</span><span class="op">(</span><span class="va">matched</span>, <span class="va">total_score</span>, <span class="va">score_street_type</span>, <span class="va">address_label</span><span class="op">)</span></span>
+<span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   matched total_score score_street_type                                     address_label
+    &lt;lgcl&gt;       &lt;int&gt;             &lt;int&gt;                                            &lt;char&gt;
+1:    TRUE          94                 4 13-27 FAIRWAY DRIVE, CLEAR ISLAND WATERS QLD 4226</code></pre>
+</div>
+</div>
+</section><section id="street-number-default-weight-10" class="level3"><h3 class="anchored" data-anchor-id="street-number-default-weight-10">Street number (default weight 10)</h3>
+<p>Three tiers, mirrored identically in SQL and R:</p>
+<ul>
+<li>Exact match to <code>number_first</code> → full weight</li>
+<li>Falls within <code>number_first</code>–<code>number_last</code> (a ranged G-NAF record, e.g.&nbsp;<code>13-27</code>) → 70% of weight</li>
+<li>No match → 0</li>
+</ul>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"15 Fairway Drive, Clear Island Waters QLD 4226"</span>, <span class="va">con</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu">.</span><span class="op">(</span><span class="va">matched</span>, <span class="va">total_score</span>, <span class="va">score_number</span>, <span class="va">address_label</span><span class="op">)</span></span>
+<span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   matched total_score score_number                                     address_label
+    &lt;lgcl&gt;       &lt;int&gt;        &lt;int&gt;                                            &lt;char&gt;
+1:    TRUE          97            7 13-27 FAIRWAY DRIVE, CLEAR ISLAND WATERS QLD 4226</code></pre>
+</div>
+</div>
+<p>A parsed numeric <strong>suffix</strong> (<code>"190A"</code>) is handled as its own rule layered on top: it only earns credit when the <em>candidate’s</em> <code>address_label</code> literally starts with <code>"&lt;number&gt;&lt;suffix&gt; "</code> — e.g.&nbsp;input <code>190A</code> only matches a G-NAF row whose label starts with <code>"190A "</code>, not merely a row whose <code>number_first</code> is <code>190</code>. This avoids treating <code>190A</code> and <code>190B</code> (almost certainly different physical units) as equivalent just because they share a numeric prefix.</p>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>The number filter is a gate, not a soft score
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Unlike every other component, an unmatched street number doesn’t just <em>score</em> zero — in most paths, candidates whose number doesn’t satisfy the pre-filter (exact, in range, or the suffix label-prefix rule) are excluded from the SQL join entirely and never reach scoring at all. An input with a house number that simply isn’t in G-NAF for that street comes back <code>matched = FALSE</code>, <code>match_status = "no_candidate"</code> — not a low-scoring row you can raise by lowering <code>min_score</code>:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"999 Musgrave Road, Red Hill QLD 4059"</span>, <span class="fu"><a href="https://rdrr.io/r/base/eval.html">local</a></span><span class="op">(</span><span class="op">{</span></span>
+<span>  <span class="va">c2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">":memory:"</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">c2</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">c2</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>    address_label <span class="op">=</span> <span class="st">"10 MUSGRAVE ROAD, RED HILL QLD 4059"</span>,</span>
+<span>    number_first <span class="op">=</span> <span class="fl">10L</span>, street_name <span class="op">=</span> <span class="st">"MUSGRAVE"</span>, street_type <span class="op">=</span> <span class="st">"ROAD"</span>,</span>
+<span>    locality_name <span class="op">=</span> <span class="st">"RED HILL"</span>, state <span class="op">=</span> <span class="st">"QLD"</span>, postcode <span class="op">=</span> <span class="fl">4059L</span></span>
+<span>  <span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="va">c2</span></span>
+<span><span class="op">}</span><span class="op">)</span>, min_score <span class="op">=</span> <span class="fl">0</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">matched</span>, <span class="va">match_status</span>, <span class="va">total_score</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   matched match_status total_score
+    &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;
+1:   FALSE no_candidate          NA</code></pre>
+</div>
+</div>
+<p>The one exception is the <strong>street-only fallback</strong> (<a href="#sec-matching-paths" class="quarto-xref"><span>Section 3.3</span></a>), which exists precisely for this situation — it matches against number-free street records so an input can still resolve to the right street when its exact number isn’t (yet) in G-NAF.</p>
+</div>
+</div>
+</section><section id="flat-unit-default-weight-5" class="level3"><h3 class="anchored" data-anchor-id="flat-unit-default-weight-5">Flat / unit (default weight 5)</h3>
+<p>Binary: full weight if both sides have no flat (or matching flat numbers), 0 otherwise — including when only one side has a flat number. A flat number on the input that the candidate doesn’t have at all is treated as a mismatch, not a “can’t tell” no-op, since a different unit at the same street number is a meaningfully different physical address.</p>
+</section></section><section id="sec-matching-paths" class="level2" data-number="3.3"><h2 data-number="3.3" class="anchored" data-anchor-id="sec-matching-paths">
+<span class="header-section-number">3.3</span> Matching paths</h2>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> tries, in order, stopping as soon as an input is satisfied:</p>
+<section id="exact-label-match" class="level3"><h3 class="anchored" data-anchor-id="exact-label-match">1. Exact label match</h3>
+<p>If the uppercased, trimmed input string equals a G-NAF <code>address_label</code> exactly, it’s scored and returned immediately — no parsing-driven join needed. Built for re-processing addresses gnafr (or G-NAF itself) already standardised. Implemented as a hash join against a registered temporary table rather than a giant SQL <code>IN (...)</code> list, which keeps it fast even for tens of thousands of inputs.</p>
+</section><section id="match-cache" class="level3"><h3 class="anchored" data-anchor-id="match-cache">2. Match cache</h3>
+<p><code>gnaf_match_cache</code> stores <code>(input_standardised → address_detail_pid, scores)</code> for every result that previously scored at or above <code>cache_threshold</code> (default 95). Lookups join on <code>input_standardised</code> — the same building/flat/number/street/locality string <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> itself derives from the parsed input — so a future call with a <em>differently worded but equivalently parsed</em> address can still hit the cache. The cache is <strong>only consulted/written when <code>weights</code> are exactly the package defaults</strong>; non-default weights bypass it entirely for that call (see <a href="#sec-scoring">Scoring</a>).</p>
+</section><section id="postcode-path" class="level3"><h3 class="anchored" data-anchor-id="postcode-path">3. Postcode path</h3>
+<p>The hot path for the overwhelming majority of inputs: an equi-join on <code>g.postcode = i.in_postcode</code> against the full address table, restricted by the number pre-filter and a coarse <code>jaro_winkler_similarity(street_name) &gt;= 0.3</code> cutoff <em>before</em> scoring — both exist purely to keep the intermediate joined table small, since the actual scoring formula runs over whatever survives this filter. This is deliberately a cheap, exact equi-join: near-miss postcodes are not retrieved here at all (see the callout above) — that’s the locality fallback’s job.</p>
+</section><section id="state-path" class="level3"><h3 class="anchored" data-anchor-id="state-path">4. State path</h3>
+<p>For inputs with no parseable postcode at all: the same query shape, joined on <code>g.state = i.in_state</code> instead. Necessarily slower and noisier (a state-wide scan instead of a postcode-blocked one), so it’s only used when there’s truly no postcode to block on.</p>
+</section><section id="locality-fallback" class="level3"><h3 class="anchored" data-anchor-id="locality-fallback">5. Locality fallback</h3>
+<p>Fires for any input whose best score so far is at or below <code>fallback_threshold</code> (default 90) — including inputs with <em>no</em> result yet — provided a locality (suburb) name was parsed. It discovers alternative postcodes to retry two ways, unioned together:</p>
+<ul>
+<li>
+<strong>Fuzzy locality match</strong>: <code>jaro_winkler_similarity(g.locality_name, parsed_locality) &gt;= 0.85</code> against <code>gnaf_locality_index</code> (a deduplicated <code>(locality_name, postcode, state)</code> table, ~3,000 rows for a single state — small enough to scan cheaply). This finds the right postcode regardless of <em>how</em> wrong the stated one was.</li>
+<li>
+<strong>Postcode offset</strong>: the stated postcode ± 1, 2, or 3. Catches near-miss typos whose locality didn’t fuzzy-match (itself misspelt, or simply absent from the input).</li>
+</ul>
+<p>Why 90 and not, say, 99? A clean correct match typically scores 95+. A <strong>coincidental</strong> match — same postcode and house number, completely unrelated street — can still reach the low-to-mid 80s (20 postcode + partial suburb/street credit + a lucky number match). 90 leaves enough margin to catch those coincidences and let the locality scan find the real candidate, without re-triggering on matches that are already correct.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  address_label <span class="op">=</span> <span class="st">"77 BROADWATER ROAD, MOUNT GRAVATT EAST QLD 4122"</span>,</span>
+<span>  number_first <span class="op">=</span> <span class="fl">77L</span>, street_name <span class="op">=</span> <span class="st">"BROADWATER"</span>, street_type <span class="op">=</span> <span class="st">"ROAD"</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="st">"MOUNT GRAVATT EAST"</span>, state <span class="op">=</span> <span class="st">"QLD"</span>, postcode <span class="op">=</span> <span class="fl">4122L</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Postcode is wildly wrong (9999); the suburb name (after MT -&gt; MOUNT</span></span>
+<span><span class="co"># normalisation) is enough for the locality fallback to find it.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"77 Broadwater Road, Mt Gravatt East QLD 9999"</span>, <span class="va">con</span>, min_score <span class="op">=</span> <span class="fl">0</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu">.</span><span class="op">(</span><span class="va">matched</span>, <span class="va">match_status</span>, <span class="va">total_score</span>, <span class="va">score_postcode</span>, <span class="va">score_suburb</span>, <span class="va">address_label</span><span class="op">)</span></span>
+<span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   matched match_status total_score score_postcode score_suburb                                   address_label
+    &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;          &lt;int&gt;        &lt;int&gt;                                          &lt;char&gt;
+1:    TRUE      matched          80              0           15 77 BROADWATER ROAD, MOUNT GRAVATT EAST QLD 4122</code></pre>
+</div>
+</div>
+</section><section id="street-only-fallback-opt-in-street_only_fallback-true" class="level3"><h3 class="anchored" data-anchor-id="street-only-fallback-opt-in-street_only_fallback-true">6. Street-only fallback (opt-in: <code>street_only_fallback = TRUE</code>)</h3>
+<p>For inputs still unmatched after every other path. Matches only against <code>alias_type = 'street_only'</code> rows — synthetic, number-free address records derived from G-NAF by <a href="./05-function-reference.html#gnaf_build_street_aliases"><code>gnaf_build_street_aliases()</code></a> (or the official PSV alias tables via <a href="./05-function-reference.html#gnaf_load_psv"><code>gnaf_load_psv()</code></a>). Numbered inputs never match these rows through the ordinary paths above — the number pre-filter requires <code>number_first IS NULL</code> on the candidate side to match a number-bearing input, and street-only rows have no number — so this path exists specifically to give those inputs <em>something</em> once everything number-aware has failed. Typical cause: a brand new subdivision whose house numbers G-NAF hasn’t published yet, or an input that genuinely has no street number.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_disconnect.html">gnaf_disconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section></section><section id="why-everything-runs-inside-duckdb" class="level2" data-number="3.4"><h2 data-number="3.4" class="anchored" data-anchor-id="why-everything-runs-inside-duckdb">
+<span class="header-section-number">3.4</span> Why everything runs inside DuckDB</h2>
+<p>Every matching path registers the parsed inputs as a temporary DuckDB table (<code><a href="https://r.duckdb.org/reference/duckdb_register.html">duckdb::duckdb_register()</a></code>), builds one SQL query that joins, scores, ranks (<code>ROW_NUMBER() OVER (PARTITION BY input_id ...)</code>), and filters by <code>min_score</code> — <em>then</em> pulls only the surviving rows into R. A few design choices fall directly out of this:</p>
+<ul>
+<li>
+<strong>No window-function aggregate before the score filter.</strong> Computing something like <code>COUNT(*) OVER (...)</code> before filtering on <code>total_score</code> would force DuckDB to fully materialise the join first, which is exactly the memory blow-up bulk matching is built to avoid.</li>
+<li>
+<strong>The street-name similarity pre-filter (<code>&gt;= 0.3</code>) runs in the <code>WHERE</code> clause</strong>, before scoring — it exists purely to shrink the candidate set, since a 0.3 Jaro-Winkler floor is cheap to compute and eliminates the bulk of irrelevant rows before the (more expensive, in aggregate) full scoring expression runs over them.</li>
+<li>
+<strong>Registered temp tables, not literal <code>IN (...)</code> lists</strong>, for the exact-label and cache lookups — <code>duckdb_register()</code> lets DuckDB hash-join against an R <code>data.table</code> directly, which scales far better than a 50,000-item SQL literal.</li>
+</ul></section><section id="the-database-schema" class="level2" data-number="3.5"><h2 data-number="3.5" class="anchored" data-anchor-id="the-database-schema">
+<span class="header-section-number">3.5</span> The database schema</h2>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init()</a></code> creates two structurally identical tables — <code>gnaf_addresses</code> and <code>custom_addresses</code> — every G-NAF Core column plus the alias/source bookkeeping columns gnafr adds (<code>source</code>, <code>alias_type</code>, <code>alias_principal</code>, <code>principal_pid</code>, <code>primary_secondary</code>, <code>primary_pid</code>, <code>geocode_type</code>), three supporting structures, and runs any schema migrations needed for databases created by an older version of gnafr (every <code>ALTER TABLE ... ADD COLUMN IF NOT EXISTS</code> is safe to re-run):</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead><tr class="header">
+<th>Object</th>
+<th>Purpose</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>
+<code>idx_gnaf_pc</code>, <code>idx_cust_pc</code>
+</td>
+<td>Index on <code>postcode</code> — supports the state/locality paths’ coarser filtering.</td>
+</tr>
+<tr class="even">
+<td>
+<code>idx_gnaf_pcnum</code>, <code>idx_cust_pcnum</code>
+</td>
+<td>Compound index on <code>(postcode, number_first)</code> — the index the hot postcode path actually relies on.</td>
+</tr>
+<tr class="odd">
+<td>
+<code>idx_gnaf_label</code>, <code>idx_cust_label</code>
+</td>
+<td>Index on <code>address_label</code> — backs the exact-label fast path.</td>
+</tr>
+<tr class="even">
+<td><code>gnaf_locality_index</code></td>
+<td>Deduplicated <code>(locality_name, postcode, state)</code> — the small table the locality fallback’s fuzzy suburb scan runs against, instead of scanning every address row.</td>
+</tr>
+<tr class="odd">
+<td><code>gnaf_match_cache</code></td>
+<td>
+<code>input_standardised → address_detail_pid</code> plus all six score components and a <code>cached_at</code> timestamp.</td>
+</tr>
+</tbody>
+</table>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init()</a></code> is always safe to re-run, including on a database built by an older version — that’s the entire point of the <code>IF NOT EXISTS</code> / <code>ADD COLUMN IF NOT EXISTS</code> pattern throughout.</p>
+</section><section id="the-alias-system" class="level2" data-number="3.6"><h2 data-number="3.6" class="anchored" data-anchor-id="the-alias-system">
+<span class="header-section-number">3.6</span> The alias system</h2>
+<p>Three independent mechanisms populate non-core rows, all distinguished by the <code>alias_type</code> column:</p>
+<ul>
+<li>
+<strong><code>street_only</code></strong> — derived locally by <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_build_street_aliases.html">gnaf_build_street_aliases()</a></code> from your own loaded <code>gnaf_addresses</code>: one row per unique <code>(street_name, street_type, street_suffix, locality_name, state, postcode)</code> combination, with <code>number_first</code> left <code>NULL</code>. PIDs are an MD5 of the key fields, so re-running without <code>overwrite = TRUE</code> is a no-op rather than a pile of duplicates.</li>
+<li>
+<strong><code>LOCALITY:SYN</code> / <code>STREET:SYN</code></strong> — loaded directly from G-NAF’s own official alias tables by <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code>, when working from the raw “Standard” PSV product rather than the simplified Core CSV. These catch a <em>recognised alternative</em> suburb or street name that G-NAF itself records as a synonym — something the locally derived <code>street_only</code> aliases can’t do, since they only ever drop the house number, never substitute a different name.</li>
+<li>
+<strong><code>alias_principal</code> / <code>principal_pid</code></strong> and <strong><code>primary_secondary</code> / <code>primary_pid</code></strong> — not alias <em>rows</em>, but columns on every row (core or alias) that capture G-NAF’s own address relationships: whether a record is the canonical <code>PRINCIPAL</code> address or an <code>ALIAS</code> of one, and whether it’s the main <code>PRIMARY</code> dwelling or a <code>SECONDARY</code> sub-dwelling/unit, with a pointer back to the related PID in each case.</li>
+</ul>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s <code>alias_types</code> argument restricts which of these are eligible candidates for a given call — <code>NA</code> selects core (non-alias) rows, and the default <code>NULL</code> matches everything regardless of alias type.</p>
+
+
+</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
+      <a href="./02-quickstart.html" class="pagination-link" aria-label="Quick guide">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Quick guide</span></span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="./04-build-database.html" class="pagination-link" aria-label="Building a good lookup table">
+        <span class="nav-page-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer"><div class="nav-footer">
+    <div class="nav-footer-left">
+<p>gnafr — Australian Address Matching Using GNAF</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    </div>
+    <div class="nav-footer-right">
+<p>Built with Quarto</p>
+</div>
+  </div>
+</footer>
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

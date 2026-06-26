@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.9.38">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<meta name="author" content="Kyle Haynes">
-<meta name="dcterms.date" content="2026-06-27">
-<title>gnafr</title>
+<title>4&nbsp; Building a good lookup table – gnafr</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -22,6 +20,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 <script src="site_libs/quarto-nav/quarto-nav.js"></script>
@@ -31,7 +64,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./01-about.html" rel="next">
+<link href="./05-function-reference.html" rel="next">
+<link href="./03-theory.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -242,7 +276,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Preface</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./03-theory.html">Under the hood</a></li><li class="breadcrumb-item"><a href="./04-build-database.html"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -273,7 +307,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link active">
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preface</span></a>
   </div>
 </li>
@@ -302,13 +336,13 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
  <span class="menu-text">Under the hood</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./03-theory.html" class="sidebar-item-text sidebar-link">
@@ -317,7 +351,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./04-build-database.html" class="sidebar-item-text sidebar-link">
+  <a href="./04-build-database.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></span></a>
   </div>
 </li>
@@ -360,136 +394,224 @@ ul.task-list li input[type="checkbox"] {
         <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Table of contents</h2>
    
   <ul>
-<li>
-<a href="#preface" id="toc-preface" class="nav-link active" data-scroll-target="#preface">Preface</a>
-  <ul class="collapse">
-<li><a href="#who-this-is-for" id="toc-who-this-is-for" class="nav-link" data-scroll-target="#who-this-is-for">Who this is for</a></li>
-  <li><a href="#how-this-manual-is-organised" id="toc-how-this-manual-is-organised" class="nav-link" data-scroll-target="#how-this-manual-is-organised">How this manual is organised</a></li>
-  <li><a href="#package-metadata" id="toc-package-metadata" class="nav-link" data-scroll-target="#package-metadata">Package metadata</a></li>
-  </ul>
-</li>
+<li><a href="#step-0-schema" id="toc-step-0-schema" class="nav-link active" data-scroll-target="#step-0-schema"><span class="header-section-number">4.1</span> Step 0 — Schema</a></li>
+  <li><a href="#step-1-load-g-naf-core" id="toc-step-1-load-g-naf-core" class="nav-link" data-scroll-target="#step-1-load-g-naf-core"><span class="header-section-number">4.2</span> Step 1 — Load G-NAF Core</a></li>
+  <li><a href="#step-2-canonicalise-street-types-usually-a-no-op" id="toc-step-2-canonicalise-street-types-usually-a-no-op" class="nav-link" data-scroll-target="#step-2-canonicalise-street-types-usually-a-no-op"><span class="header-section-number">4.3</span> Step 2 — Canonicalise street types (usually a no-op)</a></li>
+  <li><a href="#step-3-build-street-only-aliases" id="toc-step-3-build-street-only-aliases" class="nav-link" data-scroll-target="#step-3-build-street-only-aliases"><span class="header-section-number">4.4</span> Step 3 — Build street-only aliases</a></li>
+  <li><a href="#step-4-rebuild-the-locality-search-index-usually-automatic" id="toc-step-4-rebuild-the-locality-search-index-usually-automatic" class="nav-link" data-scroll-target="#step-4-rebuild-the-locality-search-index-usually-automatic"><span class="header-section-number">4.5</span> Step 4 — Rebuild the locality search index (usually automatic)</a></li>
+  <li><a href="#step-5-optional-custom-addresses" id="toc-step-5-optional-custom-addresses" class="nav-link" data-scroll-target="#step-5-optional-custom-addresses"><span class="header-section-number">4.6</span> Step 5 (optional) — Custom addresses</a></li>
+  <li><a href="#step-6-verify" id="toc-step-6-verify" class="nav-link" data-scroll-target="#step-6-verify"><span class="header-section-number">4.7</span> Step 6 — Verify</a></li>
+  <li><a href="#alternative-ingestion-path-gnaf_load_psv" id="toc-alternative-ingestion-path-gnaf_load_psv" class="nav-link" data-scroll-target="#alternative-ingestion-path-gnaf_load_psv"><span class="header-section-number">4.8</span> Alternative ingestion path: <code>gnaf_load_psv()</code></a></li>
+  <li><a href="#keeping-a-database-current" id="toc-keeping-a-database-current" class="nav-link" data-scroll-target="#keeping-a-database-current"><span class="header-section-number">4.9</span> Keeping a database current</a></li>
   </ul></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><div class="quarto-title">
-<h1 class="title">gnafr</h1>
-<p class="subtitle lead">Fast, fuzzy Australian address matching against the G-NAF</p>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./03-theory.html">Under the hood</a></li><li class="breadcrumb-item"><a href="./04-build-database.html"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></a></li></ol></nav><div class="quarto-title">
+<h1 class="title">
+<span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span>
+</h1>
 </div>
 
 
 
 <div class="quarto-title-meta">
 
-    <div>
-    <div class="quarto-title-meta-heading">Author</div>
-    <div class="quarto-title-meta-contents">
-             <p>Kyle Haynes </p>
-          </div>
-  </div>
     
-    <div>
-    <div class="quarto-title-meta-heading">Published</div>
-    <div class="quarto-title-meta-contents">
-      <p class="date">27 June 2026</p>
-    </div>
-  </div>
   
     
   </div>
   
 
 
-</header><section id="preface" class="level1 unnumbered"><h1 class="unnumbered">Preface</h1>
-<p>This is the manual for <strong>gnafr</strong> — an R package for fast, fuzzy bulk matching of free-text Australian addresses against the <a href="https://geoscape.com.au/data/g-naf/">Geocoded National Address File (G-NAF)</a>, backed by an embedded <a href="https://duckdb.org/">DuckDB</a> database.</p>
-<p>If you have a column of messy, human-typed addresses and want a <code>latitude</code>/<code>longitude</code>, a standardised address, and a confidence score for each one — at the scale of a few rows or a few million — this package (and this manual) is for you.</p>
-<section id="who-this-is-for" class="level2"><h2 class="anchored" data-anchor-id="who-this-is-for">Who this is for</h2>
-<p>You should already be comfortable with R and <code>data.table</code>. No DuckDB or SQL experience is assumed — gnafr handles that internally — but <a href="./03-theory.html">Under the hood</a> explains the SQL gnafr generates, for readers who want to understand exactly what’s happening or who need to debug an unexpected result.</p>
-</section><section id="how-this-manual-is-organised" class="level2"><h2 class="anchored" data-anchor-id="how-this-manual-is-organised">How this manual is organised</h2>
-<p><strong>Getting started</strong></p>
+</header><p>This chapter walks through <a href="../build_gnaf_database.R"><code>build_gnaf_database.R</code></a>, the reference build pipeline shipped in the package repository. Every step below is something gnafr actually does (or can do) to turn a raw G-NAF download into a database that <a href="./05-function-reference.html#gnaf_match"><code>gnaf_match()</code></a> matches well against. It’s written to run top-to-bottom on a fresh database; each stage explains <em>why</em> it’s there, not just what it does.</p>
+<p>All paths below are placeholders — adjust them to wherever you’ve downloaded G-NAF and want the DuckDB file to live. Every chunk in this chapter is <code>eval: false</code>: it references files that don’t exist in this build environment, but is otherwise exactly what you’d run.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<section id="step-0-schema" class="level2" data-number="4.1"><h2 data-number="4.1" class="anchored" data-anchor-id="step-0-schema">
+<span class="header-section-number">4.1</span> Step 0 — Schema</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Creates <code>gnaf_addresses</code> / <code>custom_addresses</code> (every G-NAF Core column — see below), the locality search index, and the match cache. <strong>Always call this first</strong>, even on a database you’ve built before — every <code>CREATE</code> is <code>IF NOT EXISTS</code>, and any columns added to the schema since the database was first built are migrated in via <code>ALTER TABLE ADD COLUMN IF NOT EXISTS</code>. It’s how older databases pick up schema changes without a rebuild.</p>
+</section><section id="step-1-load-g-naf-core" class="level2" data-number="4.2"><h2 data-number="4.2" class="anchored" data-anchor-id="step-1-load-g-naf-core">
+<span class="header-section-number">4.2</span> Step 1 — Load G-NAF Core</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf.qld.csv"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code> reads the CSV straight into DuckDB with <code>read_csv()</code> — the file is never pulled into R, so this scales to state-sized files without RAM pressure. It captures every column G-NAF Core publishes, not just the ones obviously needed for address-string matching:</p>
 <ul>
 <li>
-<a href="./01-about.html">About gnafr</a> — what G-NAF is, what problem gnafr solves, and how the package is put together.</li>
+<strong><code>PRIMARY_SECONDARY</code> / <code>PRIMARY_PID</code></strong> — distinguishes a main dwelling from its sub-dwellings (units/secondaries), and points a secondary back at its primary record. Without this, <code>"10 EXAMPLE ST"</code> and <code>"UNIT 2 10 EXAMPLE ST"</code> are just two unrelated rows with no way to relate them.</li>
 <li>
-<a href="./02-quickstart.html">Quick guide</a> — install the package and run your first match in a few minutes, using a tiny in-memory database (no G-NAF download required).</li>
+<strong><code>ALIAS_PRINCIPAL</code> / <code>PRINCIPAL_PID</code></strong> — flags alias address records and maps them back to the principal (canonical) record they’re an alias of.</li>
+<li>
+<strong><code>DATE_CREATED</code>, <code>LEGAL_PARCEL_ID</code>, <code>MB_CODE</code>, <code>GEOCODE_TYPE</code></strong> — free (already in the source file) and useful for downstream filtering/auditing — e.g.&nbsp;excluding very recently created records, or joining to ABS Mesh Block data via <code>MB_CODE</code> — without a second load.</li>
 </ul>
-<p><strong>Under the hood</strong></p>
-<ul>
-<li>
-<a href="./03-theory.html">Theory: how matching works</a> — the parsing pipeline, the scoring formula, and the multi-path matching strategy, explained from the actual implementation rather than from the outside.</li>
-<li>
-<a href="./04-build-database.html">Building a good lookup table</a> — a guided walkthrough of <a href="../build_gnaf_database.R"><code>build_gnaf_database.R</code></a>, the reference pipeline for turning a raw G-NAF download into a database that matches well.</li>
-</ul>
-<p><strong>Reference</strong></p>
-<ul>
-<li>
-<a href="./05-function-reference.html">Function reference</a> — every exported function, grouped by task, with arguments, return values, and examples.</li>
-<li>
-<a href="./06-other-features.html">Other features</a> — the Shiny geocoder app, spatial helpers (<code>sf</code> + <code>leaflet</code>), synthetic test-data generation, and the match cache.</li>
-<li>
-<a href="./07-troubleshooting.html">Troubleshooting &amp; performance</a> — common failure modes, how to read them, and how to keep large batch jobs fast.</li>
-</ul>
-<div class="callout callout-style-default callout-note callout-titled">
+<p>Loading is <strong>idempotent</strong> on <code>ADDRESS_DETAIL_PID</code> (<code>ON CONFLICT DO NOTHING</code>), so re-running this on a database that already has the same file loaded is a safe no-op, not a pile of duplicates. Pass a vector of paths to load several states in one call, or <code>overwrite = TRUE</code> to wipe and reload from scratch.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Multiple states in one call</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.qld.csv"</span>, <span class="st">"C:/temp/gnaf.nsw.csv"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Wipe and reload</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf.qld.csv"</span>, overwrite <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>All the standard G-NAF Core columns land in <code>gnaf_addresses</code>; the ones gnafr’s parser and scorer rely on directly:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead><tr class="header">
+<th>Column</th>
+<th>Example</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>ADDRESS_DETAIL_PID</code></td>
+<td><code>GAQLD159783900</code></td>
+</tr>
+<tr class="even">
+<td><code>ADDRESS_LABEL</code></td>
+<td><code>UNIT 50 13-27 FAIRWAY DR, CLEAR ISLAND WATERS QLD 4226</code></td>
+</tr>
+<tr class="odd">
+<td>
+<code>FLAT_TYPE</code> / <code>FLAT_NUMBER</code>
+</td>
+<td>
+<code>UNIT</code> / <code>50</code>
+</td>
+</tr>
+<tr class="even">
+<td>
+<code>NUMBER_FIRST</code> / <code>NUMBER_LAST</code>
+</td>
+<td>
+<code>13</code> / <code>27</code>
+</td>
+</tr>
+<tr class="odd">
+<td>
+<code>STREET_NAME</code> / <code>STREET_TYPE</code>
+</td>
+<td>
+<code>FAIRWAY</code> / <code>DRIVE</code>
+</td>
+</tr>
+<tr class="even">
+<td><code>LOCALITY_NAME</code></td>
+<td><code>CLEAR ISLAND WATERS</code></td>
+</tr>
+<tr class="odd">
+<td>
+<code>STATE</code> / <code>POSTCODE</code>
+</td>
+<td>
+<code>QLD</code> / <code>4226</code>
+</td>
+</tr>
+<tr class="even">
+<td>
+<code>LONGITUDE</code> / <code>LATITUDE</code>
+</td>
+<td>
+<code>153.4023</code> / <code>-28.03448</code>
+</td>
+</tr>
+</tbody>
+</table></section><section id="step-2-canonicalise-street-types-usually-a-no-op" class="level2" data-number="4.3"><h2 data-number="4.3" class="anchored" data-anchor-id="step-2-canonicalise-street-types-usually-a-no-op">
+<span class="header-section-number">4.3</span> Step 2 — Canonicalise street types (usually a no-op)</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_canonicalize_street_types.html">gnaf_canonicalize_street_types</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Free-text addresses mix abbreviated and full street types (<code>"RD"</code> vs <code>"ROAD"</code>, <code>"AV"</code> vs <code>"AVENUE"</code>), and <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s street-type score (<a href="03-theory.html#sec-scoring" class="quarto-xref"><span>Section 3.2</span></a>) expects both sides of a comparison to use the same convention to award full credit. <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code> already canonicalises <code>STREET_TYPE</code> inline at insert time, so immediately after Step 1 this is a no-op.</p>
+<p>It earns its place in the pipeline for one reason: it’s the fix for any database built <em>before</em> that inline canonicalisation existed. Running it here makes the script idempotent regardless of how old the underlying database is, instead of silently leaving stale street types behind after an upgrade.</p>
+</section><section id="step-3-build-street-only-aliases" class="level2" data-number="4.4"><h2 data-number="4.4" class="anchored" data-anchor-id="step-3-build-street-only-aliases">
+<span class="header-section-number">4.4</span> Step 3 — Build street-only aliases</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_build_street_aliases.html">gnaf_build_street_aliases</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Derives new rows <em>from <code>gnaf_addresses</code> itself</em> — no new file read — one per unique <code>(street_name, street_type, street_suffix, locality, state, postcode)</code> combination already loaded, with a synthetic, number-free <code>address_label</code> and <code>alias_type = "street_only"</code>.</p>
+<p>Why it matters: <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s number pre-filter (<a href="03-theory.html#sec-scoring" class="quarto-xref"><span>Section 3.2</span></a>) requires an input with a parsed house number to match a candidate row whose number is <code>NULL</code> or in range — a numbered input can never accidentally match a number-free row. That means street-only rows are inert for normal matching and only ever get used by the <a href="./03-theory.html#sec-matching-paths">street-only fallback</a> (<code>street_only_fallback = TRUE</code> in <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>), for inputs that survive every other path unmatched — typically because the specific house number is missing from G-NAF (a new subdivision G-NAF hasn’t caught up to) or the input genuinely has no number. Without these rows, those inputs have nothing to fall back to.</p>
+<p>It’s idempotent: derived PIDs are an MD5 of the key fields, so re-running without <code>overwrite = TRUE</code> silently skips aliases that already exist.</p>
+</section><section id="step-4-rebuild-the-locality-search-index-usually-automatic" class="level2" data-number="4.5"><h2 data-number="4.5" class="anchored" data-anchor-id="step-4-rebuild-the-locality-search-index-usually-automatic">
+<span class="header-section-number">4.5</span> Step 4 — Rebuild the locality search index (usually automatic)</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_rebuild_locality_index.html">gnaf_rebuild_locality_index</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code>, <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code>, and <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add()</a></code> all rebuild <code>gnaf_locality_index</code> for you after they finish, so this is normally nothing to think about. It exists as a callable step because <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s <a href="./03-theory.html#sec-matching-paths">locality fallback</a> (mistyped or wrong postcode, but a recognisable suburb name) runs a Jaro-Winkler scan over this ~3,000-row index rather than the full multi-million-row address table — that’s the whole reason it’s fast. The only time you need to call it yourself is after bulk deletes/updates run <em>outside</em> gnafr’s own load functions (e.g.&nbsp;raw <code><a href="https://dbi.r-dbi.org/reference/dbExecute.html">DBI::dbExecute()</a></code> <code>DELETE</code>s) — rare enough to be worth calling explicitly here as cheap insurance.</p>
+</section><section id="step-5-optional-custom-addresses" class="level2" data-number="4.6"><h2 data-number="4.6" class="anchored" data-anchor-id="step-5-optional-custom-addresses">
+<span class="header-section-number">4.6</span> Step 5 (optional) — Custom addresses</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  number_first  <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  street_name   <span class="op">=</span> <span class="st">"EXAMPLE"</span>,</span>
+<span>  street_type   <span class="op">=</span> <span class="st">"STREET"</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="st">"SAMPLETON"</span>,</span>
+<span>  state         <span class="op">=</span> <span class="st">"QLD"</span>,</span>
+<span>  postcode      <span class="op">=</span> <span class="fl">4999</span></span>
+<span><span class="op">)</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Anything not in G-NAF — a brand-new subdivision G-NAF hasn’t published yet, a PO box, an internal site code — can be added to a separate <code>custom_addresses</code> table via <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add()</a></code>. It’s unioned into <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> transparently (<code>include_custom = TRUE</code>, the default), scored with the exact same logic as G-NAF rows, and kept in its own table specifically so it’s never confused with or overwritten by a future <code>gnaf_load(overwrite = TRUE)</code>.</p>
+<p>Left commented out in the reference script since it’s data-specific, not a universal build step — uncomment and adapt when you actually have custom records to add.</p>
+</section><section id="step-6-verify" class="level2" data-number="4.7"><h2 data-number="4.7" class="anchored" data-anchor-id="step-6-verify">
+<span class="header-section-number">4.7</span> Step 6 — Verify</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_status.html">gnaf_status</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/sample_gnaf.html">sample_gnaf</a></span><span class="op">(</span><span class="va">con</span>, n <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_disconnect.html">gnaf_disconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_status.html">gnaf_status()</a></code> confirms both tables exist and reports row counts at a glance — the cheapest possible sanity check that Step 1 actually loaded what you expected. <code><a href="https://rdrr.io/pkg/gnafr/man/sample_gnaf.html">sample_gnaf()</a></code> pulls a few random rows so you can eyeball that columns landed where expected (street types canonicalised, <code>PRIMARY_SECONDARY</code>/<code>PRINCIPAL_PID</code> populated, etc.) before trusting the database with real matching.</p>
+</section><section id="alternative-ingestion-path-gnaf_load_psv" class="level2" data-number="4.8"><h2 data-number="4.8" class="anchored" data-anchor-id="alternative-ingestion-path-gnaf_load_psv">
+<span class="header-section-number">4.8</span> Alternative ingestion path: <code>gnaf_load_psv()</code>
+</h2>
+<p>Everything above starts from the G-NAF Core CSV — the simplified, single-file product Geoscape publishes. If you instead have the full raw G-NAF PSV product (the <code>"Standard"</code> directory with <code>ADDRESS_DETAIL</code>, <code>ADDRESS_ALIAS</code>, <code>STREET_LOCALITY_ALIAS</code>, <code>LOCALITY_ALIAS</code>, etc.), <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code> is a richer <em>alternative</em> to Steps 1 and 3 combined:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>It derives real locality-name and street-name alias records (<code>alias_type</code> <code>"LOCALITY:SYN"</code> / <code>"STREET:SYN"</code>) directly from G-NAF’s own official alias tables, rather than the number-stripped <code>street_only</code> aliases Step 3 builds. That catches inputs using a <em>recognised alternative suburb or street name</em> G-NAF itself records as a synonym — something Step 3’s street-only derivation can’t do, since it only ever drops the house number, never substitutes a different name.</p>
+<div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-Note
+<span class="screen-reader-only">Important</span>CSV vs PSV are alternatives, not complements
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Almost every code chunk in this manual that uses a real database is marked <code>eval: false</code>, because it points at a multi-gigabyte G-NAF file that doesn’t exist in this build environment. Chunks that <em>do</em> run live use a tiny synthetic database created with <code>gnaf_connect(":memory:")</code> — you’ll see their actual output printed inline, generated from the package’s current source at render time.</p>
+<p>Each path loads its own complete set of <code>source = 'gnaf'</code> rows — running both against the same database duplicates everything. Pick one:</p>
+<ul>
+<li>
+<strong>Prefer <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code></strong> (Steps 1+3 above) when the simplified Core CSV is all you have, or you don’t need locality/street synonym coverage.</li>
+<li>
+<strong>Prefer <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code></strong> when you have the full raw product and want that extra alias coverage out of the box.</li>
+</ul>
 </div>
 </div>
-</section><section id="package-metadata" class="level2"><h2 class="anchored" data-anchor-id="package-metadata">Package metadata</h2>
-<div class="cell">
-<div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
-<colgroup>
-<col style="width: 7%">
-<col style="width: 92%">
-</colgroup>
-<thead><tr class="header">
-<th style="text-align: left;">Field</th>
-<th style="text-align: left;">Value</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">Package</td>
-<td style="text-align: left;">gnafr</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Type</td>
-<td style="text-align: left;">Package</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Title</td>
-<td style="text-align: left;">Australian Address Matching Using GNAF</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Version</td>
-<td style="text-align: left;">0.1.0</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Authors@R</td>
-<td style="text-align: left;">person(“Kyle”, “Haynes”, role = c(“aut”, “cre”),</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">email = “kyle@kylehaynes.com.au”)</td>
-<td style="text-align: left;"></td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Description</td>
-<td style="text-align: left;">Fast bulk address matching against the Geocoded National Address</td>
-</tr>
-</tbody>
-</table>
-<p>File (GNAF) for Australia. Supports fuzzy matching with a confidence scoring algorithm, DuckDB-backed storage for high-performance lookups (100k+ addresses), and the ability to add custom addresses to the matching database. | |License |MIT + file LICENSE | |Encoding |UTF-8 | |LazyData |false | |Imports |cli, data.table (&gt;= 1.14.0), DBI (&gt;= 1.1.0), duckdb (&gt;= 0.9.0), stringdist (&gt;= 0.9.0), stringi, sf, ggplot2, viridisLite, leaflet, leaflet.extras | |Suggests |reactable, shiny, testthat (&gt;= 3.0.0) | |Config/testthat/edition |3 | |RoxygenNote |7.3.2 |</p>
-</div>
-</div>
+</section><section id="keeping-a-database-current" class="level2" data-number="4.9"><h2 data-number="4.9" class="anchored" data-anchor-id="keeping-a-database-current">
+<span class="header-section-number">4.9</span> Keeping a database current</h2>
+<p>G-NAF is republished quarterly. The whole pipeline above is written to be safely re-run end to end on an existing database:</p>
+<ol type="1">
+<li>
+<code>gnaf_init(con)</code> — picks up any schema changes from a newer gnafr version.</li>
+<li>
+<code>gnaf_load(con, new_extract_path, overwrite = FALSE)</code> — new/changed PIDs are inserted; existing ones are left alone (no destructive overwrite by default).</li>
+<li>
+<code>gnaf_canonicalize_street_types(con)</code> — a no-op unless the database predates inline canonicalisation.</li>
+<li>
+<code>gnaf_build_street_aliases(con)</code> — only inserts aliases for combinations that didn’t already have one.</li>
+<li>
+<code>gnaf_status(con)</code> — confirm the row count moved in the direction you expected.</li>
+</ol>
+<p>There’s deliberately no step that deletes anything by default — <code>overwrite = TRUE</code> on <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code> is an explicit, opt-in choice for a full rebuild, not the default refresh path.</p>
 
 
-</section></section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     // Ensure there is a toggle, if there isn't float one in the top right
     if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
@@ -902,10 +1024,13 @@ Note
     }
   });
   </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
+      <a href="./03-theory.html" class="pagination-link" aria-label="How matching works">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">How matching works</span></span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./01-about.html" class="pagination-link" aria-label="About gnafr">
-        <span class="nav-page-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">About gnafr</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./05-function-reference.html" class="pagination-link" aria-label="Function reference">
+        <span class="nav-page-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Function reference</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

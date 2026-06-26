@@ -1,0 +1,147 @@
+# Other features
+
+Beyond the core parse-score-match pipeline, gnafr includes an interactive geocoder
+app, spatial join/plotting helpers, and synthetic address generation for testing.
+This chapter covers all three, plus a closer look at the match cache from a
+usage (rather than mechanism) angle.
+
+## The Shiny geocoder app
+
+```r
+gnaf_app(db_path = "C:/temp/gnaf.duckdb")
+# or, reusing an existing connection:
+gnaf_app(con = con)
+```
+
+`gnaf_app()` launches an interactive geocoder built on the same `gnaf_match()`
+engine as everything else in this manual — nothing in the app does its own
+matching. You paste one address per line, it runs `gnaf_match()` against your
+connected database, and shows results in a `reactable` table.
+
+Two diagnostics are added on top of the usual match columns specifically for manual
+review: full-string **Jaro-Winkler** and **Jaccard** similarity between the raw input
+and the matched `address_label`, with gradient highlighting so a low-confidence
+*lexical* match stands out even when the structured score looks fine (e.g. a match
+that's structurally correct — same number, postcode, type — but textually quite
+different from the original string, which can be a sign the parse went down an
+unexpected path).
+
+Pass `run = FALSE` to get the `shiny.appobj` back without launching it — useful for
+embedding the geocoder inside a larger Shiny app, or for testing.
+
+```r
+app_obj <- gnaf_app(con = con, run = FALSE)
+```
+
+## Spatial helpers
+
+`gnaf_match()` returns `longitude`/`latitude` for every match — the spatial helpers
+exist to take that coordinate and join it to *other* geographies (ABS Mesh Blocks,
+SA2 regions, custom catchment polygons) or visualise it.
+
+```r
+library(gnafr)
+
+# 1. Read a polygon shapefile and see what columns it has
+sa2 <- read_shapefile("C:/temp/sa2/SA2_2021_AUST_GDA2020.shp")
+
+# 2. Optionally subset to the area you care about
+sa2_qld <- subset_shapefile(sa2, var = "STE_NAME21", values = "Queensland")
+
+# 3. Point-in-polygon join: attach SA2 attributes to your matched addresses
+matched <- gnaf_match(addresses, con, max_results = 1)
+geo <- spatial_lookup(
+  matched[matched == TRUE], sa2_qld,
+  lat = "latitude", lon = "longitude",
+  return_cols = c("SA2_CODE21", "SA2_NAME21")
+)
+
+# 4. Visualise match density against the polygon boundaries
+plot_boundaries_heatmap(sa2_qld, points_dt = geo, bins = 200)
+
+# ...or as an interactive leaflet map
+plot_boundaries_heatmap(sa2_qld, points_dt = geo, use_leaflet = TRUE)
+```
+
+`spatial_lookup()` processes points in chunks (`chunk_size`, default 100,000) to
+bound memory use on large batches, and supports `multiple = "all"` for the (rare)
+case where your polygons overlap and you want every match, not just the first.
+
+## Synthetic test data
+
+`address_perturb_sample()` generates realistic-but-messy test addresses by sampling
+real rows from your loaded data and perturbing them — useful for QA and benchmarking
+`gnaf_match()` without hand-labelling a test set.
+
+```{r}
+library(gnafr)
+library(data.table)
+
+con <- gnaf_connect(":memory:")
+gnaf_init(con)
+gnaf_add(con, data.table(
+  address_label = c(
+    "10 MUSGRAVE ROAD, RED HILL QLD 4059",
+    "18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865"
+  ),
+  number_first  = c(10L, 18L), number_last = c(NA_integer_, 20L),
+  street_name   = c("MUSGRAVE", "DRIFT"),
+  street_type   = c("ROAD", "CLOSE"),
+  locality_name = c("RED HILL", "GOLDSBOROUGH"),
+  state = c("QLD", "QLD"), postcode = c(4059L, 4865L)
+))
+
+sample_rows <- sample_gnaf(con, n = 100)
+# gnaf_init() always creates four base tables (gnaf_addresses, custom_addresses,
+# gnaf_locality_index, gnaf_match_cache), so sample_gnaf() returns a named list —
+# pick whichever address table actually has rows in it.
+sample_source <- if (is.list(sample_rows) && !is.data.frame(sample_rows)) {
+  sample_rows$custom_addresses
+} else {
+  sample_rows
+}
+
+synthetic <- address_perturb_sample(
+  sample_source, n = 5, replace = TRUE, seed = 42, max_changes = 2L
+)
+synthetic[, .(address_label, simulated_address, perturbations)]
+```
+
+Round-trip it straight back through `gnaf_match()` to see how well the matcher
+recovers the original record from its own perturbed output — a quick, repeatable
+regression check after changing scoring weights or parser logic:
+
+```{r}
+roundtrip <- gnaf_match(synthetic$simulated_address, con, max_results = 1, verbose = FALSE)
+roundtrip[, .(input_raw, matched, total_score, address_label)]
+
+gnaf_disconnect(con)
+```
+
+`max_changes` caps how many perturbations are applied per address (typos,
+abbreviation swaps, dropped components); `keep_original = TRUE` (the default) keeps
+the unperturbed label alongside the perturbed one so you can compare directly.
+
+## The match cache, day to day {#sec-cache-daily}
+
+The mechanics are covered in [How matching works](03-theory.qmd#sec-matching-paths);
+day to day, the cache functions you'll actually reach for are:
+
+- **`gnaf_cache_status(con)`** — quick sanity check: how many entries, how old is the
+  oldest one. Good first thing to check if a batch job feels slower than expected
+  (an empty or stale cache means every input is going through the full pipeline).
+- **`gnaf_cache_history(con, by = "day")`** — cache growth over time, plus the
+  score distribution of what's been cached. A sudden drop in `avg_score` for a given
+  day is worth investigating — it usually means a batch of genuinely harder or
+  messier input, not a regression in the matcher.
+- **`gnaf_cache_rollback(con, after = ...)`** — when a batch was matched under
+  conditions you later realise were wrong (bad input data, a bug since fixed) and you
+  want exactly *that* batch re-matched on the next run, without discarding everything
+  else the cache has learned.
+- **`gnaf_cache_clear(con)`** — the blunt instrument. Reasonable after a major
+  scoring or parsing change you don't trust the old cached results under, but
+  prefer `gnaf_cache_rollback()` when you can scope it to a time window instead.
+
+Remember the cache only applies when `gnaf_match()` is called with the default
+weights (@sec-scoring) — if you're routinely calling with custom weights, the cache
+functions above will simply stay empty, which is expected, not a bug.

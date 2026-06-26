@@ -1,0 +1,234 @@
+# Building a good lookup table
+
+This chapter walks through [`build_gnaf_database.R`](../build_gnaf_database.R), the
+reference build pipeline shipped in the package repository. Every step below is
+something gnafr actually does (or can do) to turn a raw G-NAF download into a
+database that [`gnaf_match()`](05-function-reference.qmd#gnaf_match) matches well
+against. It's written to run top-to-bottom on a fresh database; each stage explains
+*why* it's there, not just what it does.
+
+All paths below are placeholders — adjust them to wherever you've downloaded G-NAF
+and want the DuckDB file to live. Every chunk in this chapter is `eval: false`: it
+references files that don't exist in this build environment, but is otherwise
+exactly what you'd run.
+
+```{r}
+#| eval: false
+library(gnafr)
+
+con <- gnaf_connect("C:/temp/gnaf.duckdb")
+```
+
+## Step 0 — Schema
+
+```{r}
+#| eval: false
+gnaf_init(con)
+```
+
+Creates `gnaf_addresses` / `custom_addresses` (every G-NAF Core column — see below),
+the locality search index, and the match cache. **Always call this first**, even on a
+database you've built before — every `CREATE` is `IF NOT EXISTS`, and any columns
+added to the schema since the database was first built are migrated in via `ALTER
+TABLE ADD COLUMN IF NOT EXISTS`. It's how older databases pick up schema changes
+without a rebuild.
+
+## Step 1 — Load G-NAF Core
+
+```{r}
+#| eval: false
+gnaf_load(con, "C:/temp/gnaf.qld.csv")
+```
+
+`gnaf_load()` reads the CSV straight into DuckDB with `read_csv()` — the file is
+never pulled into R, so this scales to state-sized files without RAM pressure. It
+captures every column G-NAF Core publishes, not just the ones obviously needed for
+address-string matching:
+
+- **`PRIMARY_SECONDARY` / `PRIMARY_PID`** — distinguishes a main dwelling from its
+  sub-dwellings (units/secondaries), and points a secondary back at its primary
+  record. Without this, `"10 EXAMPLE ST"` and `"UNIT 2 10 EXAMPLE ST"` are just two
+  unrelated rows with no way to relate them.
+- **`ALIAS_PRINCIPAL` / `PRINCIPAL_PID`** — flags alias address records and maps them
+  back to the principal (canonical) record they're an alias of.
+- **`DATE_CREATED`, `LEGAL_PARCEL_ID`, `MB_CODE`, `GEOCODE_TYPE`** — free (already in
+  the source file) and useful for downstream filtering/auditing — e.g. excluding very
+  recently created records, or joining to ABS Mesh Block data via `MB_CODE` — without
+  a second load.
+
+Loading is **idempotent** on `ADDRESS_DETAIL_PID` (`ON CONFLICT DO NOTHING`), so
+re-running this on a database that already has the same file loaded is a safe no-op,
+not a pile of duplicates. Pass a vector of paths to load several states in one call,
+or `overwrite = TRUE` to wipe and reload from scratch.
+
+```{r}
+#| eval: false
+# Multiple states in one call
+gnaf_load(con, c("C:/temp/gnaf.qld.csv", "C:/temp/gnaf.nsw.csv"))
+
+# Wipe and reload
+gnaf_load(con, "C:/temp/gnaf.qld.csv", overwrite = TRUE)
+```
+
+All the standard G-NAF Core columns land in `gnaf_addresses`; the ones gnafr's
+parser and scorer rely on directly:
+
+| Column | Example |
+|---|---|
+| `ADDRESS_DETAIL_PID` | `GAQLD159783900` |
+| `ADDRESS_LABEL` | `UNIT 50 13-27 FAIRWAY DR, CLEAR ISLAND WATERS QLD 4226` |
+| `FLAT_TYPE` / `FLAT_NUMBER` | `UNIT` / `50` |
+| `NUMBER_FIRST` / `NUMBER_LAST` | `13` / `27` |
+| `STREET_NAME` / `STREET_TYPE` | `FAIRWAY` / `DRIVE` |
+| `LOCALITY_NAME` | `CLEAR ISLAND WATERS` |
+| `STATE` / `POSTCODE` | `QLD` / `4226` |
+| `LONGITUDE` / `LATITUDE` | `153.4023` / `-28.03448` |
+
+## Step 2 — Canonicalise street types (usually a no-op)
+
+```{r}
+#| eval: false
+gnaf_canonicalize_street_types(con)
+```
+
+Free-text addresses mix abbreviated and full street types (`"RD"` vs `"ROAD"`,
+`"AV"` vs `"AVENUE"`), and `gnaf_match()`'s street-type score (@sec-scoring) expects
+both sides of a comparison to use the same convention to award full credit.
+`gnaf_load()` already canonicalises `STREET_TYPE` inline at insert time, so
+immediately after Step 1 this is a no-op.
+
+It earns its place in the pipeline for one reason: it's the fix for any database
+built *before* that inline canonicalisation existed. Running it here makes the script
+idempotent regardless of how old the underlying database is, instead of silently
+leaving stale street types behind after an upgrade.
+
+## Step 3 — Build street-only aliases
+
+```{r}
+#| eval: false
+gnaf_build_street_aliases(con)
+```
+
+Derives new rows *from `gnaf_addresses` itself* — no new file read — one per unique
+`(street_name, street_type, street_suffix, locality, state, postcode)` combination
+already loaded, with a synthetic, number-free `address_label` and `alias_type =
+"street_only"`.
+
+Why it matters: `gnaf_match()`'s number pre-filter (@sec-scoring) requires an input
+with a parsed house number to match a candidate row whose number is `NULL` or in
+range — a numbered input can never accidentally match a number-free row. That means
+street-only rows are inert for normal matching and only ever get used by the
+[street-only fallback](03-theory.qmd#sec-matching-paths) (`street_only_fallback =
+TRUE` in `gnaf_match()`), for inputs that survive every other path unmatched —
+typically because the specific house number is missing from G-NAF (a new
+subdivision G-NAF hasn't caught up to) or the input genuinely has no number. Without
+these rows, those inputs have nothing to fall back to.
+
+It's idempotent: derived PIDs are an MD5 of the key fields, so re-running without
+`overwrite = TRUE` silently skips aliases that already exist.
+
+## Step 4 — Rebuild the locality search index (usually automatic)
+
+```{r}
+#| eval: false
+gnaf_rebuild_locality_index(con)
+```
+
+`gnaf_load()`, `gnaf_load_psv()`, and `gnaf_add()` all rebuild
+`gnaf_locality_index` for you after they finish, so this is normally nothing to
+think about. It exists as a callable step because `gnaf_match()`'s [locality
+fallback](03-theory.qmd#sec-matching-paths) (mistyped or wrong postcode, but a
+recognisable suburb name) runs a Jaro-Winkler scan over this ~3,000-row index rather
+than the full multi-million-row address table — that's the whole reason it's fast.
+The only time you need to call it yourself is after bulk deletes/updates run *outside*
+gnafr's own load functions (e.g. raw `DBI::dbExecute()` `DELETE`s) — rare enough to
+be worth calling explicitly here as cheap insurance.
+
+## Step 5 (optional) — Custom addresses
+
+```{r}
+#| eval: false
+gnaf_add(con, data.table::data.table(
+  number_first  = 1,
+  street_name   = "EXAMPLE",
+  street_type   = "STREET",
+  locality_name = "SAMPLETON",
+  state         = "QLD",
+  postcode      = 4999
+))
+```
+
+Anything not in G-NAF — a brand-new subdivision G-NAF hasn't published yet, a PO box,
+an internal site code — can be added to a separate `custom_addresses` table via
+`gnaf_add()`. It's unioned into `gnaf_match()` transparently (`include_custom =
+TRUE`, the default), scored with the exact same logic as G-NAF rows, and kept in its
+own table specifically so it's never confused with or overwritten by a future
+`gnaf_load(overwrite = TRUE)`.
+
+Left commented out in the reference script since it's data-specific, not a universal
+build step — uncomment and adapt when you actually have custom records to add.
+
+## Step 6 — Verify
+
+```{r}
+#| eval: false
+gnaf_status(con)
+sample_gnaf(con, n = 5)
+
+gnaf_disconnect(con)
+```
+
+`gnaf_status()` confirms both tables exist and reports row counts at a glance — the
+cheapest possible sanity check that Step 1 actually loaded what you expected.
+`sample_gnaf()` pulls a few random rows so you can eyeball that columns landed where
+expected (street types canonicalised, `PRIMARY_SECONDARY`/`PRINCIPAL_PID` populated,
+etc.) before trusting the database with real matching.
+
+## Alternative ingestion path: `gnaf_load_psv()`
+
+Everything above starts from the G-NAF Core CSV — the simplified, single-file
+product Geoscape publishes. If you instead have the full raw G-NAF PSV product (the
+`"Standard"` directory with `ADDRESS_DETAIL`, `ADDRESS_ALIAS`,
+`STREET_LOCALITY_ALIAS`, `LOCALITY_ALIAS`, etc.), `gnaf_load_psv()` is a richer
+*alternative* to Steps 1 and 3 combined:
+
+```{r}
+#| eval: false
+gnaf_load_psv(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard")
+```
+
+It derives real locality-name and street-name alias records (`alias_type`
+`"LOCALITY:SYN"` / `"STREET:SYN"`) directly from G-NAF's own official alias tables,
+rather than the number-stripped `street_only` aliases Step 3 builds. That catches
+inputs using a *recognised alternative suburb or street name* G-NAF itself records as
+a synonym — something Step 3's street-only derivation can't do, since it only ever
+drops the house number, never substitutes a different name.
+
+::: {.callout-important}
+## CSV vs PSV are alternatives, not complements
+Each path loads its own complete set of `source = 'gnaf'` rows — running both against
+the same database duplicates everything. Pick one:
+
+- **Prefer `gnaf_load()`** (Steps 1+3 above) when the simplified Core CSV is all you
+  have, or you don't need locality/street synonym coverage.
+- **Prefer `gnaf_load_psv()`** when you have the full raw product and want that extra
+  alias coverage out of the box.
+:::
+
+## Keeping a database current
+
+G-NAF is republished quarterly. The whole pipeline above is written to be safely
+re-run end to end on an existing database:
+
+1. `gnaf_init(con)` — picks up any schema changes from a newer gnafr version.
+2. `gnaf_load(con, new_extract_path, overwrite = FALSE)` — new/changed PIDs are
+   inserted; existing ones are left alone (no destructive overwrite by default).
+3. `gnaf_canonicalize_street_types(con)` — a no-op unless the database predates
+   inline canonicalisation.
+4. `gnaf_build_street_aliases(con)` — only inserts aliases for combinations that
+   didn't already have one.
+5. `gnaf_status(con)` — confirm the row count moved in the direction you expected.
+
+There's deliberately no step that deletes anything by default — `overwrite = TRUE`
+on `gnaf_load()` is an explicit, opt-in choice for a full rebuild, not the default
+refresh path.

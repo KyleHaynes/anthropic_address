@@ -1,0 +1,522 @@
+# Function reference
+
+Every exported function in gnafr, grouped by task. Each entry shows the call
+signature, every argument, the return value, and — where it doesn't require a
+multi-gigabyte G-NAF file — a live example. The shared in-memory database used by
+the executable examples below is set up once here and reused through this chapter.
+
+```{r}
+library(gnafr)
+library(data.table)
+
+con <- gnaf_connect(":memory:")
+gnaf_init(con)
+gnaf_add(con, data.table(
+  address_label = c(
+    "10 MUSGRAVE ROAD, RED HILL QLD 4059",
+    "120 MUSGRAVE ROAD, RED HILL QLD 4059"
+  ),
+  number_first  = c(10L, 120L),
+  street_name   = c("MUSGRAVE", "MUSGRAVE"),
+  street_type   = c("ROAD", "ROAD"),
+  locality_name = c("RED HILL", "RED HILL"),
+  state         = c("QLD", "QLD"),
+  postcode      = c(4059L, 4059L),
+  longitude     = c(153.0066, 153.0080),
+  latitude      = c(-27.4570, -27.4575)
+))
+```
+
+## Connection & setup
+
+### `gnaf_connect()` {#gnaf_connect}
+
+```r
+gnaf_connect(path, read_only = FALSE)
+```
+
+| Argument | Description |
+|---|---|
+| `path` | Path to the DuckDB file. Pass `":memory:"` for an in-memory database. |
+| `read_only` | Open in read-only mode — for concurrent read access from multiple R processes. |
+
+**Returns** a DBI connection object.
+
+### `gnaf_disconnect()` {#gnaf_disconnect}
+
+```r
+gnaf_disconnect(con)
+```
+
+Closes the connection cleanly (`DBI::dbDisconnect(con, shutdown = TRUE)`). Always
+call this before your script exits.
+
+### `gnaf_init()` {#gnaf_init}
+
+```r
+gnaf_init(con)
+```
+
+Creates `gnaf_addresses` and `custom_addresses` and their indexes, the locality
+search index, and the match cache (see [the database schema](03-theory.qmd) for full
+detail). Safe to call on an existing database — every statement is `IF NOT EXISTS`,
+and missing columns on older databases are migrated in automatically.
+
+### `gnaf_status()` {#gnaf_status}
+
+```r
+gnaf_status(con)
+```
+
+**Returns** a `data.table` with one row per table and its row count.
+
+```{r}
+gnaf_status(con)
+```
+
+### `sample_gnaf()` {#sample_gnaf}
+
+```r
+sample_gnaf(con, n = 10L)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | DBI connection. |
+| `n` | Number of rows to sample per table. |
+
+**Returns** a `data.table` for a single-table database, or a named list of
+`data.table`s keyed by table name when several tables exist.
+
+```{r}
+sample_gnaf(con, n = 2)
+```
+
+## Loading data
+
+### `gnaf_load()` {#gnaf_load}
+
+```r
+gnaf_load(con, path, overwrite = FALSE)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | DBI connection from `gnaf_connect()`. |
+| `path` | Character vector of one or more paths to G-NAF Core CSV files. |
+| `overwrite` | If `TRUE`, deletes existing G-NAF rows before loading. |
+
+Loads one or more G-NAF Core CSV files via DuckDB's native `read_csv` — the file is
+never pulled into R first. Duplicate PIDs are silently skipped unless `overwrite =
+TRUE`. **Returns**, invisibly, the total number of G-NAF rows now in the database.
+See [Building a good lookup table](04-build-database.qmd) for a full walkthrough.
+
+```r
+gnaf_load(con, "C:/temp/gnaf.qld.csv")
+gnaf_load(con, c("C:/temp/gnaf.qld.csv", "C:/temp/gnaf.nsw.csv"))
+```
+
+### `gnaf_load_psv()` {#gnaf_load_psv}
+
+```r
+gnaf_load_psv(con, gnaf_dir, overwrite = FALSE, load_aliases = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | DBI connection. The database must have been initialised with `gnaf_init()`. |
+| `gnaf_dir` | Path to the G-NAF Standard directory containing the `*_psv.psv` files (e.g. `"G-NAF MAY 2026/Standard"`). |
+| `overwrite` | If `TRUE`, deletes all existing `source = 'gnaf'` rows before loading. |
+| `load_aliases` | If `TRUE` (default), also loads official locality/street alias variants. |
+
+**Returns**, invisibly, the total number of G-NAF rows in the database after loading.
+An alternative to `gnaf_load()` for the full raw PSV product — see [CSV vs PSV](04-build-database.qmd) for when to prefer each.
+
+```r
+gnaf_load_psv(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard")
+```
+
+## Schema maintenance
+
+### `gnaf_canonicalize_street_types()` {#gnaf_canonicalize_street_types}
+
+```r
+gnaf_canonicalize_street_types(con)
+```
+
+Replaces abbreviated `street_type` values (`"RD"`, `"AV"`) with their canonical
+forms (`"ROAD"`, `"AVENUE"`) in both tables. New loads are canonicalised
+automatically at insert time; this exists to fix databases built before that was
+true. **Returns**, invisibly, the total number of rows updated.
+
+```{r}
+gnaf_canonicalize_street_types(con)
+```
+
+### `gnaf_build_street_aliases()` {#gnaf_build_street_aliases}
+
+```r
+gnaf_build_street_aliases(con, overwrite = FALSE)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | DBI connection. |
+| `overwrite` | If `TRUE`, removes all existing `street_only` aliases before rebuilding. |
+
+Derives number-free `street_only` alias rows from your loaded G-NAF data — see [Step
+3](04-build-database.qmd) for why this matters. **Returns**, invisibly, the number of
+street-only aliases now in the database. Idempotent: derived PIDs are an MD5 of the
+key fields, so re-running without `overwrite = TRUE` skips existing rows.
+
+```{r}
+gnaf_build_street_aliases(con)
+```
+
+### `gnaf_rebuild_locality_index()` {#gnaf_rebuild_locality_index}
+
+```r
+gnaf_rebuild_locality_index(con)
+```
+
+Rebuilds `gnaf_locality_index` from the current contents of `gnaf_addresses` and
+`custom_addresses`. Called automatically by `gnaf_load()`, `gnaf_load_psv()`, and
+`gnaf_add()` — call it manually only after bulk deletes/updates run outside those
+functions. **Returns**, invisibly, the number of unique locality rows now in the
+index.
+
+```{r}
+gnaf_rebuild_locality_index(con)
+```
+
+## Parsing & matching
+
+### `address_parse()` {#address_parse}
+
+```r
+address_parse(addresses, normalize = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `addresses` | Character vector of raw address strings. |
+| `normalize` | If `TRUE` (default), expands common abbreviations in `in_locality`/`in_street_name` to their G-NAF canonical forms after parsing (see [Normalisation](03-theory.qmd#sec-parsing)). Set `FALSE` to skip. |
+
+**Returns** a `data.table` with one row per input and columns `input_id`,
+`input_raw`, `in_postcode`, `in_state`, `in_locality`, `in_street_name`,
+`in_street_type`, `in_street_suffix`, `in_number_first`, `in_number_last`,
+`in_number_suffix`, `in_flat_type`, `in_flat_number`, `in_building_name`. Useful
+standalone for debugging, data profiling, or pre-processing — it never touches the
+database.
+
+```{r}
+address_parse("Unit 5, 110/120 Musgrave Rd, Red Hill QLD 4059")
+```
+
+### `gnaf_match()` {#gnaf_match}
+
+```r
+gnaf_match(
+  addresses, con,
+  max_results = 1L, min_score = 60L,
+  include_custom = TRUE, alias_types = NULL,
+  locality_fallback = TRUE, street_only_fallback = FALSE,
+  fallback_threshold = 90L,
+  weights = .default_match_weights(),
+  normalize = TRUE,
+  cache = TRUE, cache_threshold = 95L,
+  verbose = TRUE
+)
+```
+
+| Argument | Default | Description |
+|---|---|---|
+| `addresses` | — | Character vector of address strings to match. |
+| `con` | — | DBI connection from `gnaf_connect()`. |
+| `max_results` | `1` | Maximum matches returned per input. |
+| `min_score` | `60` | Minimum `total_score` (0–100) to include in results. |
+| `include_custom` | `TRUE` | Include `custom_addresses` rows in matching. |
+| `alias_types` | `NULL` | Restrict to specific `alias_type` values. `NA` selects core (non-alias) rows only; `NULL` (default) matches every alias type. Example: `c(NA, "street_only")`. |
+| `locality_fallback` | `TRUE` | Re-search by locality name for inputs scoring at or below `fallback_threshold`. |
+| `street_only_fallback` | `FALSE` | Re-match still-unmatched inputs against street-level aliases. Requires `gnaf_build_street_aliases()` to have been run. |
+| `fallback_threshold` | `90` | Score at or below which the locality fallback fires. |
+| `weights` | package defaults | Named list of score weights (must sum to 100). Non-default weights bypass the match cache for the call. |
+| `normalize` | `TRUE` | Passed through to `address_parse()`. |
+| `cache` | `TRUE` | Check/populate `gnaf_match_cache`. |
+| `cache_threshold` | `95` | Minimum score for a new result to be cached. |
+| `verbose` | `TRUE` | Print coloured progress, timings, and a summary via `cli`. |
+
+**Returns** a `data.table` ordered by `input_id` then descending `total_score`,
+including a standardised input string for every row, and retaining unmatched inputs
+with `NA` match columns and a `match_status` explaining why. See [How matching
+works](03-theory.qmd) for the full mechanics.
+
+```{r}
+gnaf_match(
+  c("10 musgrave rd red hill 4059 qld", "999 fake st nowhere 9999"),
+  con, max_results = 1, verbose = FALSE
+)[, .(input_raw, matched, match_status, total_score, address_label)]
+```
+
+## Custom addresses
+
+### `gnaf_add()` {#gnaf_add}
+
+```r
+gnaf_add(con, addresses, upsert = FALSE)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | DBI connection. |
+| `addresses` | A `data.table`/`data.frame`, one row per address. Required columns: `number_first`, `street_name`, `street_type`, `locality_name`, `state`, `postcode`. Optional: `address_detail_pid` (auto-generated as `CUSTOM_1`, `CUSTOM_2`, … if absent), `address_label`, `building_name`, `flat_type`, `flat_number`, `number_last`, `street_suffix`, `longitude`, `latitude`, and the G-NAF bookkeeping columns (`date_created`, `legal_parcel_id`, `mb_code`, `alias_principal`, `principal_pid`, `primary_secondary`, `primary_pid`, `geocode_type`). |
+| `upsert` | If `FALSE` (default), duplicate PIDs are silently skipped. If `TRUE`, existing rows with the same PID are replaced. |
+
+**Returns**, invisibly, the number of rows inserted or updated.
+
+```{r}
+gnaf_add(con, data.table(
+  address_detail_pid = "CUSTOM_DEMO",
+  number_first = 1L, street_name = "EXAMPLE", street_type = "STREET",
+  locality_name = "SAMPLETON", state = "QLD", postcode = 4999L
+))
+```
+
+### `gnaf_remove_custom()` {#gnaf_remove_custom}
+
+```r
+gnaf_remove_custom(con, pids)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | DBI connection. |
+| `pids` | Character vector of `address_detail_pid` values to remove. |
+
+**Returns**, invisibly, the number of rows deleted.
+
+```{r}
+gnaf_remove_custom(con, "CUSTOM_DEMO")
+```
+
+## Match cache
+
+These all operate on `gnaf_match_cache`, populated automatically by `gnaf_match()`
+(see [The match cache](03-theory.qmd#sec-matching-paths)). Run a match first so
+there's something to inspect:
+
+```{r}
+invisible(gnaf_match("10 Musgrave Road, Red Hill QLD 4059", con, verbose = FALSE))
+```
+
+### `gnaf_cache_status()` {#gnaf_cache_status}
+
+```r
+gnaf_cache_status(con)
+```
+
+**Returns** a `data.table` with row count and oldest/newest `cached_at` timestamp.
+
+```{r}
+gnaf_cache_status(con)
+```
+
+### `gnaf_cache_sample()` {#gnaf_cache_sample}
+
+```r
+gnaf_cache_sample(con, n = 10L, cached_on = NULL, from = NULL, to = NULL,
+                  include_custom = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `n` | Number of rows to sample. |
+| `cached_on` | Optional single `Date`/`"YYYY-MM-DD"` string — restrict to that calendar date. |
+| `from`, `to` | Optional inclusive `cached_at` bounds (`POSIXct`, `Date`, or ISO-8601 string). Use either `cached_on` or `from`/`to`, not both. |
+| `include_custom` | If `TRUE` (default), joined address details may come from either table. |
+
+**Returns** a `data.table` of sampled cache rows joined to their matched address.
+
+```{r}
+gnaf_cache_sample(con, n = 5)
+```
+
+### `gnaf_cache_history()` {#gnaf_cache_history}
+
+```r
+gnaf_cache_history(con, by = c("day", "hour"))
+```
+
+**Returns** a `data.table` with one row per time bucket: `rows`, `min_score`,
+`avg_score`, `max_score`.
+
+```{r}
+gnaf_cache_history(con, by = "day")
+```
+
+### `gnaf_cache_rollback()` {#gnaf_cache_rollback}
+
+```r
+gnaf_cache_rollback(con, after, ask = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `after` | A `POSIXct`, `Date`, or ISO-8601 string. Entries cached at or after this time are removed. |
+| `ask` | If `TRUE` (default), prompts for confirmation; requires an interactive session. Pass `FALSE` for scripts. |
+
+Removes cache entries added on or after a timestamp — useful when a batch was
+matched poorly and you want to force re-matching without clearing the whole cache.
+**Returns**, invisibly, the number of rows removed.
+
+```{r}
+gnaf_cache_rollback(con, after = Sys.time() - 3600, ask = FALSE)
+```
+
+### `gnaf_cache_clear()` {#gnaf_cache_clear}
+
+```r
+gnaf_cache_clear(con, ask = TRUE)
+```
+
+Removes every cache entry. `ask = TRUE` (default) requires an interactive session;
+pass `FALSE` for scripted use. **Returns**, invisibly, the number of rows removed.
+
+```{r}
+gnaf_cache_clear(con, ask = FALSE)
+```
+
+## Synthetic data
+
+### `address_perturb_sample()` {#address_perturb_sample}
+
+```r
+address_perturb_sample(x, n = min(1000L, nrow(x)), replace = FALSE,
+                       seed = NULL, max_changes = 2L, keep_original = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `x` | A `data.table`/`data.frame` with an `ADDRESS_LABEL` or `address_label` column. |
+| `n` | Number of rows to sample. |
+| `replace` | Sample with replacement. |
+| `seed` | Optional seed for reproducible output. |
+| `max_changes` | Maximum perturbations applied per address. |
+| `keep_original` | If `TRUE` (default), include the original label in the output. |
+
+**Returns** a `data.table` of sampled rows plus `simulated_address` and
+`perturbations` columns. Useful for generating realistic-but-messy QA/benchmark
+input without hand-labelling — see [Synthetic test data](06-other-features.qmd).
+
+```{r}
+# sample_gnaf() returns a named list here (gnaf_init() always creates four base
+# tables); address_perturb_sample() needs the one with actual address rows.
+sample_rows <- sample_gnaf(con, n = 2)$custom_addresses
+address_perturb_sample(sample_rows, n = 2, seed = 42, max_changes = 2L)[
+  , .(address_label, simulated_address, perturbations)
+]
+```
+
+```{r}
+#| echo: false
+gnaf_disconnect(con)
+```
+
+## Interactive app
+
+### `gnaf_app()` {#gnaf_app}
+
+```r
+gnaf_app(con = NULL, db_path = NULL, launch.browser = interactive(), run = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `con` | Optional existing connection from `gnaf_connect()`. |
+| `db_path` | Optional DuckDB path to pre-fill and connect to when `con` is `NULL`. |
+| `launch.browser` | Passed to `shiny::runApp()`. |
+| `run` | If `TRUE` (default), launches immediately. If `FALSE`, returns the `shiny.appobj` for embedding/testing instead. |
+
+**Returns**, invisibly, the app object when run, otherwise the app object itself. See
+[The Shiny geocoder app](06-other-features.qmd) for a full walkthrough.
+
+```r
+gnaf_app(db_path = "C:/temp/gnaf.duckdb")
+```
+
+## Spatial helpers
+
+These wrap `sf`, `ggplot2`, `viridisLite`, and `leaflet`/`leaflet.extras` — see
+[Spatial helpers](06-other-features.qmd) for a worked example with a real shapefile.
+
+### `read_shapefile()` {#read_shapefile}
+
+```r
+read_shapefile(path, quiet = FALSE, ...)
+```
+
+Reads a shapefile and prints its available columns. `...` is passed to
+`sf::st_read()`. **Returns** an `sf` object (invisibly).
+
+### `subset_shapefile()` {#subset_shapefile}
+
+```r
+subset_shapefile(sf_obj, var, values, invert = FALSE)
+```
+
+| Argument | Description |
+|---|---|
+| `sf_obj` | An `sf` polygon object. |
+| `var` | Column name to filter on. |
+| `values` | Value(s) to keep (`%in%`). |
+| `invert` | If `TRUE`, keep rows *not* matching `values`. |
+
+**Returns** the filtered `sf` object.
+
+### `spatial_lookup()` {#spatial_lookup}
+
+```r
+spatial_lookup(points_dt, shapes, lat = "latitude", lon = "longitude",
+               return_cols = NULL, chunk_size = 100000L,
+               multiple = c("first", "all"), verbose = TRUE)
+```
+
+| Argument | Description |
+|---|---|
+| `points_dt` | A `data.table`/coercible object with longitude/latitude columns. |
+| `shapes` | An `sf` polygon object (e.g. from `read_shapefile()`). |
+| `lat`, `lon` | Column names in `points_dt`. |
+| `return_cols` | Columns from `shapes` to return (default: all non-geometry columns). |
+| `chunk_size` | Points processed per chunk — tune for memory. |
+| `multiple` | `"first"` (default) returns the first matching polygon per point; `"all"` returns every match. |
+| `verbose` | Print progress. |
+
+Fast point-in-polygon lookup built on `sf` + `data.table`. **Returns** a
+`data.table` combining input point columns with the requested polygon attributes —
+e.g. joining `gnaf_match()` results to ABS Mesh Blocks or SA2 regions by coordinate.
+
+### `plot_boundaries_heatmap()` {#plot_boundaries_heatmap}
+
+```r
+plot_boundaries_heatmap(
+  shapes, points_dt = NULL, lat = "latitude", lon = "longitude",
+  simplify_tolerance = NULL, bins = 150, alpha = 0.6,
+  palette = viridisLite::viridis, verbose = TRUE,
+  use_leaflet = FALSE, heatmap_options = list()
+)
+```
+
+| Argument | Description |
+|---|---|
+| `shapes` | An `sf` polygon object. |
+| `points_dt` | Optional point data with `lat`/`lon` columns to overlay as a density heatmap. |
+| `simplify_tolerance` | If provided, simplifies geometries with this tolerance before plotting. |
+| `bins` | Grid cells for density estimation — higher is finer. |
+| `alpha` | Density raster transparency. |
+| `palette` | Colour palette function (default `viridisLite::viridis`). |
+| `use_leaflet` | If `TRUE`, render an interactive `leaflet` map (`leaflet.extras::addHeatmap`) instead of a static plot. |
+| `heatmap_options` | Named list passed to the leaflet heatmap (`radius`, `blur`, `max`, `minOpacity`, …). |
+
+**Returns** a `ggplot` object (static) or a `leaflet` map object
+(`use_leaflet = TRUE`) — plots polygon boundaries with an optional density heatmap of
+matched coordinates over them.

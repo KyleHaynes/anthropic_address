@@ -1,15 +1,61 @@
----
-title: "Hello from gnafr"
-format: html
----
+# Preface {.unnumbered}
 
-# Hello world
+This is the manual for **gnafr** — an R package for fast, fuzzy bulk matching of
+free-text Australian addresses against the [Geocoded National Address File
+(G-NAF)](https://geoscape.com.au/data/g-naf/), backed by an embedded [DuckDB](https://duckdb.org/)
+database.
 
-Welcome to the `gnafr` Quarto website.
+If you have a column of messy, human-typed addresses and want a `latitude`/`longitude`,
+a standardised address, and a confidence score for each one — at the scale of a few
+rows or a few million — this package (and this manual) is for you.
 
-This is a basic Quarto template ready to be rendered to HTML.
+## Who this is for
+
+You should already be comfortable with R and `data.table`. No DuckDB or SQL
+experience is assumed — gnafr handles that internally — but [Under the
+hood](03-theory.qmd) explains the SQL gnafr generates, for readers who want to
+understand exactly what's happening or who need to debug an unexpected result.
+
+## How this manual is organised
+
+**Getting started**
+
+- [About gnafr](01-about.qmd) — what G-NAF is, what problem gnafr solves, and how the
+  package is put together.
+- [Quick guide](02-quickstart.qmd) — install the package and run your first match in a
+  few minutes, using a tiny in-memory database (no G-NAF download required).
+
+**Under the hood**
+
+- [Theory: how matching works](03-theory.qmd) — the parsing pipeline, the scoring
+  formula, and the multi-path matching strategy, explained from the actual
+  implementation rather than from the outside.
+- [Building a good lookup table](04-build-database.qmd) — a guided walkthrough of
+  [`build_gnaf_database.R`](../build_gnaf_database.R), the reference pipeline for
+  turning a raw G-NAF download into a database that matches well.
+
+**Reference**
+
+- [Function reference](05-function-reference.qmd) — every exported function, grouped
+  by task, with arguments, return values, and examples.
+- [Other features](06-other-features.qmd) — the Shiny geocoder app, spatial helpers
+  (`sf` + `leaflet`), synthetic test-data generation, and the match cache.
+- [Troubleshooting & performance](07-troubleshooting.qmd) — common failure modes, how
+  to read them, and how to keep large batch jobs fast.
+
+::: {.callout-note}
+Almost every code chunk in this manual that uses a real database is marked
+`eval: false`, because it points at a multi-gigabyte G-NAF file that doesn't exist in
+this build environment. Chunks that *do* run live use a tiny synthetic database
+created with `gnaf_connect(":memory:")` — you'll see their actual output printed
+inline, generated from the package's current source at render time.
+:::
+
+## Package metadata
 
 ```{r}
-#| echo: true
-summary(cars)
+#| echo: false
+desc <- read.dcf("../DESCRIPTION")[1, ]
+data.frame(Field = names(desc), Value = unname(desc), row.names = NULL) |>
+  knitr::kable()
 ```

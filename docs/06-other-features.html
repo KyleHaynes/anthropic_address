@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.9.38">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<meta name="author" content="Kyle Haynes">
-<meta name="dcterms.date" content="2026-06-27">
-<title>gnafr</title>
+<title>6&nbsp; Other features – gnafr</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -22,6 +20,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 <script src="site_libs/quarto-nav/quarto-nav.js"></script>
@@ -31,7 +64,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./01-about.html" rel="next">
+<link href="./07-troubleshooting.html" rel="next">
+<link href="./05-function-reference.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -242,7 +276,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Preface</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./05-function-reference.html">Reference</a></li><li class="breadcrumb-item"><a href="./06-other-features.html"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Other features</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -273,7 +307,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link active">
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preface</span></a>
   </div>
 </li>
@@ -325,13 +359,13 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
  <span class="menu-text">Reference</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./05-function-reference.html" class="sidebar-item-text sidebar-link">
@@ -340,7 +374,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./06-other-features.html" class="sidebar-item-text sidebar-link">
+  <a href="./06-other-features.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Other features</span></span></a>
   </div>
 </li>
@@ -360,136 +394,143 @@ ul.task-list li input[type="checkbox"] {
         <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Table of contents</h2>
    
   <ul>
-<li>
-<a href="#preface" id="toc-preface" class="nav-link active" data-scroll-target="#preface">Preface</a>
-  <ul class="collapse">
-<li><a href="#who-this-is-for" id="toc-who-this-is-for" class="nav-link" data-scroll-target="#who-this-is-for">Who this is for</a></li>
-  <li><a href="#how-this-manual-is-organised" id="toc-how-this-manual-is-organised" class="nav-link" data-scroll-target="#how-this-manual-is-organised">How this manual is organised</a></li>
-  <li><a href="#package-metadata" id="toc-package-metadata" class="nav-link" data-scroll-target="#package-metadata">Package metadata</a></li>
-  </ul>
-</li>
+<li><a href="#the-shiny-geocoder-app" id="toc-the-shiny-geocoder-app" class="nav-link active" data-scroll-target="#the-shiny-geocoder-app"><span class="header-section-number">6.1</span> The Shiny geocoder app</a></li>
+  <li><a href="#spatial-helpers" id="toc-spatial-helpers" class="nav-link" data-scroll-target="#spatial-helpers"><span class="header-section-number">6.2</span> Spatial helpers</a></li>
+  <li><a href="#synthetic-test-data" id="toc-synthetic-test-data" class="nav-link" data-scroll-target="#synthetic-test-data"><span class="header-section-number">6.3</span> Synthetic test data</a></li>
+  <li><a href="#sec-cache-daily" id="toc-sec-cache-daily" class="nav-link" data-scroll-target="#sec-cache-daily"><span class="header-section-number">6.4</span> The match cache, day to day</a></li>
   </ul></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><div class="quarto-title">
-<h1 class="title">gnafr</h1>
-<p class="subtitle lead">Fast, fuzzy Australian address matching against the G-NAF</p>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./05-function-reference.html">Reference</a></li><li class="breadcrumb-item"><a href="./06-other-features.html"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Other features</span></a></li></ol></nav><div class="quarto-title">
+<h1 class="title">
+<span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Other features</span>
+</h1>
 </div>
 
 
 
 <div class="quarto-title-meta">
 
-    <div>
-    <div class="quarto-title-meta-heading">Author</div>
-    <div class="quarto-title-meta-contents">
-             <p>Kyle Haynes </p>
-          </div>
-  </div>
     
-    <div>
-    <div class="quarto-title-meta-heading">Published</div>
-    <div class="quarto-title-meta-contents">
-      <p class="date">27 June 2026</p>
-    </div>
-  </div>
   
     
   </div>
   
 
 
-</header><section id="preface" class="level1 unnumbered"><h1 class="unnumbered">Preface</h1>
-<p>This is the manual for <strong>gnafr</strong> — an R package for fast, fuzzy bulk matching of free-text Australian addresses against the <a href="https://geoscape.com.au/data/g-naf/">Geocoded National Address File (G-NAF)</a>, backed by an embedded <a href="https://duckdb.org/">DuckDB</a> database.</p>
-<p>If you have a column of messy, human-typed addresses and want a <code>latitude</code>/<code>longitude</code>, a standardised address, and a confidence score for each one — at the scale of a few rows or a few million — this package (and this manual) is for you.</p>
-<section id="who-this-is-for" class="level2"><h2 class="anchored" data-anchor-id="who-this-is-for">Who this is for</h2>
-<p>You should already be comfortable with R and <code>data.table</code>. No DuckDB or SQL experience is assumed — gnafr handles that internally — but <a href="./03-theory.html">Under the hood</a> explains the SQL gnafr generates, for readers who want to understand exactly what’s happening or who need to debug an unexpected result.</p>
-</section><section id="how-this-manual-is-organised" class="level2"><h2 class="anchored" data-anchor-id="how-this-manual-is-organised">How this manual is organised</h2>
-<p><strong>Getting started</strong></p>
-<ul>
-<li>
-<a href="./01-about.html">About gnafr</a> — what G-NAF is, what problem gnafr solves, and how the package is put together.</li>
-<li>
-<a href="./02-quickstart.html">Quick guide</a> — install the package and run your first match in a few minutes, using a tiny in-memory database (no G-NAF download required).</li>
-</ul>
-<p><strong>Under the hood</strong></p>
-<ul>
-<li>
-<a href="./03-theory.html">Theory: how matching works</a> — the parsing pipeline, the scoring formula, and the multi-path matching strategy, explained from the actual implementation rather than from the outside.</li>
-<li>
-<a href="./04-build-database.html">Building a good lookup table</a> — a guided walkthrough of <a href="../build_gnaf_database.R"><code>build_gnaf_database.R</code></a>, the reference pipeline for turning a raw G-NAF download into a database that matches well.</li>
-</ul>
-<p><strong>Reference</strong></p>
-<ul>
-<li>
-<a href="./05-function-reference.html">Function reference</a> — every exported function, grouped by task, with arguments, return values, and examples.</li>
-<li>
-<a href="./06-other-features.html">Other features</a> — the Shiny geocoder app, spatial helpers (<code>sf</code> + <code>leaflet</code>), synthetic test-data generation, and the match cache.</li>
-<li>
-<a href="./07-troubleshooting.html">Troubleshooting &amp; performance</a> — common failure modes, how to read them, and how to keep large batch jobs fast.</li>
-</ul>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Almost every code chunk in this manual that uses a real database is marked <code>eval: false</code>, because it points at a multi-gigabyte G-NAF file that doesn’t exist in this build environment. Chunks that <em>do</em> run live use a tiny synthetic database created with <code>gnaf_connect(":memory:")</code> — you’ll see their actual output printed inline, generated from the package’s current source at render time.</p>
-</div>
-</div>
-</section><section id="package-metadata" class="level2"><h2 class="anchored" data-anchor-id="package-metadata">Package metadata</h2>
+</header><p>Beyond the core parse-score-match pipeline, gnafr includes an interactive geocoder app, spatial join/plotting helpers, and synthetic address generation for testing. This chapter covers all three, plus a closer look at the match cache from a usage (rather than mechanism) angle.</p>
+<section id="the-shiny-geocoder-app" class="level2" data-number="6.1"><h2 data-number="6.1" class="anchored" data-anchor-id="the-shiny-geocoder-app">
+<span class="header-section-number">6.1</span> The Shiny geocoder app</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">gnaf_app</span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span>
+<span><span class="co"># or, reusing an existing connection:</span></span>
+<span><span class="fu">gnaf_app</span><span class="op">(</span>con <span class="op">=</span> <span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_app.html">gnaf_app()</a></code> launches an interactive geocoder built on the same <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> engine as everything else in this manual — nothing in the app does its own matching. You paste one address per line, it runs <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> against your connected database, and shows results in a <code>reactable</code> table.</p>
+<p>Two diagnostics are added on top of the usual match columns specifically for manual review: full-string <strong>Jaro-Winkler</strong> and <strong>Jaccard</strong> similarity between the raw input and the matched <code>address_label</code>, with gradient highlighting so a low-confidence <em>lexical</em> match stands out even when the structured score looks fine (e.g.&nbsp;a match that’s structurally correct — same number, postcode, type — but textually quite different from the original string, which can be a sign the parse went down an unexpected path).</p>
+<p>Pass <code>run = FALSE</code> to get the <code>shiny.appobj</code> back without launching it — useful for embedding the geocoder inside a larger Shiny app, or for testing.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">app_obj</span> <span class="op">&lt;-</span> <span class="fu">gnaf_app</span><span class="op">(</span>con <span class="op">=</span> <span class="va">con</span>, run <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="spatial-helpers" class="level2" data-number="6.2"><h2 data-number="6.2" class="anchored" data-anchor-id="spatial-helpers">
+<span class="header-section-number">6.2</span> Spatial helpers</h2>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> returns <code>longitude</code>/<code>latitude</code> for every match — the spatial helpers exist to take that coordinate and join it to <em>other</em> geographies (ABS Mesh Blocks, SA2 regions, custom catchment polygons) or visualise it.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 1. Read a polygon shapefile and see what columns it has</span></span>
+<span><span class="va">sa2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/read_shapefile.html">read_shapefile</a></span><span class="op">(</span><span class="st">"C:/temp/sa2/SA2_2021_AUST_GDA2020.shp"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Optionally subset to the area you care about</span></span>
+<span><span class="va">sa2_qld</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/subset_shapefile.html">subset_shapefile</a></span><span class="op">(</span><span class="va">sa2</span>, var <span class="op">=</span> <span class="st">"STE_NAME21"</span>, values <span class="op">=</span> <span class="st">"Queensland"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Point-in-polygon join: attach SA2 attributes to your matched addresses</span></span>
+<span><span class="va">matched</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="va">addresses</span>, <span class="va">con</span>, max_results <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">geo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/spatial_lookup.html">spatial_lookup</a></span><span class="op">(</span></span>
+<span>  <span class="va">matched</span><span class="op">[</span><span class="va">matched</span> <span class="op">==</span> <span class="cn">TRUE</span><span class="op">]</span>, <span class="va">sa2_qld</span>,</span>
+<span>  lat <span class="op">=</span> <span class="st">"latitude"</span>, lon <span class="op">=</span> <span class="st">"longitude"</span>,</span>
+<span>  return_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"SA2_CODE21"</span>, <span class="st">"SA2_NAME21"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 4. Visualise match density against the polygon boundaries</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/plot_boundaries_heatmap.html">plot_boundaries_heatmap</a></span><span class="op">(</span><span class="va">sa2_qld</span>, points_dt <span class="op">=</span> <span class="va">geo</span>, bins <span class="op">=</span> <span class="fl">200</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># ...or as an interactive leaflet map</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/plot_boundaries_heatmap.html">plot_boundaries_heatmap</a></span><span class="op">(</span><span class="va">sa2_qld</span>, points_dt <span class="op">=</span> <span class="va">geo</span>, use_leaflet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/spatial_lookup.html">spatial_lookup()</a></code> processes points in chunks (<code>chunk_size</code>, default 100,000) to bound memory use on large batches, and supports <code>multiple = "all"</code> for the (rare) case where your polygons overlap and you want every match, not just the first.</p>
+</section><section id="synthetic-test-data" class="level2" data-number="6.3"><h2 data-number="6.3" class="anchored" data-anchor-id="synthetic-test-data">
+<span class="header-section-number">6.3</span> Synthetic test data</h2>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/address_perturb_sample.html">address_perturb_sample()</a></code> generates realistic-but-messy test addresses by sampling real rows from your loaded data and perturbing them — useful for QA and benchmarking <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> without hand-labelling a test set.</p>
 <div class="cell">
-<div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
-<colgroup>
-<col style="width: 7%">
-<col style="width: 92%">
-</colgroup>
-<thead><tr class="header">
-<th style="text-align: left;">Field</th>
-<th style="text-align: left;">Value</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">Package</td>
-<td style="text-align: left;">gnafr</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Type</td>
-<td style="text-align: left;">Package</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Title</td>
-<td style="text-align: left;">Australian Address Matching Using GNAF</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Version</td>
-<td style="text-align: left;">0.1.0</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Authors@R</td>
-<td style="text-align: left;">person(“Kyle”, “Haynes”, role = c(“aut”, “cre”),</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">email = “kyle@kylehaynes.com.au”)</td>
-<td style="text-align: left;"></td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Description</td>
-<td style="text-align: left;">Fast bulk address matching against the Geocoded National Address</td>
-</tr>
-</tbody>
-</table>
-<p>File (GNAF) for Australia. Supports fuzzy matching with a confidence scoring algorithm, DuckDB-backed storage for high-performance lookups (100k+ addresses), and the ability to add custom addresses to the matching database. | |License |MIT + file LICENSE | |Encoding |UTF-8 | |LazyData |false | |Imports |cli, data.table (&gt;= 1.14.0), DBI (&gt;= 1.1.0), duckdb (&gt;= 0.9.0), stringdist (&gt;= 0.9.0), stringi, sf, ggplot2, viridisLite, leaflet, leaflet.extras | |Suggests |reactable, shiny, testthat (&gt;= 3.0.0) | |Config/testthat/edition |3 | |RoxygenNote |7.3.2 |</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://r-datatable.com">data.table</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  address_label <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"10 MUSGRAVE ROAD, RED HILL QLD 4059"</span>,</span>
+<span>    <span class="st">"18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  number_first  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">10L</span>, <span class="fl">18L</span><span class="op">)</span>, number_last <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="cn">NA_integer_</span>, <span class="fl">20L</span><span class="op">)</span>,</span>
+<span>  street_name   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"MUSGRAVE"</span>, <span class="st">"DRIFT"</span><span class="op">)</span>,</span>
+<span>  street_type   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"ROAD"</span>, <span class="st">"CLOSE"</span><span class="op">)</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"RED HILL"</span>, <span class="st">"GOLDSBOROUGH"</span><span class="op">)</span>,</span>
+<span>  state <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"QLD"</span>, <span class="st">"QLD"</span><span class="op">)</span>, postcode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fl">4059L</span>, <span class="fl">4865L</span><span class="op">)</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">sample_rows</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/sample_gnaf.html">sample_gnaf</a></span><span class="op">(</span><span class="va">con</span>, n <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<span><span class="co"># gnaf_init() always creates four base tables (gnaf_addresses, custom_addresses,</span></span>
+<span><span class="co"># gnaf_locality_index, gnaf_match_cache), so sample_gnaf() returns a named list —</span></span>
+<span><span class="co"># pick whichever address table actually has rows in it.</span></span>
+<span><span class="va">sample_source</span> <span class="op">&lt;-</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html">is.list</a></span><span class="op">(</span><span class="va">sample_rows</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html">is.data.frame</a></span><span class="op">(</span><span class="va">sample_rows</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">sample_rows</span><span class="op">$</span><span class="va">custom_addresses</span></span>
+<span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>  <span class="va">sample_rows</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">synthetic</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/address_perturb_sample.html">address_perturb_sample</a></span><span class="op">(</span></span>
+<span>  <span class="va">sample_source</span>, n <span class="op">=</span> <span class="fl">5</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, seed <span class="op">=</span> <span class="fl">42</span>, max_changes <span class="op">=</span> <span class="fl">2L</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">synthetic</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">address_label</span>, <span class="va">simulated_address</span>, <span class="va">perturbations</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                              address_label                        simulated_address                      perturbations
+                                     &lt;char&gt;                                   &lt;char&gt;                             &lt;char&gt;
+1:      10 MUSGRAVE ROAD, RED HILL QLD 4059        10 MUSGRAVE ROD RED HILL QLD 4059         remove_commas, street_typo
+2:      10 MUSGRAVE ROAD, RED HILL QLD 4059      10 Musgrave Roa,  Red Hill Qld 4059            case_noise, street_typo
+3:      10 MUSGRAVE ROAD, RED HILL QLD 4059       10 Musgrave Road Red Hill Qld 4059          case_noise, remove_commas
+4:      10 MUSGRAVE ROAD, RED HILL QLD 4059       10 MUSGRAVE ROAD RED HILL 4059 QLD remove_commas, state_postcode_swap
+5: 18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865 18-20 Drift Clos,  Goldsborough Qld 4865            case_noise, street_typo</code></pre>
 </div>
 </div>
+<p>Round-trip it straight back through <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> to see how well the matcher recovers the original record from its own perturbed output — a quick, repeatable regression check after changing scoring weights or parser logic:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">roundtrip</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="va">synthetic</span><span class="op">$</span><span class="va">simulated_address</span>, <span class="va">con</span>, max_results <span class="op">=</span> <span class="fl">1</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">roundtrip</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">input_raw</span>, <span class="va">matched</span>, <span class="va">total_score</span>, <span class="va">address_label</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                  input_raw matched total_score                            address_label
+                                     &lt;char&gt;  &lt;lgcl&gt;       &lt;int&gt;                                   &lt;char&gt;
+1:        10 MUSGRAVE ROD RED HILL QLD 4059    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059
+2:      10 Musgrave Roa,  Red Hill Qld 4059    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059
+3:       10 Musgrave Road Red Hill Qld 4059    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059
+4:       10 MUSGRAVE ROAD RED HILL 4059 QLD    TRUE         100      10 MUSGRAVE ROAD, RED HILL QLD 4059
+5: 18-20 Drift Clos,  Goldsborough Qld 4865    TRUE         100 18-20 DRIFT CLOSE, GOLDSBOROUGH QLD 4865</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_disconnect.html">gnaf_disconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p><code>max_changes</code> caps how many perturbations are applied per address (typos, abbreviation swaps, dropped components); <code>keep_original = TRUE</code> (the default) keeps the unperturbed label alongside the perturbed one so you can compare directly.</p>
+</section><section id="sec-cache-daily" class="level2" data-number="6.4"><h2 data-number="6.4" class="anchored" data-anchor-id="sec-cache-daily">
+<span class="header-section-number">6.4</span> The match cache, day to day</h2>
+<p>The mechanics are covered in <a href="./03-theory.html#sec-matching-paths">How matching works</a>; day to day, the cache functions you’ll actually reach for are:</p>
+<ul>
+<li>
+<strong><code>gnaf_cache_status(con)</code></strong> — quick sanity check: how many entries, how old is the oldest one. Good first thing to check if a batch job feels slower than expected (an empty or stale cache means every input is going through the full pipeline).</li>
+<li>
+<strong><code>gnaf_cache_history(con, by = "day")</code></strong> — cache growth over time, plus the score distribution of what’s been cached. A sudden drop in <code>avg_score</code> for a given day is worth investigating — it usually means a batch of genuinely harder or messier input, not a regression in the matcher.</li>
+<li>
+<strong><code>gnaf_cache_rollback(con, after = ...)</code></strong> — when a batch was matched under conditions you later realise were wrong (bad input data, a bug since fixed) and you want exactly <em>that</em> batch re-matched on the next run, without discarding everything else the cache has learned.</li>
+<li>
+<strong><code>gnaf_cache_clear(con)</code></strong> — the blunt instrument. Reasonable after a major scoring or parsing change you don’t trust the old cached results under, but prefer <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_cache_rollback.html">gnaf_cache_rollback()</a></code> when you can scope it to a time window instead.</li>
+</ul>
+<p>Remember the cache only applies when <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> is called with the default weights (<a href="03-theory.html#sec-scoring" class="quarto-xref"><span>Section 3.2</span></a>) — if you’re routinely calling with custom weights, the cache functions above will simply stay empty, which is expected, not a bug.</p>
 
 
-</section></section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     // Ensure there is a toggle, if there isn't float one in the top right
     if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
@@ -902,10 +943,13 @@ Note
     }
   });
   </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
+      <a href="./05-function-reference.html" class="pagination-link" aria-label="Function reference">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Function reference</span></span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./01-about.html" class="pagination-link" aria-label="About gnafr">
-        <span class="nav-page-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">About gnafr</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./07-troubleshooting.html" class="pagination-link" aria-label="Troubleshooting &amp; performance">
+        <span class="nav-page-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

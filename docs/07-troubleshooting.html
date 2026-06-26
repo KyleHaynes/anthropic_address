@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.9.38">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<meta name="author" content="Kyle Haynes">
-<meta name="dcterms.date" content="2026-06-27">
-<title>gnafr</title>
+<title>7&nbsp; Troubleshooting &amp; performance – gnafr</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -22,6 +20,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 <script src="site_libs/quarto-nav/quarto-nav.js"></script>
@@ -31,7 +64,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./01-about.html" rel="next">
+<link href="./06-other-features.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -242,7 +275,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Preface</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./05-function-reference.html">Reference</a></li><li class="breadcrumb-item"><a href="./07-troubleshooting.html"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -273,7 +306,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link active">
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preface</span></a>
   </div>
 </li>
@@ -325,13 +358,13 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
  <span class="menu-text">Reference</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./05-function-reference.html" class="sidebar-item-text sidebar-link">
@@ -346,7 +379,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./07-troubleshooting.html" class="sidebar-item-text sidebar-link">
+  <a href="./07-troubleshooting.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></span></a>
   </div>
 </li>
@@ -361,132 +394,212 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
 <li>
-<a href="#preface" id="toc-preface" class="nav-link active" data-scroll-target="#preface">Preface</a>
+<a href="#working-with-results" id="toc-working-with-results" class="nav-link active" data-scroll-target="#working-with-results"><span class="header-section-number">7.1</span> Working with results</a>
   <ul class="collapse">
-<li><a href="#who-this-is-for" id="toc-who-this-is-for" class="nav-link" data-scroll-target="#who-this-is-for">Who this is for</a></li>
-  <li><a href="#how-this-manual-is-organised" id="toc-how-this-manual-is-organised" class="nav-link" data-scroll-target="#how-this-manual-is-organised">How this manual is organised</a></li>
-  <li><a href="#package-metadata" id="toc-package-metadata" class="nav-link" data-scroll-target="#package-metadata">Package metadata</a></li>
+<li><a href="#extracting-the-best-match-per-input" id="toc-extracting-the-best-match-per-input" class="nav-link" data-scroll-target="#extracting-the-best-match-per-input">Extracting the best match per input</a></li>
+  <li><a href="#filtering-by-confidence" id="toc-filtering-by-confidence" class="nav-link" data-scroll-target="#filtering-by-confidence">Filtering by confidence</a></li>
+  <li><a href="#finding-inputs-that-didnt-match" id="toc-finding-inputs-that-didnt-match" class="nav-link" data-scroll-target="#finding-inputs-that-didnt-match">Finding inputs that didn’t match</a></li>
+  <li><a href="#joining-match-results-back-to-your-input-data" id="toc-joining-match-results-back-to-your-input-data" class="nav-link" data-scroll-target="#joining-match-results-back-to-your-input-data">Joining match results back to your input data</a></li>
+  <li><a href="#diagnosing-a-specific-low-score" id="toc-diagnosing-a-specific-low-score" class="nav-link" data-scroll-target="#diagnosing-a-specific-low-score">Diagnosing a specific low score</a></li>
+  </ul>
+</li>
+  <li>
+<a href="#performance" id="toc-performance" class="nav-link" data-scroll-target="#performance"><span class="header-section-number">7.2</span> Performance</a>
+  <ul class="collapse">
+<li><a href="#typical-throughput" id="toc-typical-throughput" class="nav-link" data-scroll-target="#typical-throughput">Typical throughput</a></li>
+  <li><a href="#what-actually-drives-runtime" id="toc-what-actually-drives-runtime" class="nav-link" data-scroll-target="#what-actually-drives-runtime">What actually drives runtime</a></li>
+  <li><a href="#chunking-very-large-batches" id="toc-chunking-very-large-batches" class="nav-link" data-scroll-target="#chunking-very-large-batches">Chunking very large batches</a></li>
+  </ul>
+</li>
+  <li>
+<a href="#common-errors" id="toc-common-errors" class="nav-link" data-scroll-target="#common-errors"><span class="header-section-number">7.3</span> Common errors</a>
+  <ul class="collapse">
+<li><a href="#file-not-found-from-gnaf_load" id="toc-file-not-found-from-gnaf_load" class="nav-link" data-scroll-target="#file-not-found-from-gnaf_load">“File not found” from <code>gnaf_load()</code></a></li>
+  <li><a href="#duckdb-version-errors-after-upgrading-the-duckdb-package" id="toc-duckdb-version-errors-after-upgrading-the-duckdb-package" class="nav-link" data-scroll-target="#duckdb-version-errors-after-upgrading-the-duckdb-package">DuckDB version errors after upgrading the <code>duckdb</code> package</a></li>
+  <li><a href="#gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script" id="toc-gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script" class="nav-link" data-scroll-target="#gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script"><code>gnaf_cache_clear()</code> / <code>gnaf_cache_rollback()</code> error in a script</a></li>
+  <li><a href="#weights-error-weights-must-sum-to-100" id="toc-weights-error-weights-must-sum-to-100" class="nav-link" data-scroll-target="#weights-error-weights-must-sum-to-100">Weights error: <code>'weights' must sum to 100</code></a></li>
   </ul>
 </li>
   </ul></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><div class="quarto-title">
-<h1 class="title">gnafr</h1>
-<p class="subtitle lead">Fast, fuzzy Australian address matching against the G-NAF</p>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./05-function-reference.html">Reference</a></li><li class="breadcrumb-item"><a href="./07-troubleshooting.html"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></a></li></ol></nav><div class="quarto-title">
+<h1 class="title">
+<span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span>
+</h1>
 </div>
 
 
 
 <div class="quarto-title-meta">
 
-    <div>
-    <div class="quarto-title-meta-heading">Author</div>
-    <div class="quarto-title-meta-contents">
-             <p>Kyle Haynes </p>
-          </div>
-  </div>
     
-    <div>
-    <div class="quarto-title-meta-heading">Published</div>
-    <div class="quarto-title-meta-contents">
-      <p class="date">27 June 2026</p>
-    </div>
-  </div>
   
     
   </div>
   
 
 
-</header><section id="preface" class="level1 unnumbered"><h1 class="unnumbered">Preface</h1>
-<p>This is the manual for <strong>gnafr</strong> — an R package for fast, fuzzy bulk matching of free-text Australian addresses against the <a href="https://geoscape.com.au/data/g-naf/">Geocoded National Address File (G-NAF)</a>, backed by an embedded <a href="https://duckdb.org/">DuckDB</a> database.</p>
-<p>If you have a column of messy, human-typed addresses and want a <code>latitude</code>/<code>longitude</code>, a standardised address, and a confidence score for each one — at the scale of a few rows or a few million — this package (and this manual) is for you.</p>
-<section id="who-this-is-for" class="level2"><h2 class="anchored" data-anchor-id="who-this-is-for">Who this is for</h2>
-<p>You should already be comfortable with R and <code>data.table</code>. No DuckDB or SQL experience is assumed — gnafr handles that internally — but <a href="./03-theory.html">Under the hood</a> explains the SQL gnafr generates, for readers who want to understand exactly what’s happening or who need to debug an unexpected result.</p>
-</section><section id="how-this-manual-is-organised" class="level2"><h2 class="anchored" data-anchor-id="how-this-manual-is-organised">How this manual is organised</h2>
-<p><strong>Getting started</strong></p>
-<ul>
-<li>
-<a href="./01-about.html">About gnafr</a> — what G-NAF is, what problem gnafr solves, and how the package is put together.</li>
-<li>
-<a href="./02-quickstart.html">Quick guide</a> — install the package and run your first match in a few minutes, using a tiny in-memory database (no G-NAF download required).</li>
-</ul>
-<p><strong>Under the hood</strong></p>
-<ul>
-<li>
-<a href="./03-theory.html">Theory: how matching works</a> — the parsing pipeline, the scoring formula, and the multi-path matching strategy, explained from the actual implementation rather than from the outside.</li>
-<li>
-<a href="./04-build-database.html">Building a good lookup table</a> — a guided walkthrough of <a href="../build_gnaf_database.R"><code>build_gnaf_database.R</code></a>, the reference pipeline for turning a raw G-NAF download into a database that matches well.</li>
-</ul>
-<p><strong>Reference</strong></p>
-<ul>
-<li>
-<a href="./05-function-reference.html">Function reference</a> — every exported function, grouped by task, with arguments, return values, and examples.</li>
-<li>
-<a href="./06-other-features.html">Other features</a> — the Shiny geocoder app, spatial helpers (<code>sf</code> + <code>leaflet</code>), synthetic test-data generation, and the match cache.</li>
-<li>
-<a href="./07-troubleshooting.html">Troubleshooting &amp; performance</a> — common failure modes, how to read them, and how to keep large batch jobs fast.</li>
-</ul>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Almost every code chunk in this manual that uses a real database is marked <code>eval: false</code>, because it points at a multi-gigabyte G-NAF file that doesn’t exist in this build environment. Chunks that <em>do</em> run live use a tiny synthetic database created with <code>gnaf_connect(":memory:")</code> — you’ll see their actual output printed inline, generated from the package’s current source at render time.</p>
-</div>
-</div>
-</section><section id="package-metadata" class="level2"><h2 class="anchored" data-anchor-id="package-metadata">Package metadata</h2>
+</header><section id="working-with-results" class="level2" data-number="7.1"><h2 data-number="7.1" class="anchored" data-anchor-id="working-with-results">
+<span class="header-section-number">7.1</span> Working with results</h2>
+<section id="extracting-the-best-match-per-input" class="level3"><h3 class="anchored" data-anchor-id="extracting-the-best-match-per-input">Extracting the best match per input</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">best</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">[</span><span class="va">match_rank</span> <span class="op">==</span> <span class="fl">1</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="filtering-by-confidence" class="level3"><h3 class="anchored" data-anchor-id="filtering-by-confidence">Filtering by confidence</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Only high-confidence matches for automated processing</span></span>
+<span><span class="va">high_conf</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">[</span><span class="va">match_rank</span> <span class="op">==</span> <span class="fl">1</span> <span class="op">&amp;</span> <span class="va">total_score</span> <span class="op">&gt;=</span> <span class="fl">80</span><span class="op">]</span></span>
+<span></span>
+<span><span class="co"># Flag low-confidence matches for manual review instead of dropping them</span></span>
+<span><span class="va">results</span><span class="op">[</span>, <span class="va">needs_review</span> <span class="op">:=</span> <span class="va">total_score</span> <span class="op">&lt;</span> <span class="fl">70</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="finding-inputs-that-didnt-match" class="level3"><h3 class="anchored" data-anchor-id="finding-inputs-that-didnt-match">Finding inputs that didn’t match</h3>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> keeps every input in its output — even unmatched ones — with <code>NA</code> score/address columns and a <code>match_status</code> explaining why:</p>
 <div class="cell">
-<div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
-<colgroup>
-<col style="width: 7%">
-<col style="width: 92%">
-</colgroup>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  address_label <span class="op">=</span> <span class="st">"10 MUSGRAVE ROAD, RED HILL QLD 4059"</span>,</span>
+<span>  number_first <span class="op">=</span> <span class="fl">10L</span>, street_name <span class="op">=</span> <span class="st">"MUSGRAVE"</span>, street_type <span class="op">=</span> <span class="st">"ROAD"</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="st">"RED HILL"</span>, state <span class="op">=</span> <span class="st">"QLD"</span>, postcode <span class="op">=</span> <span class="fl">4059L</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"10 Musgrave Road, Red Hill QLD 4059"</span>, <span class="st">"1 Nowhere Street, Fakesuburb QLD 9999"</span><span class="op">)</span>,</span>
+<span>  <span class="va">con</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">results</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">input_raw</span>, <span class="va">matched</span>, <span class="va">match_status</span>, <span class="va">total_score</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                               input_raw matched match_status total_score
+                                  &lt;char&gt;  &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;
+1:   10 Musgrave Road, Red Hill QLD 4059    TRUE      matched         100
+2: 1 Nowhere Street, Fakesuburb QLD 9999   FALSE no_candidate          NA</code></pre>
+</div>
+</div>
+<p><code>match_status</code> takes one of four values:</p>
+<table class="caption-top table">
 <thead><tr class="header">
-<th style="text-align: left;">Field</th>
-<th style="text-align: left;">Value</th>
+<th>Value</th>
+<th>Meaning</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td style="text-align: left;">Package</td>
-<td style="text-align: left;">gnafr</td>
+<td><code>matched</code></td>
+<td>At least one candidate scored at or above <code>min_score</code>.</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">Type</td>
-<td style="text-align: left;">Package</td>
+<td><code>below_min_score</code></td>
+<td>Candidates existed but none cleared <code>min_score</code> — try lowering it, or inspect with <code>min_score = 0</code> to see what was found.</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">Title</td>
-<td style="text-align: left;">Australian Address Matching Using GNAF</td>
+<td><code>insufficient_parse</code></td>
+<td>The parser couldn’t extract a street name, or found none of postcode/state/locality to search by. Check with <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code>.</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">Version</td>
-<td style="text-align: left;">0.1.0</td>
+<td><code>no_candidate</code></td>
+<td>Parsing succeeded but no database row satisfied even the coarse pre-filters (most commonly: the street number genuinely isn’t in the database — see <a href="./03-theory.html#sec-scoring">the number filter</a>).</td>
 </tr>
+</tbody>
+</table></section><section id="joining-match-results-back-to-your-input-data" class="level3"><h3 class="anchored" data-anchor-id="joining-match-results-back-to-your-input-data">Joining match results back to your input data</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">dt_in</span><span class="op">[</span>, <span class="va">input_id</span> <span class="op">:=</span> <span class="va">.I</span><span class="op">]</span></span>
+<span></span>
+<span><span class="va">geo</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">[</span><span class="va">match_rank</span> <span class="op">==</span> <span class="fl">1</span>, <span class="fu">.</span><span class="op">(</span><span class="va">input_id</span>, <span class="va">total_score</span>, <span class="va">longitude</span>, <span class="va">latitude</span>,</span>
+<span>                                   <span class="va">address_label</span>, <span class="va">address_detail_pid</span><span class="op">)</span><span class="op">]</span></span>
+<span></span>
+<span><span class="va">dt_out</span> <span class="op">&lt;-</span> <span class="va">geo</span><span class="op">[</span><span class="va">dt_in</span>, on <span class="op">=</span> <span class="st">"input_id"</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="diagnosing-a-specific-low-score" class="level3"><h3 class="anchored" data-anchor-id="diagnosing-a-specific-low-score">Diagnosing a specific low score</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">parsed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse</a></span><span class="op">(</span><span class="st">"my problem address"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">parsed</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"my problem address"</span>, <span class="va">con</span>, max_results <span class="op">=</span> <span class="fl">5</span>, min_score <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">result</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">match_rank</span>, <span class="va">total_score</span>, <span class="va">score_postcode</span>, <span class="va">score_suburb</span>,</span>
+<span>                  <span class="va">score_street_name</span>, <span class="va">score_number</span>, <span class="va">address_label</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Common causes of an unexpectedly low (or missing) score, in roughly descending order of how often they come up:</p>
+<ul>
+<li><p><strong>Street number not in the database for that street.</strong> Returns <code>no_candidate</code>, not a low score — see the callout in <a href="./03-theory.html#sec-scoring">Scoring</a>. Confirm with <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> that the number parsed as expected, then check <code>DBI::dbGetQuery(con, "SELECT COUNT(*) FROM gnaf_addresses WHERE postcode = ... AND street_name = '...'")</code>.</p></li>
+<li>
+<p><strong>Postcode not loaded.</strong> If you loaded one state’s extract and the address is from another, the postcode genuinely isn’t in the database:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT COUNT(*) FROM gnaf_addresses WHERE postcode = 4001"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A count of <code>0</code> means the postcode isn’t in your loaded data, not a matching bug.</p>
+</li>
+<li><p><strong>Suburb spelling diverges sharply</strong> (<code>"MT GRAVATT"</code> vs <code>"MOUNT GRAVATT EAST"</code>). Jaro-Winkler handles small differences and the abbreviations <code>normalize = TRUE</code> expands, but not radical abbreviations or missing qualifying words.</p></li>
+<li>
+<p><strong>Street type not recognised.</strong> If <code>score_street_type</code> is consistently the 40%-of-weight “disagreement” tier instead of full credit, the input’s abbreviation may not be in the lookup table:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/fread.html">fread</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"street_types.csv"</span>, package <span class="op">=</span> <span class="st">"gnafr"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Add the missing abbreviation/canonical pair if it’s genuinely absent.</p>
+</li>
+<li><p><strong>A long building name is confusing the parser.</strong> Building names before the flat/number can occasionally prevent number extraction — check with <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> whether <code>in_number_first</code> actually came through.</p></li>
+</ul></section></section><section id="performance" class="level2" data-number="7.2"><h2 data-number="7.2" class="anchored" data-anchor-id="performance">
+<span class="header-section-number">7.2</span> Performance</h2>
+<section id="typical-throughput" class="level3"><h3 class="anchored" data-anchor-id="typical-throughput">Typical throughput</h3>
+<table class="caption-top table">
+<thead><tr class="header">
+<th>Input size</th>
+<th>Estimated time</th>
+</tr></thead>
+<tbody>
 <tr class="odd">
-<td style="text-align: left;">Authors@R</td>
-<td style="text-align: left;">person(“Kyle”, “Haynes”, role = c(“aut”, “cre”),</td>
+<td>1,000</td>
+<td>&lt; 1 second</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">email = “kyle@kylehaynes.com.au”)</td>
-<td style="text-align: left;"></td>
+<td>10,000</td>
+<td>2–5 seconds</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">Description</td>
-<td style="text-align: left;">Fast bulk address matching against the Geocoded National Address</td>
+<td>100,000</td>
+<td>15–45 seconds</td>
+</tr>
+<tr class="even">
+<td>500,000</td>
+<td>2–5 minutes (chunking recommended)</td>
 </tr>
 </tbody>
 </table>
-<p>File (GNAF) for Australia. Supports fuzzy matching with a confidence scoring algorithm, DuckDB-backed storage for high-performance lookups (100k+ addresses), and the ability to add custom addresses to the matching database. | |License |MIT + file LICENSE | |Encoding |UTF-8 | |LazyData |false | |Imports |cli, data.table (&gt;= 1.14.0), DBI (&gt;= 1.1.0), duckdb (&gt;= 0.9.0), stringdist (&gt;= 0.9.0), stringi, sf, ggplot2, viridisLite, leaflet, leaflet.extras | |Suggests |reactable, shiny, testthat (&gt;= 3.0.0) | |Config/testthat/edition |3 | |RoxygenNote |7.3.2 |</p>
-</div>
-</div>
+<p>Times assume a laptop with an SSD and a few million G-NAF rows loaded for the relevant state(s). Results vary with CPU, how concentrated the input postcodes are, and the proportion of addresses with no parseable postcode.</p>
+</section><section id="what-actually-drives-runtime" class="level3"><h3 class="anchored" data-anchor-id="what-actually-drives-runtime">What actually drives runtime</h3>
+<ul>
+<li>
+<p><strong>Parsing.</strong> For inputs that miss every vectorised fast pattern (<a href="03-theory.html#sec-parsing" class="quarto-xref"><span>Section 3.1</span></a>), <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> falls back to a row-by-row parser, which is the dominant cost for large batches of unusual input. It parallelises trivially since each row is independent:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">parallel</span><span class="op">)</span></span>
+<span><span class="va">n_cores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span></span>
+<span><span class="va">chunks</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html">split</a></span><span class="op">(</span><span class="va">addresses</span>, <span class="fu"><a href="https://rdrr.io/r/base/cut.html">cut</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html">seq_along</a></span><span class="op">(</span><span class="va">addresses</span><span class="op">)</span>, <span class="va">n_cores</span>, labels <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">parsed_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/parallel/mcdummies.html">mclapply</a></span><span class="op">(</span><span class="va">chunks</span>, <span class="va">address_parse</span>, mc.cores <span class="op">=</span> <span class="va">n_cores</span><span class="op">)</span></span>
+<span><span class="va">parsed</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/rbindlist.html">rbindlist</a></span><span class="op">(</span><span class="va">parsed_list</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</li>
+<li><p><strong>Postcode concentration.</strong> If a huge share of input addresses share one postcode, the candidate set for that postcode’s join gets large — the <code>(postcode, number_first)</code> index keeps the join itself cheap, but a very postcode-concentrated batch with a wide spread of <em>house numbers</em> still touches more rows than a postcode-diverse one.</p></li>
+<li><p><strong>The locality fallback firing often.</strong> It only runs for inputs scoring at or below <code>fallback_threshold</code> (default 90), but if a large fraction of your input has bad postcodes, you’re paying for two passes (postcode path, then locality fallback) instead of one. Worth checking <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_cache_history.html">gnaf_cache_history()</a></code> / a sample of <code>match_status</code> values if a batch feels slow — a high proportion of <code>below_min_score</code> or unmatched rows usually means the locality fallback is doing a lot of work for not much payoff, and the input data quality is the actual problem.</p></li>
+<li><p><strong>Re-establishing the connection per call.</strong> Reuse a single <code>con</code> across many <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> calls — for Shiny apps or API services, keep it in a global or module-level variable rather than reconnecting per request.</p></li>
+</ul></section><section id="chunking-very-large-batches" class="level3"><h3 class="anchored" data-anchor-id="chunking-very-large-batches">Chunking very large batches</h3>
+<p>For inputs exceeding ~500k rows or spanning many postcodes, splitting into chunks caps peak memory:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">chunk_size</span> <span class="op">&lt;-</span> <span class="fl">50000L</span></span>
+<span><span class="va">ids</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html">nrow</a></span><span class="op">(</span><span class="va">dt_in</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">chunks</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html">split</a></span><span class="op">(</span><span class="va">ids</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html">ceiling</a></span><span class="op">(</span><span class="va">ids</span> <span class="op">/</span> <span class="va">chunk_size</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">results_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span><span class="op">(</span><span class="va">chunks</span>, <span class="kw">function</span><span class="op">(</span><span class="va">idx</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="va">dt_in</span><span class="op">$</span><span class="va">address_string</span><span class="op">[</span><span class="va">idx</span><span class="op">]</span>, <span class="va">con</span>, max_results <span class="op">=</span> <span class="fl">1</span>, min_score <span class="op">=</span> <span class="fl">60</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/rbindlist.html">rbindlist</a></span><span class="op">(</span><span class="va">results_list</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <a href="./03-theory.html#sec-matching-paths">match cache</a> makes a second run over previously-seen input close to free, regardless of chunking — high-confidence results from any earlier chunk (or earlier run) are served from <code>gnaf_match_cache</code> rather than re-matched.</p>
+</section></section><section id="common-errors" class="level2" data-number="7.3"><h2 data-number="7.3" class="anchored" data-anchor-id="common-errors">
+<span class="header-section-number">7.3</span> Common errors</h2>
+<section id="file-not-found-from-gnaf_load" class="level3"><h3 class="anchored" data-anchor-id="file-not-found-from-gnaf_load">“File not found” from <code>gnaf_load()</code>
+</h3>
+<p>Use forward slashes or doubled backslashes — a single backslash is an escape character in an R string literal:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">gnaf_load</span>(con, <span class="st">"C:/temp/gnaf.qld.csv"</span>)      <span class="co"># OK</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">gnaf_load</span>(con, <span class="st">"C:</span><span class="sc">\\</span><span class="st">temp</span><span class="sc">\\</span><span class="st">gnaf.qld.csv"</span>)    <span class="co"># also OK</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">gnaf_load</span>(con, <span class="st">"C:</span><span class="sc">\t</span><span class="st">emp\gnaf.qld.csv"</span>)      <span class="co"># wrong — \t is a tab escape</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="duckdb-version-errors-after-upgrading-the-duckdb-package" class="level3"><h3 class="anchored" data-anchor-id="duckdb-version-errors-after-upgrading-the-duckdb-package">DuckDB version errors after upgrading the <code>duckdb</code> package</h3>
+<p>DuckDB database files are tied to the format version of the engine that created them. If you see an incompatible-version error after upgrading the <code>duckdb</code> R package, the database file needs rebuilding from source data — there’s no in-place upgrade path:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/files.html">file.remove</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span>
+<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf.qld.csv"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script" class="level3"><h3 class="anchored" data-anchor-id="gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script">
+<code>gnaf_cache_clear()</code> / <code>gnaf_cache_rollback()</code> error in a script</h3>
+<p>Both prompt for confirmation by default (<code>ask = TRUE</code>), which requires an interactive session. Pass <code>ask = FALSE</code> for scripted or scheduled use — you’re opting out of the safety prompt deliberately, so make sure the call is scoped correctly first (see <a href="./06-other-features.html#sec-cache-daily">the cache walkthrough</a>).</p>
+</section><section id="weights-error-weights-must-sum-to-100" class="level3"><h3 class="anchored" data-anchor-id="weights-error-weights-must-sum-to-100">Weights error: <code>'weights' must sum to 100</code>
+</h3>
+<p><code>gnaf_match(..., weights = list(...))</code> validates that every required component is present, numeric, non-negative, and sums to exactly 100 (within floating-point tolerance). The required names are <code>postcode</code>, <code>suburb</code>, <code>street_name</code>, <code>street_type</code>, <code>number</code>, <code>flat</code> — see <a href="./03-theory.html#sec-scoring">current default weights</a> for a sensible starting point to adjust from.</p>
 
 
 </section></section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
@@ -902,11 +1015,11 @@ Note
     }
   });
   </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
+      <a href="./06-other-features.html" class="pagination-link" aria-label="Other features">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Other features</span></span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./01-about.html" class="pagination-link" aria-label="About gnafr">
-        <span class="nav-page-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">About gnafr</span></span> <i class="bi bi-arrow-right-short"></i>
-      </a>
   </div>
 </nav>
 </div> <!-- /content -->
