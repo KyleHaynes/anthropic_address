@@ -423,16 +423,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="install" class="level2" data-number="2.1"><h2 data-number="2.1" class="anchored" data-anchor-id="install">
 <span class="header-section-number">2.1</span> Install</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"data.table"</span>, <span class="st">"DBI"</span>, <span class="st">"duckdb"</span>, <span class="st">"stringdist"</span>, <span class="st">"stringi"</span>, <span class="st">"cli"</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># from the package source directory</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_local</span><span class="op">(</span><span class="st">"gnafr"</span><span class="op">)</span></span>
-<span><span class="co"># or, while developing:</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">load_all</span><span class="op">(</span><span class="st">"gnafr"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># optional, for the Shiny app and spatial helpers</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"shiny"</span>, <span class="st">"reactable"</span>, <span class="st">"sf"</span>, <span class="st">"ggplot2"</span>, <span class="st">"viridisLite"</span>,</span>
-<span>                    <span class="st">"leaflet"</span>, <span class="st">"leaflet.extras"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># install.packages("devtools")</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"https://github.com/KyleHaynes/gnafr"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section><section id="a-five-minute-no-download-example" class="level2" data-number="2.2"><h2 data-number="2.2" class="anchored" data-anchor-id="a-five-minute-no-download-example">
 <span class="header-section-number">2.2</span> A five-minute, no-download example</h2>

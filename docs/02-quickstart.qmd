@@ -12,16 +12,8 @@ good lookup table](04-build-database.qmd).
 
 ```{r}
 #| eval: false
-install.packages(c("data.table", "DBI", "duckdb", "stringdist", "stringi", "cli"))
-
-# from the package source directory
-devtools::install_local("gnafr")
-# or, while developing:
-devtools::load_all("gnafr")
-
-# optional, for the Shiny app and spatial helpers
-install.packages(c("shiny", "reactable", "sf", "ggplot2", "viridisLite",
-                    "leaflet", "leaflet.extras"))
+# install.packages("devtools")
+devtools::install_github("https://github.com/KyleHaynes/gnafr")
 ```
 
 ## A five-minute, no-download example

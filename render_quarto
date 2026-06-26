@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+# Render the Quarto website source from doc/ into the repo-level docs/ folder.
+cd doc || exit 1
+quarto render . --output-dir ../docs

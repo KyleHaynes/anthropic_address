@@ -9,6 +9,8 @@ Fast, fuzzy Australian address matching against the [Geocoded National Address F
 - **Custom addresses** — add your own records and match against them alongside GNAF
 - **data.table throughout** — fast in-memory joins and vectorised scoring
 
+See [https://kylehaynes.github.io/gnafr](https://kylehaynes.github.io/gnafr) for more in-depth documentation and usage guidance.
+
 ---
 
 ## Contents
