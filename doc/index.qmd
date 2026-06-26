@@ -1,0 +1,15 @@
+---
+title: "Hello from gnafr"
+format: html
+---
+
+# Hello world
+
+Welcome to the `gnafr` Quarto website.
+
+This is a basic Quarto template ready to be rendered to HTML.
+
+```{r}
+#| echo: true
+summary(cars)
+```
