@@ -1,5 +1,8 @@
 # gnafr
 
+[![R-CMD-check](https://github.com/KyleHaynes/graphfast/workflows/R-CMD-check/badge.svg)](https://github.com/KyleHaynes/graphfast/actions)
+[![Status](https://img.shields.io/badge/status-development-orange)](https://github.com/KyleHaynes/graphfast)
+
 Fast, fuzzy Australian address matching against the [Geocoded National Address File (GNAF)](https://geoscape.com.au/data/g-naf/).
 
 - **Bulk matching** — 100k+ addresses in a single call
