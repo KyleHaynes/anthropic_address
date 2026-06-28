@@ -40,10 +40,9 @@ See [https://kylehaynes.github.io/gnafr](https://kylehaynes.github.io/gnafr) for
 # Install dependencies
 install.packages(c("data.table", "DBI", "duckdb", "stringdist"))
 
-# Install gnafr from source
-devtools::install_local("gnafr")
-# or from within the gnafr directory:
-devtools::load_all()
+# Install gnafr from Github
+devtools::install_github("KyleHaynes/gnafr")
+
 
 # Optional app dependencies
 install.packages(c("shiny", "reactable"))

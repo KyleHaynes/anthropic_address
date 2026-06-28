@@ -44,6 +44,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         "  });\n",
         "});"
       )),
+      shiny::tags$style(shiny::HTML(jsdiffr::diff_css_default())),
       shiny::tags$style(shiny::HTML(
         ".app-shell {max-width: 1720px; margin: 0 auto; padding: 0 20px 24px;}\n",
         ".app-header {display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-top:20px;}\n",
@@ -69,6 +70,9 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         ".reactable .rt-tr-group {min-height:auto;}\n",
         ".details-shell {max-width: 780px; padding: 8px 10px; background: #f8fbff; border-radius: 10px;}\n",
         ".details-title {font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #102a43;}\n",
+        ".diff-cell {padding: 6px 8px;}\n",
+        ".diff-cell .jsdiff-pre {white-space: pre-wrap; font-size: 12px;}\n",
+        ".diff-controls {margin: 16px 0;}\n",
         "@media (max-width: 1100px) {.app-layout {grid-template-columns:1fr;} .sidebar-panel {order:2;} .content-panel {order:1;}}\n",
         "@media (max-width: 900px) {.metric-grid {grid-template-columns: 1fr;} .app-shell {padding:0 12px 24px;}}"
       ))
@@ -128,7 +132,40 @@ gnaf_app <- function(con = NULL, db_path = NULL,
           shiny::uiOutput("metrics"),
           shiny::tabsetPanel(
             shiny::tabPanel("Matches", reactable::reactableOutput("results_table")),
-            shiny::tabPanel("Parsed Inputs", reactable::reactableOutput("parsed_table"))
+            shiny::tabPanel("Parsed Inputs", reactable::reactableOutput("parsed_table")),
+            shiny::tabPanel(
+              "Compare",
+              shiny::div(
+                class = "panel diff-controls",
+                shiny::fluidRow(
+                  shiny::column(
+                    5,
+                    shiny::radioButtons(
+                      "diff_pair", "Compare",
+                      choices = c(
+                        "Input vs Standardised"           = "raw_std",
+                        "Input vs Matched address"         = "raw_match",
+                        "Standardised vs Matched address"  = "std_match"
+                      ),
+                      selected = "raw_std"
+                    )
+                  ),
+                  shiny::column(
+                    4,
+                    shiny::radioButtons(
+                      "diff_granularity", "Diff level",
+                      choices = c("Words" = "diff_words", "Characters" = "diff_chars"),
+                      selected = "diff_words", inline = TRUE
+                    )
+                  ),
+                  shiny::column(
+                    3,
+                    shiny::checkboxInput("diff_changes_only", "Only rows with differences", value = FALSE)
+                  )
+                )
+              ),
+              reactable::reactableOutput("diff_table")
+            )
           )
         )
       )
@@ -208,8 +245,8 @@ gnaf_app <- function(con = NULL, db_path = NULL,
           shiny::incProgress(0.35, detail = "Parsed input addresses")
 
           matches <- gnaf_match(
-            current_con(),
-            addresses,
+            addresses = addresses,
+            con = current_con(),
             max_results = as.integer(input$max_results),
             min_score = as.integer(input$min_score),
             include_custom = isTRUE(input$include_custom),
@@ -374,6 +411,54 @@ gnaf_app <- function(con = NULL, db_path = NULL,
       )
     })
 
+    output$diff_table <- reactable::renderReactable({
+      pair_cols <- .gnaf_diff_pair_columns(input$diff_pair %||% "raw_std")
+      method_fn <- if (identical(input$diff_granularity, "diff_chars")) {
+        jsdiffr::diff_chars
+      } else {
+        jsdiffr::diff_words
+      }
+
+      diff_data <- results_rv()[, c(
+        "input_id", "match_rank", "matched", "match_status",
+        pair_cols$left, pair_cols$right
+      ), with = FALSE]
+      data.table::setnames(diff_data, c(pair_cols$left, pair_cols$right), c("left", "right"))
+      diff_data[, has_diff := !is.na(right) & nzchar(right) & (is.na(left) | left != right)]
+      diff_data[, diff := ""]
+
+      if (isTRUE(input$diff_changes_only)) {
+        diff_data <- diff_data[has_diff == TRUE]
+      }
+
+      diff_cell <- function(value, index) {
+        row <- diff_data[index, ]
+        .gnaf_diff_cell(row$left, row$right, method_fn)
+      }
+
+      reactable::reactable(
+        diff_data,
+        defaultPageSize = 12,
+        searchable = TRUE,
+        filterable = TRUE,
+        highlight = TRUE,
+        striped = TRUE,
+        defaultSorted = list(has_diff = "desc"),
+        columns = list(
+          input_id     = reactable::colDef(name = "Input", maxWidth = 80),
+          match_rank   = reactable::colDef(name = "Rank", maxWidth = 80),
+          matched      = reactable::colDef(name = "Matched", maxWidth = 90),
+          match_status = reactable::colDef(name = "Status", minWidth = 130),
+          left         = reactable::colDef(name = pair_cols$left_label, minWidth = 220),
+          right        = reactable::colDef(name = pair_cols$right_label, minWidth = 220),
+          has_diff     = reactable::colDef(show = FALSE),
+          diff         = reactable::colDef(name = "Diff", cell = diff_cell, minWidth = 380)
+        ),
+        defaultColDef = reactable::colDef(na = "-", minWidth = 80),
+        theme = .gnaf_reactable_theme()
+      )
+    })
+
     output$download_results <- shiny::downloadHandler(
       filename = function() {
         sprintf("gnafr-geocode-%s.csv", format(Sys.time(), "%Y%m%d-%H%M%S"))
@@ -394,7 +479,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
 }
 
 .gnaf_require_app_packages <- function() {
-  needed <- c("shiny", "reactable")
+  needed <- c("shiny", "reactable", "jsdiffr")
   missing <- needed[!vapply(needed, requireNamespace, logical(1), quietly = TRUE)]
   if (length(missing) > 0L) {
     stop(
@@ -555,5 +640,36 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         fontWeight = 700
       )
     }
+  )
+}
+
+.gnaf_diff_pair_columns <- function(pair) {
+  switch(
+    pair,
+    raw_std = list(
+      left = "input_raw", right = "input_standardised",
+      left_label = "Input", right_label = "Standardised"
+    ),
+    raw_match = list(
+      left = "input_raw", right = "address_label",
+      left_label = "Input", right_label = "Matched address"
+    ),
+    std_match = list(
+      left = "input_standardised", right = "address_label",
+      left_label = "Standardised", right_label = "Matched address"
+    ),
+    stop("Unknown diff pair: ", pair, call. = FALSE)
+  )
+}
+
+.gnaf_diff_cell <- function(left, right, method_fn) {
+  if (is.na(right) || !nzchar(right)) {
+    return(shiny::div(class = "help-text", "No match to compare"))
+  }
+  if (is.na(left)) left <- ""
+  changes <- method_fn(left, right)
+  shiny::div(
+    class = "diff-cell",
+    shiny::HTML(jsdiffr::diff_to_html(changes, wrap = TRUE, pre = FALSE))
   )
 }

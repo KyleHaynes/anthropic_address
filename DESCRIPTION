@@ -18,6 +18,7 @@ Imports:
     DBI (>= 1.1.0),
     duckdb (>= 0.9.0),
     fast.string,
+    jsdiffr,
     stringdist (>= 0.9.0),
     stringi,
     sf,
@@ -30,6 +31,7 @@ Imports:
 Suggests:
     testthat (>= 3.0.0)
 Remotes:
-    KyleHaynes/fast.string
+    KyleHaynes/fast.string,
+    KyleHaynes/jsdiffr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2
