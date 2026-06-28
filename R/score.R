@@ -144,9 +144,8 @@
   jw_suburb <- rep(0, nrow(pairs))
   ok <- !is.na(pairs$in_locality) & !is.na(pairs$locality_name)
   if (any(ok)) {
-    jw_suburb[ok] <- 1 - stringdist::stringdist(
-      pairs$in_locality[ok], pairs$locality_name[ok],
-      method = "jw", p = 0.1
+    jw_suburb[ok] <- fast.string::jaro_winkler(
+      pairs$in_locality[ok], pairs$locality_name[ok], p = 0.1
     )
   }
   pairs[, score_suburb := as.integer(round(weights$suburb * jw_suburb))]
@@ -155,9 +154,8 @@
   jw_street <- rep(0, nrow(pairs))
   ok <- !is.na(pairs$in_street_name) & !is.na(pairs$street_name)
   if (any(ok)) {
-    jw_street[ok] <- 1 - stringdist::stringdist(
-      pairs$in_street_name[ok], pairs$street_name[ok],
-      method = "jw", p = 0.1
+    jw_street[ok] <- fast.string::jaro_winkler(
+      pairs$in_street_name[ok], pairs$street_name[ok], p = 0.1
     )
   }
   pairs[, score_street_name := as.integer(round(weights$street_name * jw_street))]

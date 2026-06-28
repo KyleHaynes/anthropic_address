@@ -17,6 +17,7 @@ Imports:
     data.table (>= 1.14.0),
     DBI (>= 1.1.0),
     duckdb (>= 0.9.0),
+    fast.string,
     stringdist (>= 0.9.0),
     stringi,
     sf,
@@ -28,5 +29,7 @@ Imports:
     shiny
 Suggests:
     testthat (>= 3.0.0)
+Remotes:
+    KyleHaynes/fast.string
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2

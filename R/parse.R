@@ -31,13 +31,13 @@
 # when normalize = TRUE in address_parse / gnaf_match.
 .expand_abbreviations <- function(dt) {
   exp_common <- function(x) {
-    stringi::stri_replace_all_regex(x, .EXPAND_PATTERNS, .EXPAND_REPLACEMENTS,
-                                    vectorize_all = FALSE)
+    fast.string::gsub_all(.EXPAND_PATTERNS, .EXPAND_REPLACEMENTS, x,
+                          sequential = TRUE)
   }
   dt[, in_locality := exp_common(in_locality)]
-  dt[, in_street_name := stringi::stri_replace_all_regex(
-    exp_common(in_street_name), .ORDINAL_PATTERNS, .ORDINAL_REPLACEMENTS,
-    vectorize_all = FALSE
+  dt[, in_street_name := fast.string::gsub_all(
+    .ORDINAL_PATTERNS, .ORDINAL_REPLACEMENTS, exp_common(in_street_name),
+    sequential = TRUE
   )]
   dt
 }
@@ -80,10 +80,11 @@ address_parse <- function(addresses, normalize = TRUE) {
   # prioritising fuzzy-matching of misspelt types (e.g. "STX" -> "ST").
   # The LAST comma is used so flat/unit notations like "Unit 5, 10 Smith St,
   # Brisbane ..." don't pick up the flat number instead.
-  addr_upper <- stringi::stri_replace_all_fixed(
-    stringi::stri_trans_toupper(stringi::stri_trim_both(addresses)), ".", " "
+  addr_upper <- fast.string::fgsub(
+    ".", " ", stringi::stri_trans_toupper(fast.string::ftrimws(addresses)),
+    fixed = TRUE
   )
-  addr_upper <- stringi::stri_replace_all_regex(addr_upper, "\\s+", " ")
+  addr_upper <- fast.string::fgsub("\\s+", " ", addr_upper)
   comma_word <- stringi::stri_match_first_regex(
     addr_upper, "\\b([A-Z0-9]+)\\s*,[^,]*$"
   )[, 2L]
@@ -146,7 +147,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   if (length(idx) > 0L) {
     in_state[idx]    <- m[hit, 2L]
     in_postcode[idx] <- as.integer(m[hit, 3L])
-    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], a_re, ""))
+    work[idx] <- fast.string::ftrimws(fast.string::fsub(a_re, "", work[idx]))
   }
   rem <- rem[!hit]
 
@@ -156,7 +157,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   if (length(idx) > 0L) {
     in_postcode[idx] <- as.integer(m[hit, 2L])
     in_state[idx]    <- m[hit, 3L]
-    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], b_re, ""))
+    work[idx] <- fast.string::ftrimws(fast.string::fsub(b_re, "", work[idx]))
   }
   rem <- rem[!hit]
 
@@ -165,7 +166,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   idx <- rem[hit]
   if (length(idx) > 0L) {
     in_state[idx] <- m[hit, 2L]
-    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], c_re, ""))
+    work[idx] <- fast.string::ftrimws(fast.string::fsub(c_re, "", work[idx]))
   }
   rem <- rem[!hit]
 
@@ -174,7 +175,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   idx <- rem[hit]
   if (length(idx) > 0L) {
     in_postcode[idx] <- as.integer(m[hit, 2L])
-    work[idx] <- trimws(stringi::stri_replace_first_regex(work[idx], d_re, ""))
+    work[idx] <- fast.string::ftrimws(fast.string::fsub(d_re, "", work[idx]))
   }
 
   # ------------------------------------------------------------------
@@ -185,7 +186,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   st_end <- loc_st[, 2L]
   has_st <- !is.na(st_pos) & valid
   st_raw <- rep(NA_character_, n)
-  st_raw[has_st] <- substr(work[has_st], st_pos[has_st], st_end[has_st])
+  st_raw[has_st] <- fast.string::fsubstr(work[has_st], st_pos[has_st], st_end[has_st])
   in_street_type <- unname(st_map[st_raw])
 
   # Comma hint: when the word immediately before the (last) comma in the
@@ -205,19 +206,19 @@ address_parse <- function(addresses, normalize = TRUE) {
     if (length(chk) > 0L) {
       st_keys <- names(st_map)
       sims <- vapply(cw[chk], function(w)
-        max(1 - stringdist::stringdist(w, st_keys, method = "jw", p = 0.1)), numeric(1))
+        max(fast.string::jaro_winkler_matrix(w, st_keys, p = 0.1)[1L, ]), numeric(1))
       plausible[chk] <- sims >= 0.85
     }
     needs_fix[midx[plausible]] <- TRUE
   }
   has_st <- has_st & !needs_fix
 
-  before_st_end <- ifelse(has_st, st_pos - 1L, nchar(work))
-  before_st     <- trimws(substr(work, 1L, before_st_end))
+  before_st_end <- ifelse(has_st, st_pos - 1L, fast.string::fnchar(work))
+  before_st     <- fast.string::ftrimws(fast.string::fsubstr(work, 1L, before_st_end))
   before_st[!nzchar(before_st)] <- NA_character_
 
-  after_st_start <- ifelse(has_st, st_end + 1L, nchar(work) + 1L)
-  after_st_raw   <- trimws(substr(work, after_st_start, nchar(work)))
+  after_st_start <- ifelse(has_st, st_end + 1L, fast.string::fnchar(work) + 1L)
+  after_st_raw   <- fast.string::ftrimws(fast.string::fsubstr(work, after_st_start, fast.string::fnchar(work)))
   after_st_raw[!nzchar(after_st_raw) | !has_st] <- NA_character_
 
   # ------------------------------------------------------------------
@@ -229,8 +230,8 @@ address_parse <- function(addresses, normalize = TRUE) {
 
   in_street_suffix[has_sfx] <- sfx_m[has_sfx, 2L]
   loc_raw <- after_st_raw
-  loc_raw[has_sfx] <- trimws(stringi::stri_replace_first_regex(
-    after_st_raw[has_sfx], sfx_re, ""))
+  loc_raw[has_sfx] <- fast.string::ftrimws(fast.string::fsub(
+    sfx_re, "", after_st_raw[has_sfx]))
   in_locality <- ifelse(!is.na(loc_raw) & nzchar(loc_raw), loc_raw, NA_character_)
 
   # ------------------------------------------------------------------
@@ -279,7 +280,9 @@ address_parse <- function(addresses, normalize = TRUE) {
   if (length(idx) > 0L) {
     in_flat_type[idx]   <- unname(ft_map[m[hit, 2L]])
     in_flat_number[idx] <- m[hit, 3L]
-    rest <- trimws(substr(bst[idx], nchar(m[hit, 1L]) + 1L, nchar(bst[idx])))
+    rest <- fast.string::ftrimws(fast.string::fsubstr(
+      bst[idx], fast.string::fnchar(m[hit, 1L]) + 1L, fast.string::fnchar(bst[idx])
+    ))
     # parse "NUM[-NUM] STREETNAME" from rest (number may have trailing alpha e.g. 190A)
     m2  <- stringi::stri_match_first_regex(rest, "^(\\d+[A-Z]?(?:-\\d+[A-Z]?)?)\\s+(.+)$")
     ok2 <- !is.na(m2[, 1L])
@@ -335,7 +338,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   # of the street name.
   if (any(hit)) {
     embed_re <- paste0("\\b(?:", ft_alt, ")\\s+\\d+|\\bU\\d+\\b")
-    hit[hit] <- !stringi::stri_detect_regex(m[hit, 3L], embed_re)
+    hit[hit] <- !fast.string::fgrepl(embed_re, m[hit, 3L])
   }
   idx <- cand[hit]
   if (length(idx) > 0L) {
@@ -484,7 +487,7 @@ address_parse <- function(addresses, normalize = TRUE) {
     if (cw_all[1L] > 0L) {
       cw_canon <- unname(st_map[comma_word])
       if (is.na(cw_canon)) {
-        sims <- 1 - stringdist::stringdist(comma_word, names(st_map), method = "jw", p = 0.1)
+        sims <- fast.string::jaro_winkler_matrix(comma_word, names(st_map), p = 0.1)[1L, ]
         j <- which.max(sims)
         if (sims[[j]] >= 0.85) cw_canon <- unname(st_map[[names(st_map)[[j]]]])
       }
@@ -796,8 +799,7 @@ address_parse <- function(addresses, normalize = TRUE) {
   if (length(cand) == 0L) return(NULL)
 
   st_keys  <- names(st_map)
-  sims     <- 1 - stringdist::stringdistmatrix(words[cand], st_keys,
-                                               method = "jw", p = 0.1)
+  sims     <- fast.string::jaro_winkler_matrix(words[cand], st_keys, p = 0.1)
   key_j    <- max.col(sims, ties.method = "first")
   best_per <- sims[cbind(seq_along(cand), key_j)]
 

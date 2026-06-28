@@ -48,12 +48,11 @@
 #' Normalize a raw address string for parsing
 #' @noRd
 .normalize_addr <- function(x) {
-  x <- stringi::stri_trans_toupper(stringi::stri_trim_both(x))
-  x <- stringi::stri_replace_all_fixed(x, ",", " ")
-  x <- stringi::stri_replace_all_fixed(x, ".", " ")
-  x <- stringi::stri_replace_all_regex(x, "\\s+", " ")
+  x <- stringi::stri_trans_toupper(fast.string::ftrimws(x))
+  x <- fast.string::gsub_all(c(",", "."), " ", x, fixed = TRUE)
+  x <- fast.string::fgsub("\\s+", " ", x)
   x <- .fix_glued_number_letters(x)
-  stringi::stri_trim_both(x)
+  fast.string::ftrimws(x)
 }
 
 # A number directly followed by 2+ letters with no space (e.g. "25ST JAMES
@@ -65,7 +64,7 @@
 # suffix for that number, and only insert a space otherwise.
 .fix_glued_number_letters <- function(x) {
   glue_re <- "(\\d+)([A-Z]{2,})"
-  needs <- stringi::stri_detect_regex(x, glue_re)
+  needs <- fast.string::fgrepl(glue_re, x, perl = TRUE)
   if (!any(needs, na.rm = TRUE)) return(x)
   idx <- which(needs)
   x[idx] <- vapply(x[idx], .fix_one_glued_number, character(1L), USE.NAMES = FALSE)
@@ -107,7 +106,7 @@
 #' collapse internal spaces)
 #' @noRd
 .normalize_str <- function(x) {
-  trimws(gsub("\\s+", " ", x))
+  fast.string::ftrimws(fast.string::fgsub("\\s+", " ", x))
 }
 
 # Convert an alias_types argument to a SQL WHERE fragment.

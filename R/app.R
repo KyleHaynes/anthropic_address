@@ -420,8 +420,8 @@ gnaf_app <- function(con = NULL, db_path = NULL,
   jw <- rep(NA_real_, nrow(out))
   jaccard <- rep(NA_real_, nrow(out))
   if (any(matched_idx)) {
-    jw[matched_idx] <- 1 - stringdist::stringdist(
-      input_norm[matched_idx], match_norm[matched_idx], method = "jw", p = 0.1
+    jw[matched_idx] <- fast.string::jaro_winkler(
+      input_norm[matched_idx], match_norm[matched_idx], p = 0.1
     )
     jaccard[matched_idx] <- 1 - stringdist::stringdist(
       input_norm[matched_idx], match_norm[matched_idx], method = "jaccard", q = 2
