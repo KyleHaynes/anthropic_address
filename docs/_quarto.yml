@@ -30,7 +30,8 @@ book:
       chapters:
         - 05-function-reference.qmd
         - 06-other-features.qmd
-        - 07-troubleshooting.qmd
+        - 07-alias-matching.qmd
+        - 08-troubleshooting.qmd
 
 format:
   html:

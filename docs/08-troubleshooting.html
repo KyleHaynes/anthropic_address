@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.9.38">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>4&nbsp; Building a good lookup table – gnafr</title>
+<title>8&nbsp; Troubleshooting &amp; performance – gnafr</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -64,8 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./05-function-reference.html" rel="next">
-<link href="./03-theory.html" rel="prev">
+<link href="./07-alias-matching.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -276,7 +275,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./03-theory.html">Under the hood</a></li><li class="breadcrumb-item"><a href="./04-build-database.html"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./05-function-reference.html">Reference</a></li><li class="breadcrumb-item"><a href="./08-troubleshooting.html"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -336,13 +335,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
  <span class="menu-text">Under the hood</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./03-theory.html" class="sidebar-item-text sidebar-link">
@@ -351,7 +350,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./04-build-database.html" class="sidebar-item-text sidebar-link active">
+  <a href="./04-build-database.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></span></a>
   </div>
 </li>
@@ -359,13 +358,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
  <span class="menu-text">Reference</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">
 <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./05-function-reference.html" class="sidebar-item-text sidebar-link">
@@ -386,7 +385,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./08-troubleshooting.html" class="sidebar-item-text sidebar-link">
+  <a href="./08-troubleshooting.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></span></a>
   </div>
 </li>
@@ -400,21 +399,39 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Table of contents</h2>
    
   <ul>
-<li><a href="#step-0-schema" id="toc-step-0-schema" class="nav-link active" data-scroll-target="#step-0-schema"><span class="header-section-number">4.1</span> Step 0 — Schema</a></li>
-  <li><a href="#step-1-load-g-naf-core" id="toc-step-1-load-g-naf-core" class="nav-link" data-scroll-target="#step-1-load-g-naf-core"><span class="header-section-number">4.2</span> Step 1 — Load G-NAF Core</a></li>
-  <li><a href="#step-2-canonicalise-street-types-usually-a-no-op" id="toc-step-2-canonicalise-street-types-usually-a-no-op" class="nav-link" data-scroll-target="#step-2-canonicalise-street-types-usually-a-no-op"><span class="header-section-number">4.3</span> Step 2 — Canonicalise street types (usually a no-op)</a></li>
-  <li><a href="#step-3-build-street-only-aliases" id="toc-step-3-build-street-only-aliases" class="nav-link" data-scroll-target="#step-3-build-street-only-aliases"><span class="header-section-number">4.4</span> Step 3 — Build street-only aliases</a></li>
-  <li><a href="#step-4-rebuild-the-locality-search-index-usually-automatic" id="toc-step-4-rebuild-the-locality-search-index-usually-automatic" class="nav-link" data-scroll-target="#step-4-rebuild-the-locality-search-index-usually-automatic"><span class="header-section-number">4.5</span> Step 4 — Rebuild the locality search index (usually automatic)</a></li>
-  <li><a href="#step-5-optional-custom-addresses" id="toc-step-5-optional-custom-addresses" class="nav-link" data-scroll-target="#step-5-optional-custom-addresses"><span class="header-section-number">4.6</span> Step 5 (optional) — Custom addresses</a></li>
-  <li><a href="#step-6-verify" id="toc-step-6-verify" class="nav-link" data-scroll-target="#step-6-verify"><span class="header-section-number">4.7</span> Step 6 — Verify</a></li>
-  <li><a href="#alternative-ingestion-path-gnaf_load_psv" id="toc-alternative-ingestion-path-gnaf_load_psv" class="nav-link" data-scroll-target="#alternative-ingestion-path-gnaf_load_psv"><span class="header-section-number">4.8</span> Alternative ingestion path: <code>gnaf_load_psv()</code></a></li>
-  <li><a href="#keeping-a-database-current" id="toc-keeping-a-database-current" class="nav-link" data-scroll-target="#keeping-a-database-current"><span class="header-section-number">4.9</span> Keeping a database current</a></li>
+<li>
+<a href="#working-with-results" id="toc-working-with-results" class="nav-link active" data-scroll-target="#working-with-results"><span class="header-section-number">8.1</span> Working with results</a>
+  <ul class="collapse">
+<li><a href="#extracting-the-best-match-per-input" id="toc-extracting-the-best-match-per-input" class="nav-link" data-scroll-target="#extracting-the-best-match-per-input">Extracting the best match per input</a></li>
+  <li><a href="#filtering-by-confidence" id="toc-filtering-by-confidence" class="nav-link" data-scroll-target="#filtering-by-confidence">Filtering by confidence</a></li>
+  <li><a href="#finding-inputs-that-didnt-match" id="toc-finding-inputs-that-didnt-match" class="nav-link" data-scroll-target="#finding-inputs-that-didnt-match">Finding inputs that didn’t match</a></li>
+  <li><a href="#joining-match-results-back-to-your-input-data" id="toc-joining-match-results-back-to-your-input-data" class="nav-link" data-scroll-target="#joining-match-results-back-to-your-input-data">Joining match results back to your input data</a></li>
+  <li><a href="#diagnosing-a-specific-low-score" id="toc-diagnosing-a-specific-low-score" class="nav-link" data-scroll-target="#diagnosing-a-specific-low-score">Diagnosing a specific low score</a></li>
+  </ul>
+</li>
+  <li>
+<a href="#performance" id="toc-performance" class="nav-link" data-scroll-target="#performance"><span class="header-section-number">8.2</span> Performance</a>
+  <ul class="collapse">
+<li><a href="#typical-throughput" id="toc-typical-throughput" class="nav-link" data-scroll-target="#typical-throughput">Typical throughput</a></li>
+  <li><a href="#what-actually-drives-runtime" id="toc-what-actually-drives-runtime" class="nav-link" data-scroll-target="#what-actually-drives-runtime">What actually drives runtime</a></li>
+  <li><a href="#chunking-very-large-batches" id="toc-chunking-very-large-batches" class="nav-link" data-scroll-target="#chunking-very-large-batches">Chunking very large batches</a></li>
+  </ul>
+</li>
+  <li>
+<a href="#common-errors" id="toc-common-errors" class="nav-link" data-scroll-target="#common-errors"><span class="header-section-number">8.3</span> Common errors</a>
+  <ul class="collapse">
+<li><a href="#file-not-found-from-gnaf_load" id="toc-file-not-found-from-gnaf_load" class="nav-link" data-scroll-target="#file-not-found-from-gnaf_load">“File not found” from <code>gnaf_load()</code></a></li>
+  <li><a href="#duckdb-version-errors-after-upgrading-the-duckdb-package" id="toc-duckdb-version-errors-after-upgrading-the-duckdb-package" class="nav-link" data-scroll-target="#duckdb-version-errors-after-upgrading-the-duckdb-package">DuckDB version errors after upgrading the <code>duckdb</code> package</a></li>
+  <li><a href="#gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script" id="toc-gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script" class="nav-link" data-scroll-target="#gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script"><code>gnaf_cache_clear()</code> / <code>gnaf_cache_rollback()</code> error in a script</a></li>
+  <li><a href="#weights-error-weights-must-sum-to-100" id="toc-weights-error-weights-must-sum-to-100" class="nav-link" data-scroll-target="#weights-error-weights-must-sum-to-100">Weights error: <code>'weights' must sum to 100</code></a></li>
+  </ul>
+</li>
   </ul></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./03-theory.html">Under the hood</a></li><li class="breadcrumb-item"><a href="./04-build-database.html"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span></a></li></ol></nav><div class="quarto-title">
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./05-function-reference.html">Reference</a></li><li class="breadcrumb-item"><a href="./08-troubleshooting.html"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></a></li></ol></nav><div class="quarto-title">
 <h1 class="title">
-<span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Building a good lookup table</span>
+<span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span>
 </h1>
 </div>
 
@@ -429,195 +446,169 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   
 
 
-</header><p>This chapter walks through <a href="../build_gnaf_database.R"><code>build_gnaf_database.R</code></a>, the reference build pipeline shipped in the package repository. Every step below is something gnafr actually does (or can do) to turn a raw G-NAF download into a database that <a href="./05-function-reference.html#gnaf_match"><code>gnaf_match()</code></a> matches well against. It’s written to run top-to-bottom on a fresh database; each stage explains <em>why</em> it’s there, not just what it does.</p>
-<p>All paths below are placeholders — adjust them to wherever you’ve downloaded G-NAF and want the DuckDB file to live. Every chunk in this chapter is <code>eval: false</code>: it references files that don’t exist in this build environment, but is otherwise exactly what you’d run.</p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+</header><section id="working-with-results" class="level2" data-number="8.1"><h2 data-number="8.1" class="anchored" data-anchor-id="working-with-results">
+<span class="header-section-number">8.1</span> Working with results</h2>
+<section id="extracting-the-best-match-per-input" class="level3"><h3 class="anchored" data-anchor-id="extracting-the-best-match-per-input">Extracting the best match per input</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">best</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">[</span><span class="va">match_rank</span> <span class="op">==</span> <span class="fl">1</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="filtering-by-confidence" class="level3"><h3 class="anchored" data-anchor-id="filtering-by-confidence">Filtering by confidence</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Only high-confidence matches for automated processing</span></span>
+<span><span class="va">high_conf</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">[</span><span class="va">match_rank</span> <span class="op">==</span> <span class="fl">1</span> <span class="op">&amp;</span> <span class="va">total_score</span> <span class="op">&gt;=</span> <span class="fl">80</span><span class="op">]</span></span>
 <span></span>
-<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<section id="step-0-schema" class="level2" data-number="4.1"><h2 data-number="4.1" class="anchored" data-anchor-id="step-0-schema">
-<span class="header-section-number">4.1</span> Step 0 — Schema</h2>
+<span><span class="co"># Flag low-confidence matches for manual review instead of dropping them</span></span>
+<span><span class="va">results</span><span class="op">[</span>, <span class="va">needs_review</span> <span class="op">:=</span> <span class="va">total_score</span> <span class="op">&lt;</span> <span class="fl">70</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="finding-inputs-that-didnt-match" class="level3"><h3 class="anchored" data-anchor-id="finding-inputs-that-didnt-match">Finding inputs that didn’t match</h3>
+<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> keeps every input in its output — even unmatched ones — with <code>NA</code> score/address columns and a <code>match_status</code> explaining why:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>Creates <code>gnaf_addresses</code> / <code>custom_addresses</code> (every G-NAF Core column — see below), the locality search index, and the match cache. <strong>Always call this first</strong>, even on a database you’ve built before — every <code>CREATE</code> is <code>IF NOT EXISTS</code>, and any columns added to the schema since the database was first built are migrated in via <code>ALTER TABLE ADD COLUMN IF NOT EXISTS</code>. It’s how older databases pick up schema changes without a rebuild.</p>
-</section><section id="step-1-load-g-naf-core" class="level2" data-number="4.2"><h2 data-number="4.2" class="anchored" data-anchor-id="step-1-load-g-naf-core">
-<span class="header-section-number">4.2</span> Step 1 — Load G-NAF Core</h2>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf.qld.csv"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code> reads the CSV straight into DuckDB with <code>read_csv()</code> — the file is never pulled into R, so this scales to state-sized files without RAM pressure. It captures every column G-NAF Core publishes, not just the ones obviously needed for address-string matching:</p>
-<ul>
-<li>
-<strong><code>PRIMARY_SECONDARY</code> / <code>PRIMARY_PID</code></strong> — distinguishes a main dwelling from its sub-dwellings (units/secondaries), and points a secondary back at its primary record. Without this, <code>"10 EXAMPLE ST"</code> and <code>"UNIT 2 10 EXAMPLE ST"</code> are just two unrelated rows with no way to relate them.</li>
-<li>
-<strong><code>ALIAS_PRINCIPAL</code> / <code>PRINCIPAL_PID</code></strong> — flags alias address records and maps them back to the principal (canonical) record they’re an alias of.</li>
-<li>
-<strong><code>DATE_CREATED</code>, <code>LEGAL_PARCEL_ID</code>, <code>MB_CODE</code>, <code>GEOCODE_TYPE</code></strong> — free (already in the source file) and useful for downstream filtering/auditing — e.g.&nbsp;excluding very recently created records, or joining to ABS Mesh Block data via <code>MB_CODE</code> — without a second load.</li>
-</ul>
-<p>Loading is <strong>idempotent</strong> on <code>ADDRESS_DETAIL_PID</code> (<code>ON CONFLICT DO NOTHING</code>), so re-running this on a database that already has the same file loaded is a safe no-op, not a pile of duplicates. Pass a vector of paths to load several states in one call, or <code>overwrite = TRUE</code> to wipe and reload from scratch.</p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="co"># Multiple states in one call</span></span>
-<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.qld.csv"</span>, <span class="st">"C:/temp/gnaf.nsw.csv"</span><span class="op">)</span><span class="op">)</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">gnafr</span><span class="op">)</span></span>
+<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
+<span>  address_label <span class="op">=</span> <span class="st">"10 MUSGRAVE ROAD, RED HILL QLD 4059"</span>,</span>
+<span>  number_first <span class="op">=</span> <span class="fl">10L</span>, street_name <span class="op">=</span> <span class="st">"MUSGRAVE"</span>, street_type <span class="op">=</span> <span class="st">"ROAD"</span>,</span>
+<span>  locality_name <span class="op">=</span> <span class="st">"RED HILL"</span>, state <span class="op">=</span> <span class="st">"QLD"</span>, postcode <span class="op">=</span> <span class="fl">4059L</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Wipe and reload</span></span>
-<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf.qld.csv"</span>, overwrite <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"10 Musgrave Road, Red Hill QLD 4059"</span>, <span class="st">"1 Nowhere Street, Fakesuburb QLD 9999"</span><span class="op">)</span>,</span>
+<span>  <span class="va">con</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">results</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">input_raw</span>, <span class="va">matched</span>, <span class="va">match_status</span>, <span class="va">total_score</span><span class="op">)</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                               input_raw matched match_status total_score
+                                  &lt;char&gt;  &lt;lgcl&gt;       &lt;char&gt;       &lt;int&gt;
+1:   10 Musgrave Road, Red Hill QLD 4059    TRUE      matched         100
+2: 1 Nowhere Street, Fakesuburb QLD 9999   FALSE no_candidate          NA</code></pre>
 </div>
-<p>All the standard G-NAF Core columns land in <code>gnaf_addresses</code>; the ones gnafr’s parser and scorer rely on directly:</p>
+</div>
+<p><code>match_status</code> takes one of four values:</p>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead><tr class="header">
-<th>Column</th>
-<th>Example</th>
+<th>Value</th>
+<th>Meaning</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td><code>ADDRESS_DETAIL_PID</code></td>
-<td><code>GAQLD159783900</code></td>
+<td><code>matched</code></td>
+<td>At least one candidate scored at or above <code>min_score</code>.</td>
 </tr>
 <tr class="even">
-<td><code>ADDRESS_LABEL</code></td>
-<td><code>UNIT 50 13-27 FAIRWAY DR, CLEAR ISLAND WATERS QLD 4226</code></td>
+<td><code>below_min_score</code></td>
+<td>Candidates existed but none cleared <code>min_score</code> — try lowering it, or inspect with <code>min_score = 0</code> to see what was found.</td>
 </tr>
 <tr class="odd">
-<td>
-<code>FLAT_TYPE</code> / <code>FLAT_NUMBER</code>
-</td>
-<td>
-<code>UNIT</code> / <code>50</code>
-</td>
+<td><code>insufficient_parse</code></td>
+<td>The parser couldn’t extract a street name, or found none of postcode/state/locality to search by. Check with <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code>.</td>
 </tr>
 <tr class="even">
-<td>
-<code>NUMBER_FIRST</code> / <code>NUMBER_LAST</code>
-</td>
-<td>
-<code>13</code> / <code>27</code>
-</td>
-</tr>
-<tr class="odd">
-<td>
-<code>STREET_NAME</code> / <code>STREET_TYPE</code>
-</td>
-<td>
-<code>FAIRWAY</code> / <code>DRIVE</code>
-</td>
-</tr>
-<tr class="even">
-<td><code>LOCALITY_NAME</code></td>
-<td><code>CLEAR ISLAND WATERS</code></td>
-</tr>
-<tr class="odd">
-<td>
-<code>STATE</code> / <code>POSTCODE</code>
-</td>
-<td>
-<code>QLD</code> / <code>4226</code>
-</td>
-</tr>
-<tr class="even">
-<td>
-<code>LONGITUDE</code> / <code>LATITUDE</code>
-</td>
-<td>
-<code>153.4023</code> / <code>-28.03448</code>
-</td>
+<td><code>no_candidate</code></td>
+<td>Parsing succeeded but no database row satisfied even the coarse pre-filters (most commonly: the street number genuinely isn’t in the database — see <a href="./03-theory.html#sec-scoring">the number filter</a>).</td>
 </tr>
 </tbody>
-</table></section><section id="step-2-canonicalise-street-types-usually-a-no-op" class="level2" data-number="4.3"><h2 data-number="4.3" class="anchored" data-anchor-id="step-2-canonicalise-street-types-usually-a-no-op">
-<span class="header-section-number">4.3</span> Step 2 — Canonicalise street types (usually a no-op)</h2>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_canonicalize_street_types.html">gnaf_canonicalize_street_types</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>Free-text addresses mix abbreviated and full street types (<code>"RD"</code> vs <code>"ROAD"</code>, <code>"AV"</code> vs <code>"AVENUE"</code>), and <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s street-type score (<a href="03-theory.html#sec-scoring" class="quarto-xref"><span>Section 3.2</span></a>) expects both sides of a comparison to use the same convention to award full credit. <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code> already canonicalises <code>STREET_TYPE</code> inline at insert time, so immediately after Step 1 this is a no-op.</p>
-<p>It earns its place in the pipeline for one reason: it’s the fix for any database built <em>before</em> that inline canonicalisation existed. Running it here makes the script idempotent regardless of how old the underlying database is, instead of silently leaving stale street types behind after an upgrade.</p>
-</section><section id="step-3-build-street-only-aliases" class="level2" data-number="4.4"><h2 data-number="4.4" class="anchored" data-anchor-id="step-3-build-street-only-aliases">
-<span class="header-section-number">4.4</span> Step 3 — Build street-only aliases</h2>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_build_street_aliases.html">gnaf_build_street_aliases</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>Derives new rows <em>from <code>gnaf_addresses</code> itself</em> — no new file read — one per unique <code>(street_name, street_type, street_suffix, locality, state, postcode)</code> combination already loaded, with a synthetic, number-free <code>address_label</code> and <code>alias_type = "street_only"</code>.</p>
-<p>Why it matters: <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s number pre-filter (<a href="03-theory.html#sec-scoring" class="quarto-xref"><span>Section 3.2</span></a>) requires an input with a parsed house number to match a candidate row whose number is <code>NULL</code> or in range — a numbered input can never accidentally match a number-free row. That means street-only rows are inert for normal matching and only ever get used by the <a href="./03-theory.html#sec-matching-paths">street-only fallback</a> (<code>street_only_fallback = TRUE</code> in <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>), for inputs that survive every other path unmatched — typically because the specific house number is missing from G-NAF (a new subdivision G-NAF hasn’t caught up to) or the input genuinely has no number. Without these rows, those inputs have nothing to fall back to.</p>
-<p>It’s idempotent: derived PIDs are an MD5 of the key fields, so re-running without <code>overwrite = TRUE</code> silently skips aliases that already exist.</p>
-</section><section id="step-4-rebuild-the-locality-search-index-usually-automatic" class="level2" data-number="4.5"><h2 data-number="4.5" class="anchored" data-anchor-id="step-4-rebuild-the-locality-search-index-usually-automatic">
-<span class="header-section-number">4.5</span> Step 4 — Rebuild the locality search index (usually automatic)</h2>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_rebuild_locality_index.html">gnaf_rebuild_locality_index</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code>, <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code>, and <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add()</a></code> all rebuild <code>gnaf_locality_index</code> for you after they finish, so this is normally nothing to think about. It exists as a callable step because <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code>’s <a href="./03-theory.html#sec-matching-paths">locality fallback</a> (mistyped or wrong postcode, but a recognisable suburb name) runs a Jaro-Winkler scan over this ~3,000-row index rather than the full multi-million-row address table — that’s the whole reason it’s fast. The only time you need to call it yourself is after bulk deletes/updates run <em>outside</em> gnafr’s own load functions (e.g.&nbsp;raw <code><a href="https://dbi.r-dbi.org/reference/dbExecute.html">DBI::dbExecute()</a></code> <code>DELETE</code>s) — rare enough to be worth calling explicitly here as cheap insurance.</p>
-</section><section id="step-5-optional-custom-addresses" class="level2" data-number="4.6"><h2 data-number="4.6" class="anchored" data-anchor-id="step-5-optional-custom-addresses">
-<span class="header-section-number">4.6</span> Step 5 (optional) — Custom addresses</h2>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/data.table.html">data.table</a></span><span class="op">(</span></span>
-<span>  number_first  <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  street_name   <span class="op">=</span> <span class="st">"EXAMPLE"</span>,</span>
-<span>  street_type   <span class="op">=</span> <span class="st">"STREET"</span>,</span>
-<span>  locality_name <span class="op">=</span> <span class="st">"SAMPLETON"</span>,</span>
-<span>  state         <span class="op">=</span> <span class="st">"QLD"</span>,</span>
-<span>  postcode      <span class="op">=</span> <span class="fl">4999</span></span>
-<span><span class="op">)</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>Anything not in G-NAF — a brand-new subdivision G-NAF hasn’t published yet, a PO box, an internal site code — can be added to a separate <code>custom_addresses</code> table via <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_add.html">gnaf_add()</a></code>. It’s unioned into <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> transparently (<code>include_custom = TRUE</code>, the default), scored with the exact same logic as G-NAF rows, and kept in its own table specifically so it’s never confused with or overwritten by a future <code>gnaf_load(overwrite = TRUE)</code>.</p>
-<p>Left commented out in the reference script since it’s data-specific, not a universal build step — uncomment and adapt when you actually have custom records to add.</p>
-</section><section id="step-6-verify" class="level2" data-number="4.7"><h2 data-number="4.7" class="anchored" data-anchor-id="step-6-verify">
-<span class="header-section-number">4.7</span> Step 6 — Verify</h2>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_status.html">gnaf_status</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/sample_gnaf.html">sample_gnaf</a></span><span class="op">(</span><span class="va">con</span>, n <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+</table></section><section id="joining-match-results-back-to-your-input-data" class="level3"><h3 class="anchored" data-anchor-id="joining-match-results-back-to-your-input-data">Joining match results back to your input data</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">dt_in</span><span class="op">[</span>, <span class="va">input_id</span> <span class="op">:=</span> <span class="va">.I</span><span class="op">]</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_disconnect.html">gnaf_disconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p><code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_status.html">gnaf_status()</a></code> confirms both tables exist and reports row counts at a glance — the cheapest possible sanity check that Step 1 actually loaded what you expected. <code><a href="https://rdrr.io/pkg/gnafr/man/sample_gnaf.html">sample_gnaf()</a></code> pulls a few random rows so you can eyeball that columns landed where expected (street types canonicalised, <code>PRIMARY_SECONDARY</code>/<code>PRINCIPAL_PID</code> populated, etc.) before trusting the database with real matching.</p>
-</section><section id="alternative-ingestion-path-gnaf_load_psv" class="level2" data-number="4.8"><h2 data-number="4.8" class="anchored" data-anchor-id="alternative-ingestion-path-gnaf_load_psv">
-<span class="header-section-number">4.8</span> Alternative ingestion path: <code>gnaf_load_psv()</code>
-</h2>
-<p>Everything above starts from the G-NAF Core CSV — the simplified, single-file product Geoscape publishes. If you instead have the full raw G-NAF PSV product (the <code>"Standard"</code> directory with <code>ADDRESS_DETAIL</code>, <code>ADDRESS_ALIAS</code>, <code>STREET_LOCALITY_ALIAS</code>, <code>LOCALITY_ALIAS</code>, etc.), <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code> is a richer <em>alternative</em> to Steps 1 and 3 combined:</p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>It derives real locality-name and street-name alias records (<code>alias_type</code> <code>"LOCALITY:SYN"</code> / <code>"STREET:SYN"</code>) directly from G-NAF’s own official alias tables, rather than the number-stripped <code>street_only</code> aliases Step 3 builds. That catches inputs using a <em>recognised alternative suburb or street name</em> G-NAF itself records as a synonym — something Step 3’s street-only derivation can’t do, since it only ever drops the house number, never substitutes a different name.</p>
-<div class="callout callout-style-default callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Important</span>CSV vs PSV are alternatives, not complements
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Each path loads its own complete set of <code>source = 'gnaf'</code> rows — running both against the same database duplicates everything. Pick one:</p>
+<span><span class="va">geo</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">[</span><span class="va">match_rank</span> <span class="op">==</span> <span class="fl">1</span>, <span class="fu">.</span><span class="op">(</span><span class="va">input_id</span>, <span class="va">total_score</span>, <span class="va">longitude</span>, <span class="va">latitude</span>,</span>
+<span>                                   <span class="va">address_label</span>, <span class="va">address_detail_pid</span><span class="op">)</span><span class="op">]</span></span>
+<span></span>
+<span><span class="va">dt_out</span> <span class="op">&lt;-</span> <span class="va">geo</span><span class="op">[</span><span class="va">dt_in</span>, on <span class="op">=</span> <span class="st">"input_id"</span><span class="op">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="diagnosing-a-specific-low-score" class="level3"><h3 class="anchored" data-anchor-id="diagnosing-a-specific-low-score">Diagnosing a specific low score</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">parsed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse</a></span><span class="op">(</span><span class="st">"my problem address"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">parsed</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="st">"my problem address"</span>, <span class="va">con</span>, max_results <span class="op">=</span> <span class="fl">5</span>, min_score <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html">print</a></span><span class="op">(</span><span class="va">result</span><span class="op">[</span>, <span class="fu">.</span><span class="op">(</span><span class="va">match_rank</span>, <span class="va">total_score</span>, <span class="va">score_postcode</span>, <span class="va">score_suburb</span>,</span>
+<span>                  <span class="va">score_street_name</span>, <span class="va">score_number</span>, <span class="va">address_label</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Common causes of an unexpectedly low (or missing) score, in roughly descending order of how often they come up:</p>
+<ul>
+<li><p><strong>Street number not in the database for that street.</strong> Returns <code>no_candidate</code>, not a low score — see the callout in <a href="./03-theory.html#sec-scoring">Scoring</a>. Confirm with <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> that the number parsed as expected, then check <code>DBI::dbGetQuery(con, "SELECT COUNT(*) FROM gnaf_addresses WHERE postcode = ... AND street_name = '...'")</code>.</p></li>
+<li>
+<p><strong>Postcode not loaded.</strong> If you loaded one state’s extract and the address is from another, the postcode genuinely isn’t in the database:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT COUNT(*) FROM gnaf_addresses WHERE postcode = 4001"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A count of <code>0</code> means the postcode isn’t in your loaded data, not a matching bug.</p>
+</li>
+<li><p><strong>Suburb spelling diverges sharply</strong> (<code>"MT GRAVATT"</code> vs <code>"MOUNT GRAVATT EAST"</code>). Jaro-Winkler handles small differences and the abbreviations <code>normalize = TRUE</code> expands, but not radical abbreviations or missing qualifying words.</p></li>
+<li>
+<p><strong>Street type not recognised.</strong> If <code>score_street_type</code> is consistently the 40%-of-weight “disagreement” tier instead of full credit, the input’s abbreviation may not be in the lookup table:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/fread.html">fread</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"street_types.csv"</span>, package <span class="op">=</span> <span class="st">"gnafr"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Add the missing abbreviation/canonical pair if it’s genuinely absent.</p>
+</li>
+<li><p><strong>A long building name is confusing the parser.</strong> Building names before the flat/number can occasionally prevent number extraction — check with <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> whether <code>in_number_first</code> actually came through.</p></li>
+</ul></section></section><section id="performance" class="level2" data-number="8.2"><h2 data-number="8.2" class="anchored" data-anchor-id="performance">
+<span class="header-section-number">8.2</span> Performance</h2>
+<section id="typical-throughput" class="level3"><h3 class="anchored" data-anchor-id="typical-throughput">Typical throughput</h3>
+<table class="caption-top table">
+<thead><tr class="header">
+<th>Input size</th>
+<th>Estimated time</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>1,000</td>
+<td>&lt; 1 second</td>
+</tr>
+<tr class="even">
+<td>10,000</td>
+<td>2–5 seconds</td>
+</tr>
+<tr class="odd">
+<td>100,000</td>
+<td>15–45 seconds</td>
+</tr>
+<tr class="even">
+<td>500,000</td>
+<td>2–5 minutes (chunking recommended)</td>
+</tr>
+</tbody>
+</table>
+<p>Times assume a laptop with an SSD and a few million G-NAF rows loaded for the relevant state(s). Results vary with CPU, how concentrated the input postcodes are, and the proportion of addresses with no parseable postcode.</p>
+</section><section id="what-actually-drives-runtime" class="level3"><h3 class="anchored" data-anchor-id="what-actually-drives-runtime">What actually drives runtime</h3>
 <ul>
 <li>
-<strong>Prefer <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code></strong> (Steps 1+3 above) when the simplified Core CSV is all you have, or you don’t need locality/street synonym coverage.</li>
-<li>
-<strong>Prefer <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load_psv.html">gnaf_load_psv()</a></code></strong> when you have the full raw product and want that extra alias coverage out of the box.</li>
-</ul>
-</div>
-</div>
-</section><section id="keeping-a-database-current" class="level2" data-number="4.9"><h2 data-number="4.9" class="anchored" data-anchor-id="keeping-a-database-current">
-<span class="header-section-number">4.9</span> Keeping a database current</h2>
-<p>G-NAF is republished quarterly. The whole pipeline above is written to be safely re-run end to end on an existing database:</p>
-<ol type="1">
-<li>
-<code>gnaf_init(con)</code> — picks up any schema changes from a newer gnafr version.</li>
-<li>
-<code>gnaf_load(con, new_extract_path, overwrite = FALSE)</code> — new/changed PIDs are inserted; existing ones are left alone (no destructive overwrite by default).</li>
-<li>
-<code>gnaf_canonicalize_street_types(con)</code> — a no-op unless the database predates inline canonicalisation.</li>
-<li>
-<code>gnaf_build_street_aliases(con)</code> — only inserts aliases for combinations that didn’t already have one.</li>
-<li>
-<code>gnaf_status(con)</code> — confirm the row count moved in the direction you expected.</li>
-</ol>
-<p>There’s deliberately no step that deletes anything by default — <code>overwrite = TRUE</code> on <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load()</a></code> is an explicit, opt-in choice for a full rebuild, not the default refresh path.</p>
+<p><strong>Parsing.</strong> For inputs that miss every vectorised fast pattern (<a href="03-theory.html#sec-parsing" class="quarto-xref"><span>Section 3.1</span></a>), <code><a href="https://rdrr.io/pkg/gnafr/man/address_parse.html">address_parse()</a></code> falls back to a row-by-row parser, which is the dominant cost for large batches of unusual input. It parallelises trivially since each row is independent:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va">parallel</span><span class="op">)</span></span>
+<span><span class="va">n_cores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span></span>
+<span><span class="va">chunks</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html">split</a></span><span class="op">(</span><span class="va">addresses</span>, <span class="fu"><a href="https://rdrr.io/r/base/cut.html">cut</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html">seq_along</a></span><span class="op">(</span><span class="va">addresses</span><span class="op">)</span>, <span class="va">n_cores</span>, labels <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">parsed_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/parallel/mcdummies.html">mclapply</a></span><span class="op">(</span><span class="va">chunks</span>, <span class="va">address_parse</span>, mc.cores <span class="op">=</span> <span class="va">n_cores</span><span class="op">)</span></span>
+<span><span class="va">parsed</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/rbindlist.html">rbindlist</a></span><span class="op">(</span><span class="va">parsed_list</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</li>
+<li><p><strong>Postcode concentration.</strong> If a huge share of input addresses share one postcode, the candidate set for that postcode’s join gets large — the <code>(postcode, number_first)</code> index keeps the join itself cheap, but a very postcode-concentrated batch with a wide spread of <em>house numbers</em> still touches more rows than a postcode-diverse one.</p></li>
+<li><p><strong>The locality fallback firing often.</strong> It only runs for inputs scoring at or below <code>fallback_threshold</code> (default 90), but if a large fraction of your input has bad postcodes, you’re paying for two passes (postcode path, then locality fallback) instead of one. Worth checking <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_cache_history.html">gnaf_cache_history()</a></code> / a sample of <code>match_status</code> values if a batch feels slow — a high proportion of <code>below_min_score</code> or unmatched rows usually means the locality fallback is doing a lot of work for not much payoff, and the input data quality is the actual problem.</p></li>
+<li><p><strong>Re-establishing the connection per call.</strong> Reuse a single <code>con</code> across many <code><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match()</a></code> calls — for Shiny apps or API services, keep it in a global or module-level variable rather than reconnecting per request.</p></li>
+</ul></section><section id="chunking-very-large-batches" class="level3"><h3 class="anchored" data-anchor-id="chunking-very-large-batches">Chunking very large batches</h3>
+<p>For inputs exceeding ~500k rows or spanning many postcodes, splitting into chunks caps peak memory:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="va">chunk_size</span> <span class="op">&lt;-</span> <span class="fl">50000L</span></span>
+<span><span class="va">ids</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html">nrow</a></span><span class="op">(</span><span class="va">dt_in</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">chunks</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html">split</a></span><span class="op">(</span><span class="va">ids</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html">ceiling</a></span><span class="op">(</span><span class="va">ids</span> <span class="op">/</span> <span class="va">chunk_size</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">results_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span><span class="op">(</span><span class="va">chunks</span>, <span class="kw">function</span><span class="op">(</span><span class="va">idx</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_match.html">gnaf_match</a></span><span class="op">(</span><span class="va">dt_in</span><span class="op">$</span><span class="va">address_string</span><span class="op">[</span><span class="va">idx</span><span class="op">]</span>, <span class="va">con</span>, max_results <span class="op">=</span> <span class="fl">1</span>, min_score <span class="op">=</span> <span class="fl">60</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/data.table/man/rbindlist.html">rbindlist</a></span><span class="op">(</span><span class="va">results_list</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <a href="./03-theory.html#sec-matching-paths">match cache</a> makes a second run over previously-seen input close to free, regardless of chunking — high-confidence results from any earlier chunk (or earlier run) are served from <code>gnaf_match_cache</code> rather than re-matched.</p>
+</section></section><section id="common-errors" class="level2" data-number="8.3"><h2 data-number="8.3" class="anchored" data-anchor-id="common-errors">
+<span class="header-section-number">8.3</span> Common errors</h2>
+<section id="file-not-found-from-gnaf_load" class="level3"><h3 class="anchored" data-anchor-id="file-not-found-from-gnaf_load">“File not found” from <code>gnaf_load()</code>
+</h3>
+<p>Use forward slashes or doubled backslashes — a single backslash is an escape character in an R string literal:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">gnaf_load</span>(con, <span class="st">"C:/temp/gnaf.qld.csv"</span>)      <span class="co"># OK</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">gnaf_load</span>(con, <span class="st">"C:</span><span class="sc">\\</span><span class="st">temp</span><span class="sc">\\</span><span class="st">gnaf.qld.csv"</span>)    <span class="co"># also OK</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">gnaf_load</span>(con, <span class="st">"C:</span><span class="sc">\t</span><span class="st">emp\gnaf.qld.csv"</span>)      <span class="co"># wrong — \t is a tab escape</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="duckdb-version-errors-after-upgrading-the-duckdb-package" class="level3"><h3 class="anchored" data-anchor-id="duckdb-version-errors-after-upgrading-the-duckdb-package">DuckDB version errors after upgrading the <code>duckdb</code> package</h3>
+<p>DuckDB database files are tied to the format version of the engine that created them. If you see an incompatible-version error after upgrading the <code>duckdb</code> R package, the database file needs rebuilding from source data — there’s no in-place upgrade path:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/files.html">file.remove</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span>
+<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_connect.html">gnaf_connect</a></span><span class="op">(</span><span class="st">"C:/temp/gnaf.duckdb"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_init.html">gnaf_init</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/gnafr/man/gnaf_load.html">gnaf_load</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"C:/temp/gnaf.qld.csv"</span><span class="op">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section><section id="gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script" class="level3"><h3 class="anchored" data-anchor-id="gnaf_cache_clear-gnaf_cache_rollback-error-in-a-script">
+<code>gnaf_cache_clear()</code> / <code>gnaf_cache_rollback()</code> error in a script</h3>
+<p>Both prompt for confirmation by default (<code>ask = TRUE</code>), which requires an interactive session. Pass <code>ask = FALSE</code> for scripted or scheduled use — you’re opting out of the safety prompt deliberately, so make sure the call is scoped correctly first (see <a href="./06-other-features.html#sec-cache-daily">the cache walkthrough</a>).</p>
+</section><section id="weights-error-weights-must-sum-to-100" class="level3"><h3 class="anchored" data-anchor-id="weights-error-weights-must-sum-to-100">Weights error: <code>'weights' must sum to 100</code>
+</h3>
+<p><code>gnaf_match(..., weights = list(...))</code> validates that every required component is present, numeric, non-negative, and sums to exactly 100 (within floating-point tolerance). The required names are <code>postcode</code>, <code>suburb</code>, <code>street_name</code>, <code>street_type</code>, <code>number</code>, <code>flat</code> — see <a href="./03-theory.html#sec-scoring">current default weights</a> for a sensible starting point to adjust from.</p>
 
 
-</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+</section></section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     // Ensure there is a toggle, if there isn't float one in the top right
     if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
@@ -1030,14 +1021,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     }
   });
   </script><nav class="page-navigation"><div class="nav-page nav-page-previous">
-      <a href="./03-theory.html" class="pagination-link" aria-label="How matching works">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">How matching works</span></span>
+      <a href="./07-alias-matching.html" class="pagination-link" aria-label="Alias matching in practice">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Alias matching in practice</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./05-function-reference.html" class="pagination-link" aria-label="Function reference">
-        <span class="nav-page-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Function reference</span></span> <i class="bi bi-arrow-right-short"></i>
-      </a>
   </div>
 </nav>
 </div> <!-- /content -->

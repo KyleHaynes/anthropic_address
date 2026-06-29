@@ -40,22 +40,18 @@ understand exactly what's happening or who need to debug an unexpected result.
   by task, with arguments, return values, and examples.
 - [Other features](06-other-features.qmd) — the Shiny geocoder app, spatial helpers
   (`sf` + `leaflet`), synthetic test-data generation, and the match cache.
-- [Troubleshooting & performance](07-troubleshooting.qmd) — common failure modes, how
+- [Alias matching in practice](07-alias-matching.qmd) — real examples from a loaded
+  G-NAF database showing when alias matching helps, and how to switch it off.
+- [Troubleshooting & performance](08-troubleshooting.qmd) — common failure modes, how
   to read them, and how to keep large batch jobs fast.
 
 ::: {.callout-note}
 Almost every code chunk in this manual that uses a real database is marked
 `eval: false`, because it points at a multi-gigabyte G-NAF file that doesn't exist in
-this build environment. Chunks that *do* run live use a tiny synthetic database
-created with `gnaf_connect(":memory:")` — you'll see their actual output printed
-inline, generated from the package's current source at render time.
+this build environment. Chunks that *do* run live mostly use a tiny synthetic
+database created with `gnaf_connect(":memory:")` — you'll see their actual output
+printed inline, generated from the package's current source at render time. [Alias
+matching in practice](07-alias-matching.qmd) is the one exception: it runs live
+against a real, fully-loaded G-NAF database, so its output reflects an actual
+production-sized dataset rather than a handful of synthetic rows.
 :::
-
-## Package metadata
-
-```{r}
-#| echo: false
-desc <- read.dcf("../DESCRIPTION")[1, ]
-data.frame(Field = names(desc), Value = unname(desc), row.names = NULL) |>
-  knitr::kable()
-```

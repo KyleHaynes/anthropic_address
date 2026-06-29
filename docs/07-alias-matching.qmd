@@ -1,0 +1,208 @@
+# Alias matching in practice
+
+The [theory chapter](03-theory.qmd#sec-matching-paths) explains the alias system from
+the source code outward — what `alias_type` values exist, which functions populate
+them, and how `gnaf_match()`'s `alias_types` argument and `street_only_fallback` flag
+control which of them are eligible candidates. This chapter takes the opposite
+approach: one real address, one real database, and every example actually executed
+against it.
+
+None of this works without good alias coverage in the first place — see [Building a
+good lookup table](04-build-database.qmd), specifically [Step
+3](04-build-database.qmd) (`gnaf_build_street_aliases()`, derived locally) and the
+[`gnaf_load_psv()` section](04-build-database.qmd) (official G-NAF alias tables, the
+richer source). The database used below was built from the full raw PSV product, so
+it carries both kinds.
+
+::: {.callout-note}
+## This chapter runs against a real, multi-gigabyte G-NAF database
+Every other chapter that touches a real database marks those chunks `eval: false`
+(see the note on the [front page](index.qmd)) because the file doesn't exist in a
+typical build environment. This one is the exception: it's written and rendered
+against an actual loaded database at `C:/temp/gnaf.duckdb`, so every table below is
+real output, not a synthetic stand-in. The connection is opened `read_only = TRUE`
+and every `gnaf_match()` call below passes `cache = FALSE`, purely so the chapter can
+be re-rendered without writing to that database — in normal use you'd leave
+`cache = TRUE` (the default) and let successful matches populate the cache as usual.
+:::
+
+```{r}
+library(gnafr)
+library(data.table)
+
+con <- gnaf_connect("C:/temp/gnaf.duckdb", read_only = TRUE)
+gnaf_status(con) |> reactable::reactable()
+```
+
+```{r}
+alias_counts <- DBI::dbGetQuery(con, "
+  SELECT COALESCE(alias_type, 'core (no alias)') AS alias_type, COUNT(*) AS n
+  FROM gnaf_addresses
+  GROUP BY alias_type
+  ORDER BY n DESC
+")
+reactable::reactable(
+  alias_counts,
+  columns = list(n = reactable::colDef(name = "Rows", format = reactable::colFormat(separators = TRUE)))
+)
+```
+
+Just over a quarter of this database's rows are alias rows, not core G-NAF records —
+mostly `LOCALITY:SYN` (a recognised alternative suburb name for the same postcode),
+followed by `STREET:SYN` and the locally-derived `street_only`. Ignoring all of that
+on every match would be throwing away real coverage for no reason — which is exactly
+what the rest of this chapter sets out to show, alongside the cases where ignoring it
+on purpose is the right call.
+
+## Meet 6 Parkland Boulevard, Brisbane City
+
+```{r}
+parkland <- DBI::dbGetQuery(con, "
+  SELECT address_detail_pid, address_label, locality_name, alias_type
+  FROM gnaf_addresses
+  WHERE street_name = 'PARKLAND' AND street_type = 'BOULEVARD' AND postcode = 4000
+    AND (address_label LIKE '6 PARKLAND%' OR address_label LIKE '6A PARKLAND%')
+  ORDER BY address_label, alias_type NULLS FIRST
+")
+reactable::reactable(parkland, defaultPageSize = 10)
+```
+
+Two things worth noticing before going any further:
+
+1. Every alias row's `address_detail_pid` is the core PID plus a suffix
+   (`GAQLD163236963_LA426562`, etc.) — a stable giveaway that you're looking at an
+   alias of a specific underlying record, not an unrelated address.
+2. **`6` and `6A` are genuinely separate G-NAF records**, each with its own full set
+   of locality aliases. This matters in a minute: a query that doesn't specify a unit
+   or letter suffix gives `gnaf_match()` two real, tied candidates to choose between,
+   and it has to pick one deterministically. It does — by `address_detail_pid`, not
+   by relevance — which is worth knowing before you see "6 Parkland Blvd" resolve to
+   `6A` below and wonder if something's wrong. Nothing is; it's a genuine tie, broken
+   the same way every time.
+
+## Alias info is useful
+
+### A postcode anchors the match — any recognised suburb name finds it
+
+With the postcode correct, `gnaf_match()` only needs the alias system to resolve the
+*suburb* name. Geoscape (and plenty of real-world senders) use `City`, `Brisbane`,
+`Central`, and `Spring Hill` interchangeably with `Brisbane City` for this exact
+postcode — all four are official `LOCALITY:SYN` aliases for it:
+
+```{r}
+inputs <- c(
+  "6 Parkland Blvd, Brisbane City QLD 4000",
+  "6 Parkland Blvd, City QLD 4000",
+  "6 Parkland Blvd, Brisbane QLD 4000",
+  "6 Parkland Blvd, Central QLD 4000",
+  "6 Parkland Blvd, Spring Hill QLD 4000"
+)
+res <- gnaf_match(inputs, con, verbose = FALSE, cache = FALSE)
+res[, .(input_raw, matched, total_score, score_suburb, address_label, alias_type, locality_name)] |>
+  reactable::reactable(defaultPageSize = 10)
+```
+
+Every variant scores exactly as well as the "correct" one. That's the alias system
+doing its job invisibly — without `LOCALITY:SYN` rows in the candidate pool, four of
+these five inputs would be scoring a low suburb-similarity penalty (or worse) for no
+real reason, since `"CITY"` and `"BRISBANE CITY"` aren't textually similar even
+though they're the same place.
+
+### Without a postcode, alias info is the only thing standing between a match and a wrong guess
+
+The above is a comfortable example because the postcode already pins down the
+right area; suburb name is just confirmation. Drop the postcode, and the suburb name
+becomes load-bearing — this is where ignoring alias info stops being a neutral
+choice and starts actively producing wrong answers:
+
+```{r}
+no_postcode <- "6 Parkland Blvd, City QLD"
+
+alias_aware  <- gnaf_match(no_postcode, con, verbose = FALSE, cache = FALSE)
+alias_ignored <- gnaf_match(no_postcode, con, verbose = FALSE, cache = FALSE, alias_types = NA)
+
+rbindlist(list(
+  cbind(mode = "Default (aliases eligible)", alias_aware[, .(matched, total_score, address_label, alias_type, locality_name)]),
+  cbind(mode = "alias_types = NA (core only)", alias_ignored[, .(matched, total_score, address_label, alias_type, locality_name)])
+)) |> reactable::reactable(defaultPageSize = 5)
+```
+
+Both rows say `matched = TRUE` — that's the dangerous part. There's no error, no
+low-confidence flag forcing a second look. With aliases eligible, `"City"` resolves
+straight to the right building via its `LOCALITY:SYN` row. With aliases switched
+off, there's no core G-NAF locality actually named `"City"` for `gnaf_match()` to
+anchor on, so the state-wide scan falls back to whatever scores best on street-name
+similarity alone — in this database, a same-ish-sounding street in a *different
+postcode, in a different part of the state*, with a still-respectable score. Read
+only the `matched` and `total_score` columns and you'd never know.
+
+### A house number G-NAF hasn't caught up to yet
+
+`street_only_fallback` is the other half of the alias system: it matches against
+number-free `street_only` rows when every number-aware path comes up empty —
+typically a genuinely new subdivision, or (for the purposes of this example) a unit
+number that simply doesn't exist:
+
+```{r}
+new_unit <- "999 Parkland Blvd, Brisbane City QLD 4000"
+
+without_fallback <- gnaf_match(new_unit, con, verbose = FALSE, cache = FALSE)
+with_fallback    <- gnaf_match(new_unit, con, verbose = FALSE, cache = FALSE, street_only_fallback = TRUE)
+
+rbindlist(list(
+  cbind(mode = "street_only_fallback = FALSE (default)", without_fallback[, .(matched, match_status, total_score, address_label, alias_type)]),
+  cbind(mode = "street_only_fallback = TRUE",            with_fallback[, .(matched, match_status, total_score, address_label, alias_type)])
+)) |> reactable::reactable(defaultPageSize = 5)
+```
+
+Without it, `match_status` is `no_candidate` — an honest "nothing here", not a wrong
+guess. With it on, the number-free `street_only` alias for Parkland Boulevard,
+Brisbane City steps in and the input resolves to the right street, the right
+postcode, just without unit-level precision. That's the entire point of this
+fallback: it's the one path that trades number-level certainty for *something*
+rather than nothing, and it only exists because the alias system derived a row for
+it in the first place.
+
+## Ignoring alias info on purpose
+
+Both knobs used above to *get* alias matches have an off switch, and there are
+legitimate reasons to flip them:
+
+- **`alias_types = NA`** restricts every standard path (postcode, state, locality
+  fallback) to core G-NAF rows only — no `LOCALITY:SYN`, `STREET:SYN`, or
+  `street_only` candidates. Reach for this when you specifically want the
+  *canonical* G-NAF record back for downstream joins (e.g. against another dataset
+  keyed on principal `ADDRESS_DETAIL_PID`s) and would rather get `no_candidate` than
+  a technically-correct-but-alias-sourced PID you'd have to resolve back yourself.
+- **`street_only_fallback = FALSE`**, the default, simply never engages the
+  number-free fallback — an unmatched input stays unmatched rather than resolving to
+  a street-level-only guess. Reach for this when a wrong number is a hard failure for
+  your use case (e.g. dispatch/delivery) rather than something street-level precision
+  can paper over.
+
+::: {.callout-warning}
+## `alias_types` doesn't gate the street-only fallback
+These two switches are independent, not layers of the same dial. Setting
+`alias_types = NA` turns off `LOCALITY:SYN`/`STREET:SYN` rows in the main paths, but
+`street_only_fallback = TRUE` still matches against `street_only` rows regardless —
+in the source, `.match_street_only_duckdb()` hard-codes
+`g.alias_type = 'street_only'` and never looks at `alias_types` at all. If you want
+to rule out *every* alias type, including the street-only fallback, the fallback's
+own argument is the one that needs to stay `FALSE`, not `alias_types`.
+:::
+
+```{r}
+gnaf_disconnect(con)
+```
+
+## Recap
+
+- Alias coverage comes from [building the database well](04-build-database.qmd) in
+  the first place — `gnaf_load_psv()` for official `LOCALITY:SYN`/`STREET:SYN` rows,
+  `gnaf_build_street_aliases()` for locally-derived `street_only` rows.
+- Left on (the default, `alias_types = NULL`), aliases let recognised alternative
+  suburb and street names match at full score, and let `street_only_fallback`
+  recover inputs G-NAF's core numbers don't (yet) cover.
+- Switched off via `alias_types = NA` and `street_only_fallback = FALSE`, matching
+  falls back to core G-NAF records only — slightly less forgiving, but exactly what
+  you want when a wrong alias-backed guess is worse than an honest `no_candidate`.

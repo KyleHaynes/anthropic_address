@@ -46,9 +46,9 @@ gnaf_app <- function(con = NULL, db_path = NULL,
       )),
       shiny::tags$style(shiny::HTML(jsdiffr::diff_css_default())),
       shiny::tags$style(shiny::HTML(
-        ".app-shell {max-width: 1720px; margin: 0 auto; padding: 0 20px 24px;}\n",
+        ".app-shell {max-width: 100%; margin: 0 auto; padding: 0 20px 24px;}\n",
         ".app-header {display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-top:20px;}\n",
-        ".app-layout {display:grid; grid-template-columns:minmax(300px, 360px) minmax(0, 1fr); gap:20px; align-items:start;}\n",
+        ".app-layout {display:grid; grid-template-columns:minmax(280px, 320px) minmax(0, 1fr); gap:20px; align-items:start;}\n",
         ".app-layout.sidebar-collapsed {grid-template-columns:0 minmax(0, 1fr);}\n",
         ".sidebar-panel {overflow:hidden; transition:opacity 0.2s ease, padding 0.2s ease, border-width 0.2s ease; min-width:0;}\n",
         ".app-layout.sidebar-collapsed .sidebar-panel {opacity:0; padding:0; border-width:0; height:0; pointer-events:none;}\n",
@@ -70,7 +70,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         ".reactable .rt-tr-group {min-height:auto;}\n",
         ".details-shell {max-width: 780px; padding: 8px 10px; background: #f8fbff; border-radius: 10px;}\n",
         ".details-title {font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #102a43;}\n",
-        ".diff-cell {padding: 6px 8px;}\n",
+        ".diff-cell {padding: 0px 1px;}\n",
         ".diff-cell .jsdiff-pre {white-space: pre-wrap; font-size: 12px;}\n",
         ".diff-controls {margin: 16px 0;}\n",
         "@media (max-width: 1100px) {.app-layout {grid-template-columns:1fr;} .sidebar-panel {order:2;} .content-panel {order:1;}}\n",
@@ -161,6 +161,17 @@ gnaf_app <- function(con = NULL, db_path = NULL,
                   shiny::column(
                     3,
                     shiny::checkboxInput("diff_changes_only", "Only rows with differences", value = FALSE)
+                  )
+                ),
+                shiny::fluidRow(
+                  shiny::column(
+                    12,
+                    shiny::selectizeInput(
+                      "diff_extra_cols", "Additional columns",
+                      choices = .gnaf_diff_extra_choices(), multiple = TRUE,
+                      width = "100%",
+                      options = list(placeholder = "Add columns to show before the comparison columns")
+                    )
                   )
                 )
               ),
@@ -346,6 +357,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         filterable = TRUE,
         highlight = TRUE,
         striped = TRUE,
+        resizable = TRUE,
         defaultSorted = list(matched = "desc", total_score = "desc"),
         columns = list(
           input_id = reactable::colDef(name = "Input", maxWidth = 80),
@@ -406,6 +418,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         searchable = TRUE,
         filterable = TRUE,
         striped = TRUE,
+        resizable = TRUE,
         theme = .gnaf_reactable_theme(),
         columns = list(input_raw = reactable::colDef(minWidth = 280))
       )
@@ -419,13 +432,28 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         jsdiffr::diff_words
       }
 
-      diff_data <- results_rv()[, c(
+      results <- results_rv()
+      # Drop any picked column that duplicates the active left/right pair, and
+      # any that no longer exists on the current results (e.g. stale picks
+      # left over from before a re-match).
+      extra_cols <- setdiff(
+        intersect(input$diff_extra_cols %||% character(0), names(results)),
+        c(pair_cols$left, pair_cols$right)
+      )
+
+      diff_data <- results[, c(
         "input_id", "match_rank", "matched", "match_status",
-        pair_cols$left, pair_cols$right
+        extra_cols, pair_cols$left, pair_cols$right
       ), with = FALSE]
       data.table::setnames(diff_data, c(pair_cols$left, pair_cols$right), c("left", "right"))
       diff_data[, has_diff := !is.na(right) & nzchar(right) & (is.na(left) | left != right)]
       diff_data[, diff := ""]
+      # Extra columns sit between the always-shown identity columns and the
+      # standardised/matched-address/diff columns, per the column picker above.
+      data.table::setcolorder(diff_data, c(
+        "input_id", "match_rank", "matched", "match_status",
+        extra_cols, "left", "right", "has_diff", "diff"
+      ))
 
       if (isTRUE(input$diff_changes_only)) {
         diff_data <- diff_data[has_diff == TRUE]
@@ -436,6 +464,11 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         .gnaf_diff_cell(row$left, row$right, method_fn)
       }
 
+      extra_col_defs <- stats::setNames(
+        lapply(extra_cols, function(col) reactable::colDef(name = .gnaf_pretty_colname(col), minWidth = 120)),
+        extra_cols
+      )
+
       reactable::reactable(
         diff_data,
         defaultPageSize = 12,
@@ -443,16 +476,22 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         filterable = TRUE,
         highlight = TRUE,
         striped = TRUE,
+        resizable = TRUE,
         defaultSorted = list(has_diff = "desc"),
-        columns = list(
-          input_id     = reactable::colDef(name = "Input", maxWidth = 80),
-          match_rank   = reactable::colDef(name = "Rank", maxWidth = 80),
-          matched      = reactable::colDef(name = "Matched", maxWidth = 90),
-          match_status = reactable::colDef(name = "Status", minWidth = 130),
-          left         = reactable::colDef(name = pair_cols$left_label, minWidth = 220),
-          right        = reactable::colDef(name = pair_cols$right_label, minWidth = 220),
-          has_diff     = reactable::colDef(show = FALSE),
-          diff         = reactable::colDef(name = "Diff", cell = diff_cell, minWidth = 380)
+        columns = c(
+          list(
+            input_id     = reactable::colDef(name = "Input", maxWidth = 80),
+            match_rank   = reactable::colDef(name = "Rank", maxWidth = 80),
+            matched      = reactable::colDef(name = "Matched", maxWidth = 90),
+            match_status = reactable::colDef(name = "Status", minWidth = 130)
+          ),
+          extra_col_defs,
+          list(
+            left         = reactable::colDef(name = pair_cols$left_label, minWidth = 220),
+            right        = reactable::colDef(name = pair_cols$right_label, minWidth = 220),
+            has_diff     = reactable::colDef(show = FALSE),
+            diff         = reactable::colDef(name = "Diff", cell = diff_cell, html = TRUE, minWidth = 380)
+          )
         ),
         defaultColDef = reactable::colDef(na = "-", minWidth = 80),
         theme = .gnaf_reactable_theme()
@@ -643,6 +682,22 @@ gnaf_app <- function(con = NULL, db_path = NULL,
   )
 }
 
+.gnaf_pretty_colname <- function(x) {
+  x <- gsub("_", " ", x)
+  tools::toTitleCase(x)
+}
+
+# Candidate columns offered in the Compare tab's "Additional columns" picker.
+# Derived from the canonical results schema so it stays in sync with
+# .gnaf_empty_app_results(); excludes columns that are either always shown
+# (input_id, match_rank, matched, match_status) or internal-only (comparison).
+.gnaf_diff_extra_choices <- function() {
+  all_cols <- names(.gnaf_empty_app_results())
+  always_shown <- c("input_id", "match_rank", "matched", "match_status", "comparison")
+  candidates <- setdiff(all_cols, always_shown)
+  stats::setNames(candidates, vapply(candidates, .gnaf_pretty_colname, character(1)))
+}
+
 .gnaf_diff_pair_columns <- function(pair) {
   switch(
     pair,
@@ -664,12 +719,12 @@ gnaf_app <- function(con = NULL, db_path = NULL,
 
 .gnaf_diff_cell <- function(left, right, method_fn) {
   if (is.na(right) || !nzchar(right)) {
-    return(shiny::div(class = "help-text", "No match to compare"))
+    return('<div class="help-text">No match to compare</div>')
   }
   if (is.na(left)) left <- ""
   changes <- method_fn(left, right)
-  shiny::div(
-    class = "diff-cell",
-    shiny::HTML(jsdiffr::diff_to_html(changes, wrap = TRUE, pre = FALSE))
+  sprintf(
+    '<div class="diff-cell">%s</div>',
+    jsdiffr::diff_to_html(changes, wrap = TRUE, pre = FALSE)
   )
 }

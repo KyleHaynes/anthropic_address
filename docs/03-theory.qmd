@@ -142,14 +142,6 @@ w <- list(postcode = 20, suburb = 15, street_name = 40, street_type = 10, number
 data.frame(Component = names(w), Weight = unlist(w)) |> knitr::kable()
 ```
 
-::: {.callout-important}
-These weights changed from an earlier version of the package (which used
-postcode 25 / suburb 20 / street\_name 25 / street\_type 10 / number 12 / flat 8) —
-street name now carries the most weight by a wide margin. If you've read older notes
-or scripts referencing the old weights, they're stale; `.default_match_weights()` is
-always the source of truth, and `gnaf_match(..., weights = list(...))` lets you
-override them per call (the override must still sum to 100).
-:::
 
 You can pass your own `weights` list to bias matching — e.g. toward street number for
 a number-sensitive workflow — but note this **disables the match cache for that

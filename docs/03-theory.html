@@ -381,8 +381,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./07-troubleshooting.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></span></a>
+  <a href="./07-alias-matching.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">Alias matching in practice</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./08-troubleshooting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Troubleshooting &amp; performance</span></span></a>
   </div>
 </li>
       </ul>
@@ -652,19 +658,6 @@ flowchart LR
 </tr>
 </tbody>
 </table>
-</div>
-</div>
-<div class="callout callout-style-default callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Important
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>These weights changed from an earlier version of the package (which used postcode 25 / suburb 20 / street_name 25 / street_type 10 / number 12 / flat 8) — street name now carries the most weight by a wide margin. If you’ve read older notes or scripts referencing the old weights, they’re stale; <code>.default_match_weights()</code> is always the source of truth, and <code>gnaf_match(..., weights = list(...))</code> lets you override them per call (the override must still sum to 100).</p>
 </div>
 </div>
 <p>You can pass your own <code>weights</code> list to bias matching — e.g.&nbsp;toward street number for a number-sensitive workflow — but note this <strong>disables the match cache for that call</strong> (cached scores were computed under the default weights, so reusing them under different weights would silently misreport).</p>
