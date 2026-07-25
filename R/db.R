@@ -313,10 +313,7 @@ gnaf_status <- function(con) {
 #'   `data.table`s when multiple tables are present.
 #' @export
 sample_gnaf <- function(con, n = 10L) {
-  n <- as.integer(n)
-  if (is.na(n) || length(n) != 1L || n < 1L) {
-    stop("'n' must be a single positive integer")
-  }
+  n <- .as_positive_integer(n, "n")
 
   table_info <- setDT(DBI::dbGetQuery(
     con,

@@ -1,0 +1,288 @@
+---
+title: "gnafr"
+subtitle: "One address-matching engine for the whole office"
+author: "Kyle Haynes"
+date: today
+format:
+  revealjs:
+    theme: simple
+    slide-number: true
+    incremental: true
+    transition: slide
+    code-line-numbers: false
+    footer: "gnafr — Australian address matching against the G-NAF"
+    height: 900
+    width: 1200
+execute:
+  echo: true
+  warning: false
+---
+
+## Agenda {.smaller incremental=false}
+
+1. The problem — address matching is fragmented across the office
+2. The tension — some teams need **exactness**, others need **vagueness**
+3. Introducing `gnafr`
+4. How it works — parse → score → match
+5. Live demo
+6. Why this fixes fragmentation
+7. Other benefits
+8. Getting started
+
+# The problem {background-color="#2a6f97"}
+
+## Address matching is fragmented {.smaller}
+
+Across the office, address matching has grown up **independently, team by team**:
+
+- Different scripts, different spreadsheets, different ad-hoc `VLOOKUP`/regex hacks
+- Different definitions of "close enough" — nobody agrees on what a match *is*
+- No shared source of truth — the same physical address can be standardised three
+  different ways in three different systems
+- Every team pays the cost of solving parsing and fuzzy-matching **from scratch**
+- When something breaks, nobody can explain *why* an address matched or didn't —
+  the logic lives in someone's private script
+
+## It's not just duplication — the requirements genuinely differ {.smaller}
+
+::: {.columns}
+::: {.column width="50%"}
+### Some teams need exactness
+
+- Billing, compliance, legal records
+- A wrong match is worse than no match
+- False positives are the expensive failure mode
+:::
+
+::: {.column width="50%"}
+### Some teams need vagueness
+
+- Catchment / service-area analysis
+- Spatial joins, coverage estimates
+- A missed match is worse than an approximate one
+- False negatives are the expensive failure mode
+:::
+:::
+
+<br>
+
+**Because no single tool served both, teams built their own — and that's the
+root cause of the fragmentation.**
+
+# Introducing gnafr {background-color="#2a6f97"}
+
+## One engine, tunable per use case {.smaller}
+
+`gnafr` is an R package that matches messy, free-text addresses against the
+**Geocoded National Address File (G-NAF)** — Australia's authoritative address
+dataset (~15 million records).
+
+- Takes a **character vector of free-text addresses**, however messy
+- Returns the **best matching G-NAF record(s)**, with full structured fields
+  and coordinates
+- Returns a **transparent 0–100 confidence score**, broken into six components
+- Built for **bulk** use — hundreds of thousands of addresses per call, not
+  one-at-a-time lookups
+- Built for **production reuse** — a single DuckDB file is the shared source
+  of truth, queried directly, cached, and reused across R sessions
+
+::: {.fragment}
+The key point for today: **strictness is a parameter, not a different tool.**
+:::
+
+## How it works — overview
+
+```{mermaid}
+%%{init: {'themeVariables': {'fontSize': '20px'}}}%%
+flowchart LR
+    A[Messy input] --> B[Parse]
+    B --> C[Score against<br/>G-NAF candidates]
+    C --> D{Confidence<br/>threshold}
+    D -->|meets your bar| E[Matched address<br/>+ coordinates]
+    D -->|below your bar| F[Unmatched<br/>flagged for review]
+```
+
+Same pipeline for every team. The only thing that changes is **where you set
+the bar**.
+
+## Step 1 — Parse {.smaller}
+
+`address_parse()` turns a raw string into structured fields: postcode, state,
+locality, street name/type, number, flat/unit — using vectorised pattern
+matching that covers ~95% of well-formed Australian addresses, with a
+fallback parser for the rest.
+
+```{r}
+library(gnafr)
+
+address_parse(c(
+  "unit 110 120 musgrave Road red hill 4000 QLD",
+  "Cambridge on the hill 110/120 musgrave road red hill QLD 4000",
+  "18-20 drift cl goldsborough QLD 4865"
+))
+```
+
+## Step 2 — Score {.smaller}
+
+Every candidate is scored on **six components** that sum to a `total_score`
+out of 100:
+
+| Component | Weight | How it's scored |
+|---|---|---|
+| Street name | 40 | Jaro-Winkler similarity |
+| Postcode | 20 | Exact, with partial credit for ±1–3 |
+| Suburb / locality | 15 | Jaro-Winkler similarity |
+| Street type | 10 | Exact-tier (Rd vs Ct still gets partial credit) |
+| Street number | 10 | Exact, or within a ranged G-NAF record |
+| Flat / unit | 5 | Exact or absent on both sides |
+
+::: {.fragment}
+Nothing is a black box — every match comes back with the full breakdown, so
+**any team can see exactly why a score was what it was.**
+:::
+
+## Step 3 — Match {.smaller}
+
+`gnaf_match()` tries a sequence of paths, stopping as soon as an input is
+satisfied — cheapest and most precise first:
+
+1. **Exact label match** — already-standardised input, instant
+2. **Match cache** — seen this input (or an equivalent one) before? Free
+3. **Postcode path** — the hot path for the vast majority of inputs
+4. **State path** — no postcode parsed at all
+5. **Locality fallback** — postcode was wrong, suburb name recovers it
+6. **Street-only fallback** *(opt-in)* — brand-new subdivisions not yet
+   numbered in G-NAF
+
+All of this runs as **generated SQL inside DuckDB** — no server, one file,
+scans millions of rows per query.
+
+# Live demo {background-color="#2a6f97"}
+
+## Same input, same engine, different bar {.smaller}
+
+```{r}
+library(data.table)
+
+con <- gnaf_connect(":memory:")
+gnaf_init(con)
+gnaf_add(con, data.table(
+  address_label = "10 MUSGRAVE ROAD, RED HILL QLD 4059",
+  number_first = 10L, street_name = "MUSGRAVE", street_type = "ROAD",
+  locality_name = "RED HILL", state = "QLD", postcode = 4059L
+))
+
+# Real-world messiness: postcode typo'd by one digit
+messy <- "10 Musgrave Road, Red Hill QLD 4058"
+```
+
+## The "exactness" team {.smaller}
+
+```{r}
+gnaf_match(messy, con, min_score = 95, verbose = FALSE)[
+  , .(matched, total_score)
+]
+```
+
+No match returned — the typo isn't good enough for a **compliance-grade**
+threshold. Exactly the behaviour that team needs.
+
+## The "vagueness" team {.smaller}
+
+```{r}
+gnaf_match(messy, con, min_score = 60, verbose = FALSE)[
+  , .(matched, total_score, score_postcode, address_label)
+]
+```
+
+Same data, same function call — just a lower `min_score` — and the
+**catchment analysis** team gets their approximate match, with a visible
+score they can sanity-check.
+
+::: {.fragment}
+**One package. One shared database. Two legitimate, opposite requirements —
+solved by a parameter, not a parallel tool.**
+:::
+
+```{r}
+#| echo: false
+gnaf_disconnect(con)
+```
+
+# Why this fixes fragmentation {background-color="#2a6f97"}
+
+## A single, shared source of truth {.smaller}
+
+- One DuckDB file, one parser, one scoring formula — used office-wide instead
+  of re-implemented per team
+- Every team's threshold and weighting choice is **explicit and reviewable**,
+  not buried in a private script
+- Custom, not-yet-in-G-NAF addresses (new subdivisions, PO-adjacent site
+  codes) are added once, to a shared `custom_addresses` table, and matched
+  everywhere — not re-entered by every team that hits them
+- Weights can be re-biased per workflow (e.g. toward street number for a
+  number-sensitive job) without touching the underlying engine
+- When the matching logic improves, **every team benefits at once** instead
+  of one script getting fixed while five others stay broken
+
+# Other benefits {background-color="#2a6f97"}
+
+## Built for scale {.smaller}
+
+- **Bulk-first** — one SQL query batches the whole input vector, not a loop
+  per address
+- **DuckDB backend** — embedded, columnar, no server to run; scans millions
+  of rows per query
+- **Persistent match cache** — addresses seen before are free the second
+  time, across R sessions
+- **`data.table` throughout** — large joins and vectorised scoring stay fast
+  even outside the database
+
+## Beyond matching {.smaller}
+
+- **Spatial helpers** — join matched addresses to ABS Mesh Blocks / SA2s,
+  plot match density as a heatmap, static (`ggplot2`) or interactive
+  (`leaflet`)
+- **Shiny app** — a paste-addresses-and-go geocoder for non-technical staff,
+  built on the exact same `gnaf_match()` engine — no separate logic to drift
+  out of sync
+- **Synthetic test data** — `address_perturb_sample()` generates
+  realistic-but-messy addresses from your own data, for QA and benchmarking
+  without hand-labelling a test set
+
+## Production-ready {.smaller}
+
+- Automated test suite (`testthat`) covering the parser, the scorer, and the
+  end-to-end matching pipeline
+- Full documentation site — theory, quickstart, function reference,
+  troubleshooting
+- Honest about scope — it's built for **Australian street addresses**; it
+  doesn't resolve PO Boxes / GPO Boxes / Locked Bags, and it isn't a general
+  GIS toolkit
+
+## Getting started {.smaller}
+
+```r
+library(gnafr)
+
+# One shared database file for the office
+con <- gnaf_connect("C:/data/gnaf.duckdb")
+gnaf_init(con)
+gnaf_load(con, "C:/data/GNAF_CORE.csv")
+
+# Bulk match — same call for every team
+results <- gnaf_match(
+  my_addresses,
+  con,
+  min_score = 60   # <- the one knob each team sets for themselves
+)
+```
+
+Full docs: `docs/` in this repo (quickstart, theory, function reference).
+
+## Questions? {.smaller incremental=false}
+
+**gnafr** — one address-matching engine, shared across the office, tuned per
+team instead of rebuilt per team.
+
+Kyle Haynes · kyle@kylehaynes.com.au

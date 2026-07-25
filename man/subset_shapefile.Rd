@@ -11,7 +11,7 @@ subset_shapefile(sf_obj, var, values, invert = FALSE)
 
 \item{var}{Character name of the column to filter on.}
 
-\item{values}{Value or vector of values to keep (uses `%in%`).}
+\item{values}{Value or vector of values to keep (uses \code{\%in\%}).}
 
 \item{invert}{If `TRUE`, keep rows not matching `values`.}
 }

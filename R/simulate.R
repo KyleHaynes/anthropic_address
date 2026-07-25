@@ -42,16 +42,10 @@ address_perturb_sample <- function(x, n = min(1000L, nrow(x)), replace = FALSE,
     stop("'x' must contain 'ADDRESS_LABEL' or 'address_label'")
   }
 
-  n <- as.integer(n)
-  max_changes <- as.integer(max_changes)
-  if (is.na(n) || n <= 0L) {
-    stop("'n' must be a positive integer")
-  }
+  n <- .as_positive_integer(n, "n")
+  max_changes <- .as_positive_integer(max_changes, "max_changes")
   if (!replace && n > nrow(x)) {
     stop("'n' cannot exceed nrow(x) when replace = FALSE")
-  }
-  if (is.na(max_changes) || max_changes < 1L) {
-    stop("'max_changes' must be at least 1")
   }
 
   dt <- as.data.table(x)

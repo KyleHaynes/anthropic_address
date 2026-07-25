@@ -29,7 +29,7 @@ read_shapefile <- function(path = "C:/temp/sa2/SA2_2021_AUST_GDA2020.shp", quiet
 #'
 #' @param sf_obj An `sf` polygon object.
 #' @param var Character name of the column to filter on.
-#' @param values Value or vector of values to keep (uses `%in%`).
+#' @param values Value or vector of values to keep (uses \code{\%in\%}).
 #' @param invert If `TRUE`, keep rows not matching `values`.
 #' @return Subsetted `sf` object.
 #' @export

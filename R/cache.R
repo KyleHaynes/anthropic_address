@@ -66,12 +66,7 @@ gnaf_cache_rollback <- function(con, after, ask = TRUE) {
   if (!DBI::dbExistsTable(con, "gnaf_match_cache"))
     stop("gnaf_match_cache table not found; run gnaf_init() first.")
 
-  after_ts <- tryCatch(
-    as.POSIXct(after, tz = "UTC"),
-    error = function(e) stop("'after' must be coercible to POSIXct: ",
-                             conditionMessage(e))
-  )
-  after_str <- format(after_ts, "%Y-%m-%d %H:%M:%S")
+  after_str <- .cache_timestamp_string(after, arg = "after")
 
   n <- DBI::dbGetQuery(con, sprintf(
     "SELECT COUNT(*) AS n FROM gnaf_match_cache WHERE cached_at >= '%s'",
@@ -161,10 +156,7 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
     return(data.table())
   }
 
-  n <- as.integer(n)
-  if (is.na(n) || length(n) != 1L || n < 1L) {
-    stop("'n' must be a single positive integer")
-  }
+  n <- .as_positive_integer(n, "n")
   if (!is.null(cached_on) && (!is.null(from) || !is.null(to))) {
     stop("Use either 'cached_on' or 'from'/'to', not both")
   }
@@ -268,11 +260,20 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
 }
 
 .cache_timestamp_string <- function(x, arg) {
+  if (length(x) != 1L) {
+    stop("'", arg, "' must be a single value coercible to POSIXct",
+         call. = FALSE)
+  }
   ts <- tryCatch(
     as.POSIXct(x, tz = "UTC"),
-    error = function(e) stop("'", arg, "' must be coercible to POSIXct: ", conditionMessage(e))
+    error = function(e) {
+      stop("'", arg, "' must be coercible to POSIXct: ",
+           conditionMessage(e), call. = FALSE)
+    }
   )
-  if (is.na(ts)) stop("'", arg, "' must be coercible to POSIXct")
+  if (is.na(ts)) {
+    stop("'", arg, "' must be coercible to POSIXct", call. = FALSE)
+  }
   format(ts, "%Y-%m-%d %H:%M:%S")
 }
 

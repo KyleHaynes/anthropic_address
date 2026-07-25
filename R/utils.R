@@ -45,6 +45,17 @@
   if (is.null(x) || length(x) == 0L || (is.character(x) && !nzchar(x))) y else x
 }
 
+.as_positive_integer <- function(x, arg) {
+  if (length(x) != 1L) {
+    stop("'", arg, "' must be a single positive integer", call. = FALSE)
+  }
+  value <- suppressWarnings(as.integer(x))
+  if (is.na(value) || value < 1L) {
+    stop("'", arg, "' must be a single positive integer", call. = FALSE)
+  }
+  value
+}
+
 #' Normalize a raw address string for parsing
 #' @noRd
 .normalize_addr <- function(x) {
