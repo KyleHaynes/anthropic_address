@@ -35,6 +35,8 @@ plot_boundaries_heatmap(
 
 \item{palette}{Color palette function (defaults to `viridisLite::viridis`).}
 
+\item{verbose}{If `TRUE`, report geometry simplification.}
+
 \item{use_leaflet}{If `TRUE`, render an interactive `leaflet` map using `leaflet.extras::addHeatmap`.}
 
 \item{heatmap_options}{A named list of options passed to the leaflet heatmap (e.g. `radius`, `blur`, `max`, `minOpacity`).}

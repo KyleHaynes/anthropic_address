@@ -86,11 +86,7 @@ gnaf_init <- function(con) {
   DBI::dbExecute(con,
     "CREATE INDEX IF NOT EXISTS idx_gnaf_pc    ON gnaf_addresses(postcode)")
   DBI::dbExecute(con,
-    "CREATE INDEX IF NOT EXISTS idx_gnaf_pcnum ON gnaf_addresses(postcode, number_first)")
-  DBI::dbExecute(con,
     "CREATE INDEX IF NOT EXISTS idx_cust_pc    ON custom_addresses(postcode)")
-  DBI::dbExecute(con,
-    "CREATE INDEX IF NOT EXISTS idx_cust_pcnum ON custom_addresses(postcode, number_first)")
 
   DBI::dbExecute(con, "
     CREATE TABLE IF NOT EXISTS gnaf_locality_index (
@@ -119,9 +115,17 @@ gnaf_init <- function(con) {
       score_street_type  INTEGER,
       score_number       INTEGER,
       score_flat         INTEGER,
+      algorithm_version  INTEGER NOT NULL DEFAULT 1,
       cached_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   ")
+  tryCatch(
+    DBI::dbExecute(con, "
+      ALTER TABLE gnaf_match_cache
+      ADD COLUMN IF NOT EXISTS algorithm_version INTEGER NOT NULL DEFAULT 1
+    "),
+    error = function(e) NULL
+  )
 
   # Address label indexes — used by the exact-label first-pass in gnaf_match()
   DBI::dbExecute(con,
@@ -251,6 +255,8 @@ gnaf_build_street_aliases <- function(con, overwrite = FALSE) {
   n <- DBI::dbGetQuery(con,
     "SELECT COUNT(*) AS n FROM gnaf_addresses WHERE alias_type = 'street_only'"
   )$n
+  DBI::dbExecute(con, "ANALYZE gnaf_addresses")
+  .invalidate_match_cache(con)
   message(sprintf("Street-only aliases in database: %s", format(n, big.mark = ",")))
   invisible(n)
 }
@@ -279,6 +285,7 @@ gnaf_canonicalize_street_types <- function(con) {
       n <- n + result
     }
   }
+  if (n > 0L) .invalidate_match_cache(con)
   message(sprintf("Updated %s rows.", format(n, big.mark = ",")))
   invisible(n)
 }

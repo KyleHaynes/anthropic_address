@@ -20,7 +20,7 @@
 #' @return Invisibly, the number of rows inserted or updated.
 #' @export
 gnaf_add <- function(con, addresses, upsert = FALSE) {
-  dt <- as.data.table(addresses)
+  dt <- as.data.table(copy(addresses))
 
   required <- c("number_first", "street_name", "street_type",
                  "locality_name", "state", "postcode")
@@ -48,7 +48,9 @@ gnaf_add <- function(con, addresses, upsert = FALSE) {
   }
 
   # Uppercase text fields to match GNAF convention
-  chr_cols <- c("address_label", "building_name", "flat_type", "flat_number",
+  chr_cols <- c("address_label", "address_site_name", "building_name",
+                "flat_type", "flat_number", "level_type", "level_number",
+                "lot_number",
                 "street_name", "street_type", "street_suffix", "locality_name",
                 "state", "legal_parcel_id", "mb_code", "alias_principal",
                 "principal_pid", "primary_secondary", "primary_pid", "geocode_type")
@@ -72,11 +74,15 @@ gnaf_add <- function(con, addresses, upsert = FALSE) {
   conflict_clause <- if (upsert) {
     "ON CONFLICT (address_detail_pid) DO UPDATE SET
        address_label      = EXCLUDED.address_label,
+       address_site_name  = EXCLUDED.address_site_name,
        building_name      = EXCLUDED.building_name,
        flat_type          = EXCLUDED.flat_type,
        flat_number        = EXCLUDED.flat_number,
+       level_type         = EXCLUDED.level_type,
+       level_number       = EXCLUDED.level_number,
        number_first       = EXCLUDED.number_first,
        number_last        = EXCLUDED.number_last,
+       lot_number         = EXCLUDED.lot_number,
        street_name        = EXCLUDED.street_name,
        street_type        = EXCLUDED.street_type,
        street_suffix      = EXCLUDED.street_suffix,
@@ -132,6 +138,7 @@ gnaf_add <- function(con, addresses, upsert = FALSE) {
 
   n_after <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM custom_addresses")$n
   n_changed <- n_after - n_before
+  .invalidate_match_cache(con)
   message(sprintf("Inserted %d custom address(es). Total custom: %d.",
                   n_changed, n_after))
   invisible(n_changed)
@@ -148,5 +155,9 @@ gnaf_remove_custom <- function(con, pids) {
   n <- DBI::dbExecute(con, sprintf(
     "DELETE FROM custom_addresses WHERE address_detail_pid IN (%s)", pid_csv
   ))
+  if (n > 0L) {
+    gnaf_rebuild_locality_index(con)
+    .invalidate_match_cache(con)
+  }
   invisible(n)
 }

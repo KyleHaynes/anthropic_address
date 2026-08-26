@@ -128,8 +128,8 @@ This is the simplest production-style call: one input, one best match.
 ```{r}
 # ---- Match a single address and return the top result ----
 one_result <- gnaf_match(
+    "10 St James Ct, Tamborine Mountain QLD 4272",
     con,
-    addresses = "10 St James Ct, Tamborine Mountain QLD 4272",
     max_results = 1
 )
 
@@ -160,8 +160,8 @@ addresses <- c(
 
 # ---- Match all addresses and keep the top two candidates per input ----
 batch_results <- gnaf_match(
-    con,
     addresses,
+    con,
     max_results = 2,
     min_score = 40,
     verbose = TRUE
@@ -189,45 +189,45 @@ batch_results[, .(
 ```{r}
 # ---- Strict matching with only the best candidate ----
 strict_results <- gnaf_match(
-    con,
     addresses,
+    con,
     max_results = 1,
     min_score = 70
 )
 
 # ---- Broader auditing with more candidates and a lower threshold ----
 audit_results <- gnaf_match(
-    con,
     addresses,
+    con,
     max_results = 5,
     min_score = 20
 )
 
 # ---- Exclude custom addresses from matching ----
 gnaf_only_results <- gnaf_match(
-    con,
     addresses,
+    con,
     include_custom = FALSE
 )
 
 # ---- Disable locality fallback if you only want postcode and state paths ----
 no_fallback_results <- gnaf_match(
-    con,
     addresses,
+    con,
     locality_fallback = FALSE
 )
 
 # ---- Trigger fallback sooner for poor initial matches ----
 fallback_results <- gnaf_match(
-    con,
     addresses,
+    con,
     fallback_threshold = 85
 )
 
 # ---- Change score weights for a number-sensitive workflow ----
 weighted_results <- gnaf_match(
-    con,
     addresses,
+    con,
     weights = list(
         postcode = 20,
         suburb = 18,
@@ -240,8 +240,8 @@ weighted_results <- gnaf_match(
 
 # ---- Show progress and summary output ----
 verbose_results <- gnaf_match(
-    con,
     addresses,
+    con,
     verbose = TRUE
 )
 ```
@@ -298,8 +298,8 @@ synthetic_addresses <- address_perturb_sample(
 
 # ---- Match the simulated strings back against the database ----
 synthetic_results <- gnaf_match(
-    con,
     synthetic_addresses$simulated_address,
+    con,
     max_results = 1,
     verbose = TRUE
 )

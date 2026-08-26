@@ -28,7 +28,7 @@ gnaf_match(
 
 \item{max_results}{Maximum number of matches to return per input.}
 
-\item{min_score}{Minimum total score (0–100) to include in results.}
+\item{min_score}{Minimum total score (0-100) to include in results.}
 
 \item{include_custom}{Include custom addresses in matching.}
 
@@ -39,7 +39,8 @@ regardless of alias type. Example: \code{c(NA, "street_only")} restricts
 to core addresses and street-level aliases only.}
 
 \item{locality_fallback}{If \code{TRUE} (default), re-searches by locality
-name for inputs whose best score is below \code{fallback_threshold}.}
+name for unmatched inputs and results below \code{fallback_threshold}
+whose locality component is weak.}
 
 \item{street_only_fallback}{If \code{TRUE}, inputs still unmatched after all
 other paths are re-matched against street-level aliases
@@ -47,21 +48,25 @@ other paths are re-matched against street-level aliases
 \code{gnaf_build_street_aliases} to have been run first. Default
 \code{FALSE}.}
 
-\item{fallback_threshold}{Total score at or below which locality fallback
-fires. Default 90: a clean correct match typically scores 95+, whereas a
-coincidental match — same postcode and house number, unrelated street —
+\item{fallback_threshold}{Total score at or below which a weak-locality
+result is eligible for locality fallback. Default 90: a clean correct
+match typically scores 95+, whereas a
+coincidental match - same postcode and house number, unrelated street -
 can still reach into the low-to-mid 80s (e.g. 20 postcode + 10 number +
 partial suburb/street-name credit). 90 leaves enough margin to catch those
 coincidences and let the locality scan (which discovers the right postcode
 from the suburb name regardless of how far off the stated one is) find the
 true candidate, without firing for genuinely good matches.}
 
-\item{weights}{Named list of score weights. Defaults to postcode = 25,
-suburb = 20, street_name = 25, street_type = 10, number = 12, flat = 8.
+\item{weights}{Named list of score weights. Defaults to postcode = 20,
+suburb = 15, street_name = 40, street_type = 10, number = 10, flat = 5.
 Weights must sum to 100.}
 
+\item{normalize}{Passed to \code{address_parse}; defaults to \code{TRUE}.}
+
 \item{cache}{If \code{TRUE} (default), checks \code{gnaf_match_cache} for
-previously matched addresses and stores new high-confidence results.}
+previously matched addresses and stores new high-confidence results. The
+one-result cache is bypassed when \code{max_results > 1}.}
 
 \item{cache_threshold}{Minimum score for a new result to be cached.
 Default 95.}
@@ -77,13 +82,13 @@ A \code{data.table} ordered by \code{input_id} then descending
 \description{
 Uses a four-path strategy:
 \enumerate{
-  \item \strong{Postcode path} — primary, blocks on the parsed postcode.
-  \item \strong{State path} — for inputs with no parseable postcode.
-  \item \strong{Locality fallback} — for inputs whose best postcode result is
+  \item \strong{Postcode path} - primary, blocks on the parsed postcode.
+  \item \strong{State path} - for inputs with no parseable postcode.
+  \item \strong{Locality fallback} - for inputs whose best postcode result is
         weak (score below \code{fallback_threshold}). Uses DuckDB's built-in
         \code{jaro_winkler_similarity} to find the correct postcode from the
         parsed suburb name, then re-scores. Handles wrong or missing postcodes.
-  \item \strong{Street-only fallback} — optional; fires for inputs that are
+  \item \strong{Street-only fallback} - optional; fires for inputs that are
         still unmatched after all other paths. Matches against street-level
         aliases built by \code{gnaf_build_street_aliases}. Useful when a
         specific street number is absent from GNAF but the street itself

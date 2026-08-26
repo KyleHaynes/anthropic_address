@@ -169,6 +169,40 @@ test_that("missing street type with single-word remainder is treated as street n
   expect_true(is.na(r$in_locality))
 })
 
+# ---- Street-type/locality-name collision words (HILL, PARK, VALLEY, ...) --
+# When the rightmost apparent street-type match is also a common locality
+# word, an earlier unambiguous street-type token (if present) should win, so
+# the collision word is treated as (part of) the locality instead. A leading
+# business-name prefix plus an attached unit designator ("U20") routes these
+# addresses through the scalar fallback parser rather than the vectorized
+# fast path, so both must apply the same disambiguation.
+
+test_that("locality-collision word after street type resolves correctly with no prefix", {
+  r <- address_parse("U20 110 MUSGRAVE RD RED HILL 4060")
+  expect_equal(r$in_street_name, "MUSGRAVE")
+  expect_equal(r$in_street_type, "ROAD")
+  expect_equal(r$in_locality,    "RED HILL")
+  expect_equal(r$in_number_first, 110L)
+  expect_equal(r$in_flat_number,  "20")
+})
+
+test_that("business-name prefix before an attached unit does not break locality-collision resolution", {
+  r <- address_parse("Cambridge on the hill U20 110 musgrave rd red hill 4060")
+  expect_equal(r$in_street_name, "MUSGRAVE")
+  expect_equal(r$in_street_type, "ROAD")
+  expect_equal(r$in_locality,    "RED HILL")
+  expect_equal(r$in_number_first, 110L)
+  expect_equal(r$in_flat_number,  "20")
+  expect_equal(r$in_postcode,     4060L)
+})
+
+test_that("a genuine locality-collision word is still preserved when it is the real locality", {
+  r <- address_parse("U20 110 MUSGRAVE RD BUSHLAND HILL 4060")
+  expect_equal(r$in_street_name, "MUSGRAVE")
+  expect_equal(r$in_street_type, "ROAD")
+  expect_equal(r$in_locality,    "BUSHLAND HILL")
+})
+
 # ---- Vectorised input ------------------------------------------------------
 
 test_that("multiple addresses returned as one row each", {
@@ -373,11 +407,11 @@ test_that("MT and MNT expand to MOUNT in street name and locality", {
   expect_equal(r2$in_locality,    "MOUNT ISA")
 })
 
-test_that("ST expands to SAINT in street name and locality after street type is stripped", {
+test_that("ST expands in street names but remains literal in GNAF localities", {
   r <- address_parse("10 ST JAMES CT, ST LUCIA QLD 4067")
   expect_equal(r$in_street_name, "SAINT JAMES")
   expect_equal(r$in_street_type, "COURT")
-  expect_equal(r$in_locality,    "SAINT LUCIA")
+  expect_equal(r$in_locality,    "ST LUCIA")
 })
 
 test_that("NTH and STH expand to NORTH and SOUTH", {
@@ -441,11 +475,70 @@ test_that("NA and empty inputs return all-NA rows with correct input_id", {
   na_cols <- c("in_postcode", "in_state", "in_locality", "in_street_name",
                "in_street_type", "in_street_suffix", "in_number_first",
                "in_number_last", "in_number_suffix", "in_flat_type",
-               "in_flat_number", "in_building_name")
+               "in_flat_number", "in_level_type", "in_level_number",
+               "in_lot_number", "in_building_name")
   for (col in na_cols) {
     expect_true(all(is.na(r[[col]][1:3])), info = col)
   }
 
   expect_equal(r$in_street_name[4L], "SMITH")
   expect_equal(r$in_postcode[4L],    4000L)
+})
+
+test_that("flat, level, and lot designators remain distinct", {
+  r <- address_parse(c(
+    "Shop 14 Level 3 52 Davenport Rd, South Brisbane QLD 4101",
+    "Lot 7 Kreis Rd, Westbrook QLD 4350"
+  ), normalize = FALSE)
+  expect_equal(r$in_flat_type[1L], "SHOP")
+  expect_equal(r$in_flat_number[1L], "14")
+  expect_equal(r$in_level_type[1L], "LEVEL")
+  expect_equal(r$in_level_number[1L], "3")
+  expect_equal(r$in_number_first[1L], 52L)
+  expect_equal(r$in_lot_number[2L], "7")
+  expect_true(is.na(r$in_number_first[2L]))
+})
+
+test_that("type-like sole street names and lot building prefixes stay structural", {
+  r <- address_parse(c(
+    "Golden Beach Resort Unit 810 75 Esplanade, Golden Beach QLD 4551",
+    "Unit 2206 194 The Avenue, Peregian Springs QLD 4573",
+    "Araby Lot 21 Armstrongs Lane, Moore QLD 4314"
+  ), normalize = FALSE)
+  expect_equal(r$in_street_name, c("ESPLANADE", "THE AVENUE", "ARMSTRONGS"))
+  expect_equal(r$in_street_type, c(NA_character_, NA_character_, "LANE"))
+  expect_equal(r$in_number_first, c(75L, 194L, NA_integer_))
+  expect_equal(r$in_lot_number, c(NA_character_, NA_character_, "21"))
+  expect_equal(r$in_building_name, c("GOLDEN BEACH RESORT", NA_character_, "ARABY"))
+})
+
+test_that("official GNAF street types are recognised exactly", {
+  r <- address_parse(c(
+    "1 Coral Cove, Red Hill QLD 4059",
+    "2 Summit Outlook, Brisbane QLD 4000",
+    "3 River Retreat, Westbrook QLD 4350",
+    "4 Island Access, Hope Island QLD 4212"
+  ), normalize = FALSE)
+  expect_equal(r$in_street_type, c("COVE", "OUTLOOK", "RETREAT", "ACCESS"))
+  expect_equal(r$in_street_name, c("CORAL", "SUMMIT", "RIVER", "ISLAND"))
+})
+
+test_that("structural duplicates preserve order and raw text", {
+  x <- c("10 Smith St, St Lucia QLD 4067", "10 SMITH ST,ST LUCIA QLD 4067",
+         "10 Smith St, St Lucia QLD 4067")
+  r <- address_parse(x, normalize = FALSE)
+  expect_equal(r$input_id, seq_along(x))
+  expect_equal(r$input_raw, x)
+  expect_true(all(r$in_street_name == "SMITH"))
+  expect_true(all(r$in_locality == "ST LUCIA"))
+})
+
+test_that("parser validates inputs and keeps a typed zero-row result", {
+  expect_error(address_parse(1:3), "character vector")
+  expect_error(address_parse("x", normalize = NA), "TRUE or FALSE")
+  empty <- address_parse(character())
+  expect_s3_class(empty, "data.table")
+  expect_equal(nrow(empty), 0L)
+  expect_type(empty$in_postcode, "integer")
+  expect_type(empty$in_level_number, "character")
 })

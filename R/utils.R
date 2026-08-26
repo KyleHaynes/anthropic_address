@@ -45,6 +45,47 @@
   if (is.null(x) || length(x) == 0L || (is.character(x) && !nzchar(x))) y else x
 }
 
+.get_level_type_map <- function() {
+  if (is.null(.gnafr_env$level_map)) {
+    path <- system.file("extdata", "level_types.csv", package = "gnafr")
+    dt <- fread(path)
+    m <- dt$canonical
+    names(m) <- dt$abbrev
+    .gnafr_env$level_map <- m
+  }
+  .gnafr_env$level_map
+}
+
+# Parser lookup maps and their derived regular expressions are immutable package
+# data. Building them once per session matters for short, repeated parser calls
+# and also keeps every parsing path on the same vocabulary.
+.get_parser_resources <- function() {
+  if (is.null(.gnafr_env$parser_resources)) {
+    st_map <- .get_street_type_map()
+    ft_map <- .get_flat_type_map()
+    level_map <- .get_level_type_map()
+    longest_first <- function(x) x[order(-nchar(x), x)]
+    # G-NAF type tokens contain letters, spaces, and hyphens only; none of
+    # those need escaping in the alternations below.
+    regex_escape <- function(x) x
+    st_keys <- longest_first(names(st_map))
+    ft_keys <- longest_first(names(ft_map))
+    level_keys <- longest_first(names(level_map))
+    ft_alt <- paste(regex_escape(ft_keys), collapse = "|")
+    level_alt <- paste(regex_escape(level_keys), collapse = "|")
+    .gnafr_env$parser_resources <- list(
+      st_map = st_map,
+      st_regex = paste0("\\b(", paste(regex_escape(st_keys), collapse = "|"), ")\\b"),
+      ft_map = ft_map,
+      ft_alt = ft_alt,
+      ft_re = paste0("^(", ft_alt, ")\\s+(\\d+[A-Z]?)\\s+"),
+      level_map = level_map,
+      level_alt = level_alt
+    )
+  }
+  .gnafr_env$parser_resources
+}
+
 .as_positive_integer <- function(x, arg) {
   if (length(x) != 1L) {
     stop("'", arg, "' must be a single positive integer", call. = FALSE)
@@ -59,8 +100,19 @@
 #' Normalize a raw address string for parsing
 #' @noRd
 .normalize_addr <- function(x) {
+  x <- .normalize_addr_keep_commas(x)
+  x <- fast.string::fgsub(",", " ", x, fixed = TRUE)
+  x <- fast.string::fgsub("\\s+", " ", x)
+  fast.string::ftrimws(x)
+}
+
+# Preserve comma structure until the parser has identified the street/locality
+# boundary. Other callers still receive the historical comma-free form through
+# .normalize_addr().
+.normalize_addr_keep_commas <- function(x) {
   x <- stringi::stri_trans_toupper(fast.string::ftrimws(x))
-  x <- fast.string::gsub_all(c(",", "."), " ", x, fixed = TRUE)
+  x <- fast.string::fgsub(".", " ", x, fixed = TRUE)
+  x <- fast.string::fgsub("\\s*,\\s*", ",", x)
   x <- fast.string::fgsub("\\s+", " ", x)
   x <- .fix_glued_number_letters(x)
   fast.string::ftrimws(x)
@@ -128,6 +180,19 @@
 # character(0) → 1 = 0  (match nothing — caller should guard against this)
 .alias_type_sql <- function(alias_types, alias = "g") {
   if (is.null(alias_types)) return(NULL)
+
+  if (identical(alias_types, "__GNAFR_EXACT_ALIASES__")) {
+    return(sprintf(
+      "%s.alias_type IS NOT NULL AND lower(%s.alias_type) <> 'street_only' AND NOT starts_with(upper(%s.alias_type), 'LOCALITY:')",
+      alias, alias, alias
+    ))
+  }
+  if (identical(alias_types, "__GNAFR_LOCALITY_ALIASES__")) {
+    return(sprintf(
+      "starts_with(upper(COALESCE(%s.alias_type, '')), 'LOCALITY:')",
+      alias
+    ))
+  }
 
   has_na <- any(is.na(alias_types))
   non_na <- alias_types[!is.na(alias_types)]

@@ -89,7 +89,7 @@ spatial_lookup <- function(points_dt, shapes, lat = "latitude", lon = "longitude
 
     # If there are no valid coordinates in this chunk, attach NA attrs and continue
     if (length(complete_idx) == 0L) {
-      na_attrs <- as.list(setNames(rep(NA, length(return_cols)), return_cols))
+      na_attrs <- as.list(stats::setNames(rep(NA, length(return_cols)), return_cols))
       attrs_dt <- data.table::as.data.table(na_attrs)[rep(1L, nrow(chunk_copy)), ]
       res_dt <- cbind(chunk_copy, attrs_dt)
       out_list[[i]] <- res_dt
@@ -122,7 +122,7 @@ spatial_lookup <- function(points_dt, shapes, lat = "latitude", lon = "longitude
       rows <- vector("list", nrow(chunk_copy))
       pos_map <- integer(nrow(chunk_copy))
       pos_map[complete_idx] <- seq_along(complete_idx)
-      na_attrs_row <- as.list(setNames(rep(NA, length(return_cols)), return_cols))
+      na_attrs_row <- as.list(stats::setNames(rep(NA, length(return_cols)), return_cols))
       for (j in seq_len(nrow(chunk_copy))) {
         pos <- pos_map[j]
         base <- chunk_copy[j, , drop = FALSE]
@@ -166,6 +166,7 @@ spatial_lookup <- function(points_dt, shapes, lat = "latitude", lon = "longitude
 #' @param bins Number of grid cells for density estimation (higher = finer).
 #' @param alpha Alpha for the density raster.
 #' @param palette Color palette function (defaults to `viridisLite::viridis`).
+#' @param verbose If `TRUE`, report geometry simplification.
 #' @param use_leaflet If `TRUE`, render an interactive `leaflet` map using `leaflet.extras::addHeatmap`.
 #' @param heatmap_options A named list of options passed to the leaflet heatmap (e.g. `radius`, `blur`, `max`, `minOpacity`).
 #' @return A `ggplot` object (when `use_leaflet = FALSE`) or a `leaflet` map object (when `use_leaflet = TRUE`).
@@ -212,7 +213,7 @@ plot_boundaries_heatmap <- function(shapes, points_dt = NULL, lat = "latitude", 
 
     # heatmap options defaults
     hm_def <- list(radius = 15, blur = 20, max = 1, minOpacity = 0.5)
-    hm <- modifyList(hm_def, heatmap_options)
+    hm <- utils::modifyList(hm_def, heatmap_options)
 
     m <- leaflet::leaflet(data = pts_df2) %>%
       leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) %>%

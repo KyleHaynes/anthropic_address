@@ -2,31 +2,23 @@
 % Please edit documentation in R/parse.R
 \name{address_parse}
 \alias{address_parse}
-\title{Parse a vector of address strings into structured components}
+\title{Parse Australian addresses into G-NAF components}
 \usage{
 address_parse(addresses, normalize = TRUE)
 }
 \arguments{
 \item{addresses}{Character vector of raw address strings.}
 
-\item{normalize}{If \code{TRUE} (the default), common abbreviations in
-\code{in_locality} and \code{in_street_name} are expanded to their GNAF
-canonical forms after parsing: \code{MT}/\code{MNT} \eqn{\to}
-\code{MOUNT}; \code{ST} \eqn{\to} \code{SAINT}; \code{NTH}/\code{STH}
-and leading \code{N}/\code{S}/\code{E}/\code{W} \eqn{\to} full compass
-words; \code{CK} \eqn{\to} \code{CREEK}; \code{\&} \eqn{\to}
-\code{AND}; ordinal numerals (\code{1ST}, \code{2ND}, \ldots) \eqn{\to}
-written words (street name only).  Set to \code{FALSE} to skip.}
+\item{normalize}{Scalar logical. If \code{TRUE}, common street-name and
+locality abbreviations are expanded after parsing.}
 }
 \value{
-A \code{data.table} with one row per input and columns:
-  \code{input_id}, \code{input_raw}, \code{in_postcode}, \code{in_state},
-  \code{in_locality}, \code{in_street_name}, \code{in_street_type},
-  \code{in_street_suffix}, \code{in_number_first}, \code{in_number_last},
-  \code{in_flat_type}, \code{in_flat_number}, \code{in_building_name}.
+A \code{data.table} with one row per input. Existing parser columns
+  are retained and \code{in_level_type}, \code{in_level_number}, and
+  \code{in_lot_number} describe independent G-NAF sub-address components.
 }
 \description{
-Handles common Australian address formats including unit/flat prefixes,
-slash notation (110/120), attached prefixes (U110), building names, and
-street number ranges (13-27).
+Parses each unique normalised structural input once and expands results back
+to the original order. Comma boundaries are retained while the street and
+locality sections are classified.
 }

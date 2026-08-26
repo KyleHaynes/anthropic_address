@@ -177,18 +177,18 @@ addresses <- c(
   "77 broadwater rd mount gravatt east 4122"
 )
 
-gnaf_match(con, c("10 110-120 musgrave Road red hill 4000 QLD", "unit 10a 110-120 musgrave Road red hill 4000 QLD", "unit 10 120 musgrave Road red hill 4059 QLD", "10 120 musgrave Road red hill 4059 QLD"), max_results = 2)
-gnaf_match(con, c("10 St James Ct, Tamborine Mountain QLD 4272"), max_results = 2)
+gnaf_match(c("10 110-120 musgrave Road red hill 4000 QLD", "unit 10a 110-120 musgrave Road red hill 4000 QLD", "unit 10 120 musgrave Road red hill 4059 QLD", "10 120 musgrave Road red hill 4059 QLD"), con, max_results = 2)
+gnaf_match(c("10 St James Ct, Tamborine Mountain QLD 4272"), con, max_results = 2)
 ```
 
-By default `gnaf_match` returns up to **3 matches** per input with a **minimum score of 40**. Both are adjustable:
+By default `gnaf_match` returns the top **1 match** per input with a **minimum score of 60**. Both are adjustable:
 
 ```r
 # Top match only, higher confidence threshold
-results <- gnaf_match(con, addresses, max_results = 1, min_score = 60)
+results <- gnaf_match(addresses, con, max_results = 1, min_score = 60)
 
 # More candidates, accept lower confidence (useful for auditing)
-results <- gnaf_match(con, addresses, max_results = 5, min_score = 20)
+results <- gnaf_match(addresses, con, max_results = 5, min_score = 20)
 ```
 
 ---
@@ -200,9 +200,9 @@ results <- gnaf_match(con, addresses, max_results = 5, min_score = 20)
 
 ```
 input_id  input_raw                           match_rank  total_score  score_postcode  score_suburb  score_street_name  score_street_type  score_number  score_flat
-       1  unit 110 120 musgrave Road red...            1           97              25            20                 25                 10            12           5
-       1  unit 110 120 musgrave Road red...            2           82              25            20                 25                 10            12           0
-       2  U110 1120 musgrave rd red hill...            1           82              25            20                 25                 10             0           5
+       1  unit 110 120 musgrave Road red...            1          100              20            15                 40                 10            10           5
+       1  unit 110 120 musgrave Road red...            2           95              20            15                 40                 10            10           0
+       2  U110 1120 musgrave rd red hill...            1           90              20            15                 40                 10             0           5
 ```
 
 ### Identity columns
@@ -218,12 +218,12 @@ input_id  input_raw                           match_rank  total_score  score_pos
 | Column | Max | Description |
 |--------|-----|-------------|
 | `total_score` | 100 | Weighted sum of all component scores |
-| `score_postcode` | 25 | Exact postcode match |
-| `score_suburb` | 20 | Jaro-Winkler similarity of locality name |
-| `score_street_name` | 25 | Jaro-Winkler similarity of street name |
+| `score_postcode` | 20 | Exact or near-postcode agreement |
+| `score_suburb` | 15 | Jaro-Winkler similarity of locality name |
+| `score_street_name` | 40 | Jaro-Winkler similarity of street name |
 | `score_street_type` | 10 | Normalised street type match (RD = ROAD) |
-| `score_number` | 12 | Street number: exact (12), in range (8), no match (0) |
-| `score_flat` | 8 | Flat/unit: both match or both absent (8), otherwise (0) |
+| `score_number` | 10 | Street number/range, or explicit lot-number agreement |
+| `score_flat` | 5 | Composite flat and level identifier agreement |
 
 ### Matched GNAF fields
 
@@ -231,7 +231,10 @@ input_id  input_raw                           match_rank  total_score  score_pos
 |--------|-------------|
 | `address_detail_pid` | GNAF unique identifier for the matched address |
 | `address_label` | Formatted address string from GNAF |
+| `address_site_name` | G-NAF address-site name, where available |
 | `flat_type` / `flat_number` | Unit/apartment type and number |
+| `level_type` / `level_number` | Independent floor/level identifier |
+| `lot_number` | Explicit lot identifier |
 | `number_first` / `number_last` | Street number or range start/end |
 | `street_name` / `street_type` | Matched street components |
 | `locality_name` | Suburb / locality |
@@ -247,7 +250,7 @@ input_id  input_raw                           match_rank  total_score  score_pos
 
 ### Inputs with no match
 
-If an input has no candidates above `min_score`, it will not appear in the output at all. To find which inputs were not matched:
+Inputs with no candidate above `min_score` remain in the output with `matched = FALSE` and a `match_status` explaining why.
 
 ```r
 unmatched_ids <- setdiff(seq_along(addresses), results$input_id)
@@ -271,12 +274,12 @@ Default weights:
 
 ```r
 list(
-  postcode = 25,
-  suburb = 20,
-  street_name = 25,
+  postcode = 20,
+  suburb = 15,
+  street_name = 40,
   street_type = 10,
-  number = 12,
-  flat = 8
+  number = 10,
+  flat = 5
 )
 ```
 
@@ -284,8 +287,8 @@ You can override them when you need a different bias, for example if street numb
 
 ```r
 results <- gnaf_match(
-  con,
   addresses,
+  con,
   weights = list(
     postcode = 20,
     suburb = 18,
@@ -297,26 +300,22 @@ results <- gnaf_match(
 )
 ```
 
-**Postcode (25 pts)** — all-or-nothing exact match.  
-High weight because Australian postcodes are granular and reliable. If the input has no parseable postcode, 0 pts; matching switches to a state-level fallback which is much noisier.
+**Postcode (20 pts)** — exact agreement receives full credit, with decreasing partial credit for differences of one to three. If no postcode is parsed, matching can use state/locality fallbacks.
 
-**Suburb / locality (20 pts)** — Jaro-Winkler similarity scaled 0–20.  
-Jaro-Winkler rewards prefix agreement, so `RED HILL` vs `REDHILL` scores ~19/20. `MOUNT GRAVATT EAST` vs `MT GRAVATT EAST` scores ~17/20 due to the `MT`/`MOUNT` mismatch.
+**Suburb / locality (15 pts)** — Jaro-Winkler similarity scaled 0–15.
 
-**Street name (25 pts)** — Jaro-Winkler similarity scaled 0–25.  
-`MUSGRAVE` vs `MUSGRAVE` = 25. `MUSGROVE` vs `MUSGRAVE` ≈ 24 (one-character transposition). `BROADWATER` vs `BROADWATER` = 25.
+**Street name (40 pts)** — Jaro-Winkler similarity scaled 0–40.
 
 **Street type (10 pts)** — normalised exact match.  
 `RD` and `ROAD` are both normalised to `ROAD` before comparison, so they match. If only one side has a type (e.g. input omitted it), 5 pts partial credit.
 
-**Street number (12 pts)** — three tiers:  
-- Exact match to `number_first` → 12 pts  
-- Number falls within `number_first`..`number_last` range (e.g. input has 15, GNAF has 13–27) → 8 pts  
+**Street number or lot (10 pts)** — three tiers:
+
+- Exact street-number or explicit lot-number match → 10 pts
+- Number falls within `number_first`..`number_last` range → 7 pts
 - No match → 0 pts
 
-**Flat / unit (8 pts)** — binary:  
-- Both input and GNAF have no flat, or both have matching flat numbers → 8 pts  
-- Mismatch or only one side has a flat → 0 pts
+**Flat / level (5 pts)** — flat and level identifiers are compared together. Matching identifiers receive full credit, conflicting supplied types receive partial credit, and missing or mismatched identifiers receive zero.
 
 ### Interpreting scores
 
@@ -326,9 +325,9 @@ Jaro-Winkler rewards prefix agreement, so `RED HILL` vs `REDHILL` scores ~19/20.
 | 75–89 | High confidence; minor variation in suburb or street name spelling |
 | 60–74 | Reasonable match; one significant discrepancy (e.g. wrong street type or suburb spelling) |
 | 40–59 | Low confidence; review manually |
-| < 40 | Filtered out by default (`min_score = 40`) |
+| < 60 | Filtered out by default (`min_score = 60`) |
 
-A `total_score` of 80+ with `score_street_name` of 25 and `score_postcode` of 25 is generally trustworthy for automated pipelines. Add `score_number = 12` for high-value use cases.
+A high score with full street-name, postcode, and number components is generally the strongest automation signal; calibrate thresholds on your own labelled data.
 
 ---
 
@@ -346,12 +345,16 @@ The parser handles the messy real-world formats you'll encounter in Australian d
 | `13/45 smith st brisbane 4000` | flat=13, num=45, street=SMITH STREET |
 | `APT 3 200 george st sydney NSW 2000` | flat=3, num=200, street=GEORGE STREET |
 | `18-20 drift cl goldsborough QLD 4865` | num_first=18, num_last=20, street=DRIFT CLOSE |
-| `level 5 300 ann st brisbane 4000` | flat_type=LEVEL, flat_num=5, num=300 |
+| `level 5 300 ann st brisbane 4000` | level_type=LEVEL, level_num=5, num=300 |
+| `lot 7 kreis rd westbrook QLD 4350` | lot=7, street=KREIS ROAD |
 | `77 broadwater rd mount gravatt east 4122` | num=77, street=BROADWATER ROAD, suburb=MOUNT GRAVATT EAST |
 
 ### Flat/unit prefixes recognised
 
-`UNIT`, `U` (attached, e.g. `U12`), `APARTMENT`, `APT`, `FLAT`, `FL`, `FLT`, `LEVEL`, `LVL`, `SUITE`, `STE`, `SHOP`, `SH`, `VILLA`, `VLA`, `LOT`, `TENANCY`, `TNY`
+`UNIT`, `U` (attached, e.g. `U12`), `APARTMENT`, `APT`, `FLAT`, `FL`, `FLT`, `SUITE`, `STE`, `SHOP`, `SH`, `VILLA`, `VLA`, `TENANCY`, `TNY`
+
+Level markers (`LEVEL`, `LVL`, `FLOOR`, `FLR`) and `LOT` are parsed into
+their own fields rather than being folded into the flat component.
 
 ### Street type abbreviations
 
@@ -373,7 +376,8 @@ All standard abbreviations are normalised to their canonical GNAF form before ma
 | `PKWY`, `PWY`, `PKY` | `PARKWAY` |
 | `TCE`, `TER`, `TERR` | `TERRACE` |
 
-The full list (90 entries) is in [`inst/extdata/street_types.csv`](inst/extdata/street_types.csv).
+The full official type table and accepted abbreviations are in
+[`inst/extdata/street_types.csv`](inst/extdata/street_types.csv).
 
 ### What the parser cannot handle
 
@@ -408,7 +412,7 @@ con <- gnaf_connect("C:/data/gnaf.duckdb")
 # Load your addresses from any source
 dt_in <- fread("C:/data/my_addresses.csv")
 
-results <- gnaf_match(con, dt_in$address_string, max_results = 1, min_score = 60)
+results <- gnaf_match(dt_in$address_string, con, max_results = 1, min_score = 60)
 
 # Join back to your original data
 dt_out <- results[dt_in, on = c("input_id" = "row_id")]
@@ -416,12 +420,11 @@ dt_out <- results[dt_in, on = c("input_id" = "row_id")]
 
 ### How bulk matching works internally
 
-1. **Parse** — all input strings are parsed into components in R (vectorised regex, no DB calls)
-2. **Batch fetch** — one SQL `IN (...)` query retrieves all GNAF records for the relevant postcodes at once
-3. **Tight join** — `data.table` joins inputs to candidates on `(postcode, number_first)`; this is highly selective and creates a small candidate set
-4. **Broad fallback** — inputs with no tight-join candidates are joined on `postcode` only (all addresses in that postcode become candidates)
-5. **Score** — Jaro-Winkler and exact comparisons run on all candidate pairs in one vectorised pass
-6. **Rank and filter** — top N per input, then drop rows below `min_score`
+1. **Parse once** — unique normalised structural inputs are parsed with vectorised regex paths and expanded back to the original rows.
+2. **Deduplicate signatures** — equivalent parsed inputs enter DuckDB only once.
+3. **Exact component stage** — postcode, street name, and exact/range/lot number branches run before fuzzy scoring.
+4. **Fuzzy fallback** — only weak or unmatched inputs enter wider street/locality searches.
+5. **Narrow ranking** — DuckDB scores PIDs and required fields, ranks them, then fetches wide columns only for top rows.
 
 ### Chunking very large inputs
 
@@ -433,7 +436,7 @@ ids <- seq_len(nrow(dt_in))
 chunks <- split(ids, ceiling(ids / chunk_size))
 
 results_list <- lapply(chunks, function(idx) {
-  gnaf_match(con, dt_in$address_string[idx], max_results = 1, min_score = 60)
+  gnaf_match(dt_in$address_string[idx], con, max_results = 1, min_score = 60)
 })
 
 results <- rbindlist(results_list)
@@ -544,7 +547,7 @@ dt_out <- geo[dt_in, on = "input_id"]
 
 ```r
 # Addresses where postcode matched but street name didn't
-suspect <- results[score_postcode == 25 & score_street_name < 15]
+suspect <- results[score_postcode == 20 & score_street_name < 20]
 
 # All components for a specific input
 results[input_id == 42, .(match_rank, total_score, score_postcode, score_suburb,
@@ -569,20 +572,11 @@ Times assume a laptop with SSD and ~3M GNAF records for QLD. Results vary with C
 
 ### What drives performance
 
-**Parsing** — the `lapply` loop in `address_parse` is the main bottleneck for large inputs. It can be parallelised:
-
-```r
-library(parallel)
-n_cores <- detectCores() - 1L
-chunks  <- split(addresses, cut(seq_along(addresses), n_cores, labels = FALSE))
-parsed_list <- mclapply(chunks, address_parse, mc.cores = n_cores)
-parsed <- rbindlist(parsed_list)
-# Then re-index input_ids if needed
-```
+**Parsing** — parsing is vectorised and repeated normalised inputs are parsed once. Keep repeated values in the same call so they share this work.
 
 **Postcode spread** — if 100k addresses all share one postcode, the broad fallback join can be large (100k × 2000 GNAF records = 200M pairs). Prefer the tight join path by ensuring street numbers parse correctly.
 
-**DB I/O** — DuckDB reads GNAF candidates in one query per `gnaf_match` call. If your inputs span hundreds of distinct postcodes, this query can involve large scans. The `(postcode, number_first)` compound index is the primary optimisation.
+**DB I/O** — exact number, range, lot, and missing-number branches reduce candidate cardinality before fuzzy scoring. Keep DuckDB statistics current with `ANALYZE` after out-of-band bulk loads.
 
 ### Keeping the connection open
 
@@ -632,7 +626,7 @@ Loads one or more GNAF CSV files into `gnaf_addresses`. Uses DuckDB's native `re
 ### Matching
 
 ```r
-gnaf_match(con, addresses, max_results = 3, min_score = 40, include_custom = TRUE)
+gnaf_match(addresses, con, max_results = 1, min_score = 60, include_custom = TRUE)
 ```
 Matches a character vector of address strings. Returns a `data.table` with matched GNAF fields and score columns. Set `include_custom = FALSE` to exclude custom addresses.
 
@@ -703,7 +697,7 @@ Inspect the parsed components vs the GNAF match:
 parsed <- address_parse("my problem address")
 print(parsed)
 
-result <- gnaf_match(con, "my problem address", max_results = 5, min_score = 0)
+result <- gnaf_match("my problem address", con, max_results = 5, min_score = 0)
 print(result[, .(match_rank, total_score, score_suburb, score_street_name,
                   score_number, address_label)])
 ```
@@ -751,8 +745,8 @@ gnaf_status(con)
 ```r
 # Cache is on by default.
 results <- gnaf_match(
-  con,
   addresses,
+  con,
   cache = TRUE,
   cache_threshold = 95,
   verbose = TRUE
@@ -798,4 +792,3 @@ Roll back or clear cache entries:
 gnaf_cache_rollback(con, after = "2026-06-05 14:00:00")
 gnaf_cache_clear(con)
 ```
-

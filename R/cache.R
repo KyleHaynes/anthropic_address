@@ -2,6 +2,8 @@
 # Match cache: fast lookup for previously-matched high-confidence addresses
 # ---------------------------------------------------------------------------
 
+.CACHE_ALGORITHM_VERSION <- 2L
+
 #' Show the current state of the match cache
 #'
 #' @param con DBI connection from \code{gnaf_connect}.
@@ -176,9 +178,13 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
             c.score_flat,
             c.cached_at,
             g.address_label,
+            g.address_site_name,
             g.building_name,
             g.flat_type,
             g.flat_number,
+            g.level_type,
+            g.level_number,
+            g.lot_number,
             g.number_first,
             g.number_last,
             g.street_name,
@@ -215,8 +221,9 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
 # ---------------------------------------------------------------------------
 
 .cache_address_source_sql <- function(con, include_custom) {
-  addr_sel <- "address_detail_pid, address_label, building_name,
-               flat_type, flat_number, number_first, number_last,
+  addr_sel <- "address_detail_pid, address_label, address_site_name, building_name,
+               flat_type, flat_number, level_type, level_number,
+               number_first, number_last, lot_number,
                street_name, street_type, street_suffix, locality_name,
                state, postcode, longitude, latitude, source, alias_type,
                alias_principal, principal_pid, primary_secondary, primary_pid,
@@ -277,7 +284,8 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   format(ts, "%Y-%m-%d %H:%M:%S")
 }
 
-.cache_lookup <- function(con, standardised_vec, include_custom, alias_types = NULL) {
+.cache_lookup <- function(con, standardised_vec, include_custom, alias_types = NULL,
+                          min_score = 0L) {
   standardised_vec <- standardised_vec[!is.na(standardised_vec) & nzchar(standardised_vec)]
   if (length(standardised_vec) == 0L) return(data.table())
 
@@ -287,7 +295,7 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
 
   addr_src    <- .cache_address_source_sql(con, include_custom = include_custom)
   alias_sql   <- .alias_type_sql(alias_types)
-  alias_where <- if (!is.null(alias_sql)) sprintf("\n    WHERE %s", alias_sql) else ""
+  alias_where <- if (!is.null(alias_sql)) sprintf("\n      AND %s", alias_sql) else ""
 
   setDT(DBI::dbGetQuery(con, sprintf("
     SELECT c.input_standardised,
@@ -297,8 +305,10 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
            g.*
     FROM __gnafr_cache_lkp__ l
     JOIN gnaf_match_cache c ON c.input_standardised = l.input_standardised
-    JOIN %s g ON g.address_detail_pid = c.address_detail_pid%s
-  ", addr_src, alias_where)))
+    JOIN %s g ON g.address_detail_pid = c.address_detail_pid
+    WHERE c.algorithm_version = %d
+      AND c.total_score >= %d%s
+  ", addr_src, .CACHE_ALGORITHM_VERSION, as.integer(min_score), alias_where)))
 }
 
 .cache_store <- function(con, result_dt, threshold) {
@@ -324,16 +334,45 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   duckdb::duckdb_register(con, "__gnafr_cache_ins__", to_cache, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_cache_ins__"), silent = TRUE))
 
-  DBI::dbExecute(con, "
-    INSERT INTO gnaf_match_cache
-      (input_standardised, address_detail_pid, total_score,
-       score_postcode, score_suburb, score_street_name,
-       score_street_type, score_number, score_flat)
-    SELECT input_standardised, address_detail_pid, total_score,
-           score_postcode, score_suburb, score_street_name,
-           score_street_type, score_number, score_flat
-    FROM __gnafr_cache_ins__
-    ON CONFLICT DO NOTHING
-  ")
+  tryCatch(
+    DBI::dbExecute(con, sprintf("
+      INSERT INTO gnaf_match_cache
+        (input_standardised, address_detail_pid, total_score,
+         score_postcode, score_suburb, score_street_name,
+         score_street_type, score_number, score_flat, algorithm_version)
+      SELECT input_standardised, address_detail_pid, total_score,
+             score_postcode, score_suburb, score_street_name,
+             score_street_type, score_number, score_flat, %d
+      FROM __gnafr_cache_ins__
+      ON CONFLICT (input_standardised) DO UPDATE SET
+        address_detail_pid = EXCLUDED.address_detail_pid,
+        total_score = EXCLUDED.total_score,
+        score_postcode = EXCLUDED.score_postcode,
+        score_suburb = EXCLUDED.score_suburb,
+        score_street_name = EXCLUDED.score_street_name,
+        score_street_type = EXCLUDED.score_street_type,
+        score_number = EXCLUDED.score_number,
+        score_flat = EXCLUDED.score_flat,
+        algorithm_version = EXCLUDED.algorithm_version,
+        cached_at = now()
+    ", .CACHE_ALGORITHM_VERSION)),
+    error = function(e) {
+      if (grepl("read.only|read-only|readonly", conditionMessage(e), ignore.case = TRUE)) {
+        return(NULL)
+      }
+      warning("Unable to update the match cache: ", conditionMessage(e),
+              call. = FALSE)
+      NULL
+    }
+  )
+  invisible(NULL)
+}
+
+.invalidate_match_cache <- function(con) {
+  if (!DBI::dbExistsTable(con, "gnaf_match_cache")) return(invisible(NULL))
+  tryCatch(
+    DBI::dbExecute(con, "DELETE FROM gnaf_match_cache"),
+    error = function(e) NULL
+  )
   invisible(NULL)
 }

@@ -78,7 +78,7 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
 
   # Build forward-slash paths (DuckDB accepts them on Windows)
   fps <- lapply(
-    setNames(c(required_files, alias_files),
+    stats::setNames(c(required_files, alias_files),
              c("detail", "geocode", "street", "locality", "addr_alias",
                "loc_alias", "str_alias")),
     function(f) gsub("\\\\", "/", file.path(gnaf_dir, f))
@@ -112,6 +112,9 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
 
   message("Rebuilding locality index ...")
   gnaf_rebuild_locality_index(con)
+  DBI::dbExecute(con, "ANALYZE gnaf_addresses")
+  DBI::dbExecute(con, "ANALYZE gnaf_locality_index")
+  .invalidate_match_cache(con)
 
   invisible(total)
 }
@@ -137,21 +140,34 @@ gnaf_load_psv <- function(con, gnaf_dir, overwrite = FALSE,
   sprintf(
     "TRIM(
        COALESCE(d.BUILDING_NAME || ' ', '') ||
+       CASE WHEN d.LOT_NUMBER IS NOT NULL AND d.NUMBER_FIRST IS NULL THEN
+         'LOT ' || COALESCE(d.LOT_NUMBER_PREFIX, '') ||
+         CAST(d.LOT_NUMBER AS VARCHAR) ||
+         COALESCE(d.LOT_NUMBER_SUFFIX, '') || ' '
+       ELSE '' END ||
        CASE WHEN d.FLAT_NUMBER IS NOT NULL THEN
          COALESCE(d.FLAT_TYPE_CODE || ' ', '') ||
          COALESCE(d.FLAT_NUMBER_PREFIX, '') ||
          CAST(TRY_CAST(d.FLAT_NUMBER AS INTEGER) AS VARCHAR) ||
          COALESCE(d.FLAT_NUMBER_SUFFIX, '') || ' '
        ELSE '' END ||
-       COALESCE(d.NUMBER_FIRST_PREFIX, '') ||
-       CAST(TRY_CAST(d.NUMBER_FIRST AS INTEGER) AS VARCHAR) ||
-       COALESCE(d.NUMBER_FIRST_SUFFIX, '') ||
-       CASE WHEN d.NUMBER_LAST IS NOT NULL THEN
-         '-' || COALESCE(d.NUMBER_LAST_PREFIX, '') ||
-         CAST(TRY_CAST(d.NUMBER_LAST AS INTEGER) AS VARCHAR) ||
-         COALESCE(d.NUMBER_LAST_SUFFIX, '')
+       CASE WHEN d.LEVEL_NUMBER IS NOT NULL THEN
+         COALESCE(d.LEVEL_TYPE_CODE || ' ', 'LEVEL ') ||
+         COALESCE(d.LEVEL_NUMBER_PREFIX, '') ||
+         CAST(TRY_CAST(d.LEVEL_NUMBER AS INTEGER) AS VARCHAR) ||
+         COALESCE(d.LEVEL_NUMBER_SUFFIX, '') || ' '
        ELSE '' END ||
-       ' ' || (%s) ||
+       CASE WHEN d.NUMBER_FIRST IS NOT NULL THEN
+         COALESCE(d.NUMBER_FIRST_PREFIX, '') ||
+         CAST(TRY_CAST(d.NUMBER_FIRST AS INTEGER) AS VARCHAR) ||
+         COALESCE(d.NUMBER_FIRST_SUFFIX, '') ||
+         CASE WHEN d.NUMBER_LAST IS NOT NULL THEN
+           '-' || COALESCE(d.NUMBER_LAST_PREFIX, '') ||
+           CAST(TRY_CAST(d.NUMBER_LAST AS INTEGER) AS VARCHAR) ||
+           COALESCE(d.NUMBER_LAST_SUFFIX, '')
+         ELSE '' END || ' '
+       ELSE '' END ||
+       (%s) ||
        COALESCE(' ' || NULLIF((%s), ''), '') ||
        COALESCE(' ' || NULLIF((%s), ''), '') ||
        ', ' || (%s) || ' QLD ' || (%s)

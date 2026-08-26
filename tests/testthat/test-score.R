@@ -8,7 +8,10 @@ make_pair <- function(in_street_type, street_type,
                       in_number_first = 10L,      number_first = 10L,
                       number_last = NA_integer_,
                       in_flat_number = NA_character_, flat_number = NA_character_,
-                      in_flat_type = NA_character_) {
+                      in_flat_type = NA_character_, flat_type = NA_character_,
+                      in_level_number = NA_character_, level_number = NA_character_,
+                      in_level_type = NA_character_, level_type = NA_character_,
+                      in_lot_number = NA_character_, lot_number = NA_character_) {
   data.table(
     in_postcode = in_postcode, postcode = postcode,
     in_locality = in_locality, locality_name = locality_name,
@@ -17,7 +20,11 @@ make_pair <- function(in_street_type, street_type,
     in_number_first = in_number_first, number_first = number_first,
     number_last = number_last,
     in_flat_number = in_flat_number, flat_number = flat_number,
-    in_flat_type = in_flat_type,
+    in_flat_type = in_flat_type, flat_type = flat_type,
+    in_level_number = in_level_number, level_number = level_number,
+    in_level_type = in_level_type, level_type = level_type,
+    in_lot_number = in_lot_number, lot_number = lot_number,
+    in_number_suffix = NA_character_, address_label = NA_character_,
     in_street_suffix = NA_character_, street_suffix = NA_character_
   )
 }
@@ -151,6 +158,60 @@ test_that("flat number match scores full weight; mismatch scores 0", {
                       in_flat_number = "3", flat_number = "7")
   out_miss <- gnafr:::.score_pairs(p_miss)
   expect_equal(out_miss$score_flat, 0L)
+})
+
+test_that("flat and level identifiers form one backward-compatible score", {
+  full <- make_pair(
+    "ROAD", "ROAD", in_flat_number = "2", flat_number = "2",
+    in_flat_type = "UNIT", flat_type = "UNIT",
+    in_level_number = "3", level_number = "3",
+    in_level_type = "LEVEL", level_type = "LEVEL"
+  )
+  conflict <- copy(full)
+  conflict[, level_type := "FLOOR"]
+  missing <- copy(full)
+  missing[, level_number := NA_character_]
+
+  expect_equal(gnafr:::.score_pairs(full)$score_flat, 5L)
+  expect_equal(gnafr:::.score_pairs(conflict)$score_flat, 2L)
+  expect_equal(gnafr:::.score_pairs(missing)$score_flat, 0L)
+})
+
+test_that("explicit lot number replaces street number scoring", {
+  p <- make_pair(
+    "ROAD", "ROAD", in_number_first = 99L, number_first = 10L,
+    in_lot_number = "7", lot_number = "7"
+  )
+  expect_equal(gnafr:::.score_pairs(p)$score_number, 10L)
+  p[, lot_number := "8"]
+  expect_equal(gnafr:::.score_pairs(p)$score_number, 0L)
+})
+
+test_that("R and DuckDB score expressions remain component-identical", {
+  pairs <- rbindlist(list(
+    make_pair("ROAD", "ROAD", in_flat_number = "2", flat_number = "2",
+              in_level_number = "3", level_number = "3"),
+    make_pair("ROAD", "COURT", in_lot_number = "7", lot_number = "7",
+              in_number_first = 99L, number_first = 10L),
+    make_pair("ROAD", "ROAD", in_number_first = 15L,
+              number_first = 10L, number_last = 20L)
+  ))
+  r_scored <- gnafr:::.score_pairs(copy(pairs))
+  pairs[, input_id := .I]
+  con <- gnaf_connect(":memory:")
+  on.exit(gnaf_disconnect(con), add = TRUE)
+  duckdb::duckdb_register(con, "score_pairs", pairs)
+  on.exit(duckdb::duckdb_unregister(con, "score_pairs"), add = TRUE)
+  expressions <- gnafr:::.score_sql_exprs(gnafr:::.default_match_weights(),
+                                           i = "p", g = "p")
+  select_sql <- paste(
+    sprintf("%s AS %s", expressions, names(expressions)), collapse = ", "
+  )
+  sql_scored <- as.data.table(DBI::dbGetQuery(con, sprintf(
+    "SELECT input_id, %s FROM score_pairs p ORDER BY input_id", select_sql
+  )))
+  score_cols <- names(expressions)
+  expect_equal(sql_scored[, ..score_cols], r_scored[, ..score_cols])
 })
 
 test_that("postcode +-1/+-2/+-3 score partial credit; >+-3 scores 0", {

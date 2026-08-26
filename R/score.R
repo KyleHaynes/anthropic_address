@@ -1,13 +1,4 @@
-# Weights must sum to 100
-# .WEIGHTS <- list(
-#   postcode     = 25L,
-#   suburb       = 20L,
-#   street_name  = 25L,
-#   street_type  = 10L,
-#   number       = 12L,
-#   flat         = 8L
-# )
-
+# Weights must sum to 100.
 .WEIGHTS <- list(postcode = 20L, suburb = 15L, street_name = 40L, street_type = 10L, number = 10L, flat = 5L)
 
 
@@ -57,15 +48,28 @@
 #'   number_first, number_last, flat_number
 #'
 
+#' @noRd
 # Generates DuckDB SQL CASE expressions for each score component.
 # i / g are the table aliases for inputs and gnaf candidates respectively.
-.score_sql_exprs <- function(weights, i = "i", g = "g") {
+.score_sql_exprs <- function(weights, i = "i", g = "g",
+                             suburb_similarity = NULL,
+                             street_similarity = NULL) {
   w_pc  <- as.integer(round(weights$postcode))
   w_sub <- weights$suburb
   w_sn  <- weights$street_name
   w_st  <- weights$street_type
   w_num <- weights$number
   w_fl  <- weights$flat
+  if (is.null(suburb_similarity)) {
+    suburb_similarity <- sprintf(
+      "jaro_winkler_similarity(%s.in_locality, %s.locality_name)", i, g
+    )
+  }
+  if (is.null(street_similarity)) {
+    street_similarity <- sprintf(
+      "jaro_winkler_similarity(%s.in_street_name, %s.street_name)", i, g
+    )
+  }
 
   list(
     score_postcode = sprintf(
@@ -76,12 +80,12 @@
       i, g, i, g, w_pc
     ),
     score_suburb = sprintf(
-      "CASE WHEN %s.in_locality IS NOT NULL AND %s.locality_name IS NOT NULL THEN CAST(ROUND(%g * jaro_winkler_similarity(%s.in_locality, %s.locality_name)) AS INTEGER) ELSE 0 END",
-      i, g, w_sub, i, g
+      "CASE WHEN %s.in_locality IS NOT NULL AND %s.locality_name IS NOT NULL THEN CAST(ROUND(%g * %s) AS INTEGER) ELSE 0 END",
+      i, g, w_sub, suburb_similarity
     ),
     score_street_name = sprintf(
-      "CASE WHEN %s.in_street_name IS NOT NULL AND %s.street_name IS NOT NULL THEN CAST(ROUND(%g * jaro_winkler_similarity(%s.in_street_name, %s.street_name)) AS INTEGER) ELSE 0 END",
-      i, g, w_sn, i, g
+      "CASE WHEN %s.in_street_name IS NOT NULL AND %s.street_name IS NOT NULL THEN CAST(ROUND(%g * %s) AS INTEGER) ELSE 0 END",
+      i, g, w_sn, street_similarity
     ),
     score_street_type = sprintf(
       "CASE WHEN (%s.in_street_type IS NULL AND %s.street_type IS NULL) OR %s.in_street_type = %s.street_type THEN %d WHEN (%s.in_street_type IS NULL) != (%s.street_type IS NULL) THEN %d ELSE %d END",
@@ -91,6 +95,9 @@
     ),
     score_number = sprintf(paste0(
       "CASE",
+      " WHEN TRIM(COALESCE(%s.in_lot_number, '')) != ''",
+      "      AND TRIM(COALESCE(%s.in_lot_number, '')) = TRIM(COALESCE(%s.lot_number, '')) THEN %d",
+      " WHEN TRIM(COALESCE(%s.in_lot_number, '')) != '' THEN 0",
       " WHEN %s.in_number_first IS NULL THEN 0",
       " WHEN %s.in_number_suffix IS NOT NULL",
       "      AND (%s.in_number_first = %s.number_first OR %s.number_first IS NULL)",
@@ -103,6 +110,8 @@
       "      AND %s.in_number_first <= %s.number_last THEN %d",
       " ELSE 0 END"
     ),
+      i, i, g, as.integer(round(w_num)),
+      i,
       i,             # in_number_first IS NULL
       i,             # in_number_suffix IS NOT NULL
       i, g, g,       # (in_number_first = number_first OR number_first IS NULL)
@@ -114,9 +123,30 @@
       i, g, g, i, i, g,  # no suffix, range
       as.integer(round(w_num * 0.7))
     ),
-    score_flat = sprintf(
-      "CASE WHEN (TRIM(COALESCE(%s.in_flat_number, '')) = '' AND TRIM(COALESCE(%s.flat_number, '')) = '') OR (TRIM(COALESCE(%s.in_flat_number, '')) != '' AND TRIM(COALESCE(%s.in_flat_number, '')) = TRIM(COALESCE(%s.flat_number, ''))) THEN %d ELSE 0 END",
-      i, g, i, i, g, as.integer(round(w_fl))
+    score_flat = sprintf(paste0(
+      "CASE",
+      " WHEN TRIM(COALESCE(%s.in_flat_number, '')) = ''",
+      "  AND TRIM(COALESCE(%s.flat_number, '')) = ''",
+      "  AND TRIM(COALESCE(%s.in_level_number, '')) = ''",
+      "  AND TRIM(COALESCE(%s.level_number, '')) = '' THEN %d",
+      " WHEN TRIM(COALESCE(%s.in_flat_number, '')) = TRIM(COALESCE(%s.flat_number, ''))",
+      "  AND TRIM(COALESCE(%s.in_level_number, '')) = TRIM(COALESCE(%s.level_number, ''))",
+      "  AND NOT (",
+      "    (TRIM(COALESCE(%s.in_flat_type, '')) != '' AND TRIM(COALESCE(%s.flat_type, '')) != ''",
+      "      AND TRIM(%s.in_flat_type) != TRIM(%s.flat_type))",
+      "    OR (TRIM(COALESCE(%s.in_level_type, '')) != '' AND TRIM(COALESCE(%s.level_type, '')) != ''",
+      "      AND TRIM(%s.in_level_type) != TRIM(%s.level_type))",
+      "  ) THEN %d",
+      " WHEN TRIM(COALESCE(%s.in_flat_number, '')) = TRIM(COALESCE(%s.flat_number, ''))",
+      "  AND TRIM(COALESCE(%s.in_level_number, '')) = TRIM(COALESCE(%s.level_number, '')) THEN %d",
+      " ELSE 0 END"
+    ),
+      i, g, i, g, as.integer(round(w_fl)),
+      i, g, i, g,
+      i, g, i, g,
+      i, g, i, g,
+      as.integer(round(w_fl)),
+      i, g, i, g, as.integer(round(w_fl * 0.5))
     )
   )
 }
@@ -139,7 +169,7 @@
     fifelse(diff == 3L,     as.integer(round(weights$postcode * 0.2)), 0L)))))
   }]
 
-  # --- Suburb / locality (20 pts) ------------------------------------------
+  # --- Suburb / locality (15 pts) ------------------------------------------
   # Jaro-Winkler similarity; NA on either side → 0
   jw_suburb <- rep(0, nrow(pairs))
   ok <- !is.na(pairs$in_locality) & !is.na(pairs$locality_name)
@@ -150,7 +180,7 @@
   }
   pairs[, score_suburb := as.integer(round(weights$suburb * jw_suburb))]
 
-  # --- Street name (25 pts) ------------------------------------------------
+  # --- Street name (40 pts) ------------------------------------------------
   jw_street <- rep(0, nrow(pairs))
   ok <- !is.na(pairs$in_street_name) & !is.na(pairs$street_name)
   if (any(ok)) {
@@ -173,7 +203,7 @@
                                as.integer(round(weights$street_type * 0.4))))
   }]
 
-  # --- Street number (12 pts) ----------------------------------------------
+  # --- Street number or lot (10 pts) ---------------------------------------
   # Mirrors .score_sql_exprs score_number, including the number-suffix rule: a
   # parsed suffix (e.g. "190A") only earns credit when the candidate's
   # address_label starts with "<number><suffix> "; otherwise it scores 0.
@@ -186,28 +216,62 @@
   sfx_lbl_ok <- !is.na(lbl) & !is.na(pairs$in_number_first) & !is.na(in_sfx) &
     startsWith(lbl, paste0(pairs$in_number_first, in_sfx, " "))
 
+  in_lot <- if ("in_lot_number" %in% names(pairs)) pairs$in_lot_number
+            else rep(NA_character_, nrow(pairs))
+  gnaf_lot <- if ("lot_number" %in% names(pairs)) pairs$lot_number
+              else rep(NA_character_, nrow(pairs))
   pairs[, score_number := {
+    has_lot <- !is.na(in_lot) & nzchar(trimws(in_lot))
+    lot_match <- has_lot & !is.na(gnaf_lot) & trimws(in_lot) == trimws(gnaf_lot)
     has_sfx  <- !is.na(in_sfx)
     exact    <- !is.na(in_number_first) & !is.na(number_first) &
                 in_number_first == number_first
     in_range <- !is.na(in_number_first) & !is.na(number_first) &
                 !is.na(number_last) &
                 in_number_first >= number_first & in_number_first <= number_last
+    fifelse(has_lot, fifelse(lot_match, as.integer(round(weights$number)), 0L),
     fifelse(is.na(in_number_first), 0L,
     fifelse(has_sfx & (exact | is.na(number_first)) & sfx_lbl_ok,
             as.integer(round(weights$number)),
     fifelse(has_sfx, 0L,
     fifelse(exact, as.integer(round(weights$number)),
-    fifelse(in_range, as.integer(round(weights$number * 0.7)), 0L)))))
+    fifelse(in_range, as.integer(round(weights$number * 0.7)), 0L))))))
   }]
 
-  # --- Flat / unit (8 pts) -------------------------------------------------
+  # --- Composite flat / level component (5 pts) ----------------------------
+  value_or_empty <- function(column) {
+    trimws(fifelse(is.na(column), "", as.character(column)))
+  }
+  in_level_number <- if ("in_level_number" %in% names(pairs))
+    pairs$in_level_number else rep(NA_character_, nrow(pairs))
+  level_number <- if ("level_number" %in% names(pairs))
+    pairs$level_number else rep(NA_character_, nrow(pairs))
+  in_flat_type <- if ("in_flat_type" %in% names(pairs))
+    pairs$in_flat_type else rep(NA_character_, nrow(pairs))
+  flat_type <- if ("flat_type" %in% names(pairs))
+    pairs$flat_type else rep(NA_character_, nrow(pairs))
+  in_level_type <- if ("in_level_type" %in% names(pairs))
+    pairs$in_level_type else rep(NA_character_, nrow(pairs))
+  level_type <- if ("level_type" %in% names(pairs))
+    pairs$level_type else rep(NA_character_, nrow(pairs))
+
   pairs[, score_flat := {
-    in_f  <- trimws(fifelse(is.na(in_flat_number),  "", in_flat_number))
-    gnaf_f <- trimws(fifelse(is.na(flat_number), "", flat_number))
-    both_absent <- in_f == "" & gnaf_f == ""
-    matched     <- in_f != "" & gnaf_f != "" & in_f == gnaf_f
-    fifelse(both_absent | matched, as.integer(round(weights$flat)), 0L)
+    in_f <- value_or_empty(in_flat_number)
+    gnaf_f <- value_or_empty(flat_number)
+    in_l <- value_or_empty(in_level_number)
+    gnaf_l <- value_or_empty(level_number)
+    all_absent <- in_f == "" & gnaf_f == "" & in_l == "" & gnaf_l == ""
+    ids_match <- in_f == gnaf_f & in_l == gnaf_l
+    in_ft <- value_or_empty(in_flat_type)
+    gnaf_ft <- value_or_empty(flat_type)
+    in_lt <- value_or_empty(in_level_type)
+    gnaf_lt <- value_or_empty(level_type)
+    type_conflict <- (in_ft != "" & gnaf_ft != "" & in_ft != gnaf_ft) |
+      (in_lt != "" & gnaf_lt != "" & in_lt != gnaf_lt)
+    fifelse(all_absent | (ids_match & !type_conflict),
+      as.integer(round(weights$flat)),
+      fifelse(ids_match, as.integer(round(weights$flat * 0.5)), 0L)
+    )
   }]
 
   # --- Total ---------------------------------------------------------------
