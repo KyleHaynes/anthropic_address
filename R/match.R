@@ -20,11 +20,24 @@
 #' @param max_results Maximum number of matches to return per input.
 #' @param min_score Minimum total score (0-100) to include in results.
 #' @param include_custom Include custom addresses in matching.
+#' @param include_aliases If \code{FALSE}, a friendly shortcut for excluding
+#'   every alias/synonym row (locality, street, address and street-only
+#'   aliases) from matching — equivalent to \code{alias_types = NA}. Default
+#'   \code{TRUE}. Cannot be combined with an explicit \code{alias_types}
+#'   (throws an error) — use \code{alias_types} directly for finer control.
 #' @param alias_types Character vector of \code{alias_type} values to include
 #'   in matching. Use \code{NA} to include core GNAF rows (where
 #'   \code{alias_type} is \code{NULL}). Default \code{NULL} matches all rows
 #'   regardless of alias type. Example: \code{c(NA, "street_only")} restricts
 #'   to core addresses and street-level aliases only.
+#' @param resolve_principal If \code{TRUE}, results that are an alias
+#'   (\code{alias_type} is not \code{NA} and \code{principal_pid} is set) get
+#'   extra \code{principal_address_label}, \code{principal_longitude},
+#'   \code{principal_latitude}, \code{principal_locality_name} and
+#'   \code{principal_postcode} columns, resolved from the real/canonical GNAF
+#'   record the alias was derived from. \code{NA} for non-alias rows and for
+#'   aliases with no \code{principal_pid} (e.g. \code{street_only}). Default
+#'   \code{FALSE}.
 #' @param locality_fallback If \code{TRUE} (default), re-searches by locality
 #'   name for unmatched inputs and results below \code{fallback_threshold}
 #'   whose locality component is weak.
@@ -59,7 +72,9 @@
 #' @export
 gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
                        include_custom = TRUE,
+                       include_aliases = TRUE,
                        alias_types = NULL,
+                       resolve_principal = FALSE,
                        locality_fallback = TRUE,
                        street_only_fallback = FALSE,
                        fallback_threshold = 90L,
@@ -92,6 +107,15 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   min_score <- as.integer(min_score)
 
   weights <- .validate_match_weights(weights)
+
+  if (!isTRUE(include_aliases)) {
+    if (!is.null(alias_types))
+      stop("'include_aliases = FALSE' cannot be combined with an explicit ",
+           "'alias_types' — pass alias_types = NA directly instead, or ",
+           "leave include_aliases at its default (TRUE).", call. = FALSE)
+    alias_types <- NA_character_
+  }
+
   staged_alias_search <- is.null(alias_types)
   primary_alias_types <- if (staged_alias_search) NA_character_ else alias_types
 
@@ -534,8 +558,46 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
     cli::col_cyan(sprintf("%.2fs", verbose_stats$wrangle_elapsed))
   ))
 
+  if (isTRUE(resolve_principal)) out <- .resolve_principal(con, out)
+
   .cli_match_summary(verbose, parsed, out, total_timer, verbose_stats)
   out[]
+}
+
+# Adds principal_address_label / principal_longitude / principal_latitude /
+# principal_locality_name / principal_postcode columns, resolved from
+# gnaf_addresses via each alias row's principal_pid. NA for non-alias rows and
+# for aliases with no principal_pid (e.g. street_only).
+.resolve_principal <- function(con, out) {
+  cols <- c("principal_address_label", "principal_longitude",
+            "principal_latitude", "principal_locality_name",
+            "principal_postcode")
+  out[, (cols) := list(NA_character_, NA_real_, NA_real_, NA_character_, NA_integer_)]
+
+  if (nrow(out) > 0L && "principal_pid" %in% names(out)) {
+    pids <- unique(out$principal_pid[!is.na(out$principal_pid)])
+    if (length(pids) > 0L) {
+      quoted <- paste0("'", gsub("'", "''", pids), "'", collapse = ", ")
+      lookup <- setDT(DBI::dbGetQuery(con, sprintf("
+        SELECT address_detail_pid AS principal_pid,
+               address_label      AS principal_address_label,
+               longitude          AS principal_longitude,
+               latitude           AS principal_latitude,
+               locality_name      AS principal_locality_name,
+               postcode           AS principal_postcode
+        FROM gnaf_addresses
+        WHERE address_detail_pid IN (%s)
+      ", quoted)))
+      out[lookup, on = "principal_pid", `:=`(
+        principal_address_label = i.principal_address_label,
+        principal_longitude     = i.principal_longitude,
+        principal_latitude      = i.principal_latitude,
+        principal_locality_name = i.principal_locality_name,
+        principal_postcode      = i.principal_postcode
+      )]
+    }
+  }
+  out
 }
 
 # ---------------------------------------------------------------------------

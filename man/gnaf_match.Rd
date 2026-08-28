@@ -10,7 +10,9 @@ gnaf_match(
   max_results = 1L,
   min_score = 60L,
   include_custom = TRUE,
+  include_aliases = TRUE,
   alias_types = NULL,
+  resolve_principal = FALSE,
   locality_fallback = TRUE,
   street_only_fallback = FALSE,
   fallback_threshold = 90L,
@@ -32,11 +34,26 @@ gnaf_match(
 
 \item{include_custom}{Include custom addresses in matching.}
 
+\item{include_aliases}{If \code{FALSE}, a friendly shortcut for excluding
+every alias/synonym row (locality, street, address and street-only
+aliases) from matching — equivalent to \code{alias_types = NA}. Default
+\code{TRUE}. Cannot be combined with an explicit \code{alias_types}
+(throws an error) — use \code{alias_types} directly for finer control.}
+
 \item{alias_types}{Character vector of \code{alias_type} values to include
 in matching. Use \code{NA} to include core GNAF rows (where
 \code{alias_type} is \code{NULL}). Default \code{NULL} matches all rows
 regardless of alias type. Example: \code{c(NA, "street_only")} restricts
 to core addresses and street-level aliases only.}
+
+\item{resolve_principal}{If \code{TRUE}, results that are an alias
+(\code{alias_type} is not \code{NA} and \code{principal_pid} is set) get
+extra \code{principal_address_label}, \code{principal_longitude},
+\code{principal_latitude}, \code{principal_locality_name} and
+\code{principal_postcode} columns, resolved from the real/canonical GNAF
+record the alias was derived from. \code{NA} for non-alias rows and for
+aliases with no \code{principal_pid} (e.g. \code{street_only}). Default
+\code{FALSE}.}
 
 \item{locality_fallback}{If \code{TRUE} (default), re-searches by locality
 name for unmatched inputs and results below \code{fallback_threshold}

@@ -290,6 +290,60 @@ gnaf_canonicalize_street_types <- function(con) {
   invisible(n)
 }
 
+#' Build a complete gnafr database from a raw G-NAF extract
+#'
+#' One-call orchestrator that takes a fresh (or existing) DuckDB database from
+#' zero to match-ready against the raw G-NAF \strong{Standard} PSV product:
+#' \enumerate{
+#'   \item \code{\link{gnaf_init}} — create/migrate the schema.
+#'   \item \code{\link{gnaf_load_psv}} — load every requested state's
+#'     standard, locality-alias and street-alias address records, capturing
+#'     every column the raw extract provides (see \code{\link{gnaf_load_psv}}).
+#'   \item \code{\link{gnaf_build_street_aliases}} — derive number-free
+#'     street-only fallback rows.
+#'   \item \code{\link{gnaf_status}} — print a final row-count summary.
+#' }
+#'
+#' @param con DBI connection from \code{gnaf_connect}.
+#' @param gnaf_dir Path to the G-NAF \strong{Standard} directory (e.g.
+#'   \file{G-NAF MAY 2026/Standard}) containing the \code{<STATE>_*_psv.psv}
+#'   files.
+#' @param states One or more G-NAF state codes (e.g. \code{"QLD"} or
+#'   \code{c("QLD", "NSW")}), or \code{"all"} to load every state present in
+#'   \code{gnaf_dir} (detected by scanning for \code{*_ADDRESS_DETAIL_psv.psv}
+#'   files — whichever states you've actually downloaded). Defaults to
+#'   \code{"QLD"}.
+#' @param overwrite Passed to \code{gnaf_load_psv}; clears existing rows for
+#'   the state(s) being (re)loaded before loading. Default \code{FALSE}.
+#' @param load_aliases Passed to \code{gnaf_load_psv}; load locality/street
+#'   alias variants. Default \code{TRUE}.
+#' @param build_street_aliases If \code{TRUE} (default), also runs
+#'   \code{gnaf_build_street_aliases} after loading.
+#' @return Invisibly, the result of \code{gnaf_status(con)}.
+#' @export
+gnaf_build_db <- function(con, gnaf_dir, states = "QLD", overwrite = FALSE,
+                          load_aliases = TRUE, build_street_aliases = TRUE) {
+  gnaf_dir <- normalizePath(gnaf_dir, mustWork = TRUE)
+
+  if (identical(toupper(states), "ALL")) {
+    detail_files <- list.files(gnaf_dir, pattern = "^[A-Z]{2,3}_ADDRESS_DETAIL_psv\\.psv$")
+    states <- sub("_ADDRESS_DETAIL_psv\\.psv$", "", detail_files)
+    if (length(states) == 0L)
+      stop("No '<STATE>_ADDRESS_DETAIL_psv.psv' files found in '", gnaf_dir, "'")
+    message("Detected states in '", gnaf_dir, "': ", paste(states, collapse = ", "))
+  }
+
+  gnaf_init(con)
+  gnaf_load_psv(con, gnaf_dir, state = states, overwrite = overwrite,
+               load_aliases = load_aliases)
+
+  if (isTRUE(build_street_aliases)) gnaf_build_street_aliases(con)
+
+  status <- gnaf_status(con)
+  print(status)
+  invisible(status)
+}
+
 #' Report row counts for gnafr tables
 #'
 #' @param con DBI connection.

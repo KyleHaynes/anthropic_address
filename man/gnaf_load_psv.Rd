@@ -4,25 +4,36 @@
 \alias{gnaf_load_psv}
 \title{Load G-NAF PSV data into the database}
 \usage{
-gnaf_load_psv(con, gnaf_dir, overwrite = FALSE, load_aliases = TRUE)
+gnaf_load_psv(
+  con,
+  gnaf_dir,
+  state = "QLD",
+  overwrite = FALSE,
+  load_aliases = TRUE
+)
 }
 \arguments{
 \item{con}{DBI connection from \code{gnaf_connect}.  The database must have
 been initialised with \code{gnaf_init()}.}
 
 \item{gnaf_dir}{Path to the G-NAF \strong{Standard} directory that contains
-the \code{QLD_*_psv.psv} files
-(e.g. \file{G-NAF MAY 2026/Standard}).}
+the \code{<STATE>_*_psv.psv} files (e.g. \file{G-NAF MAY 2026/Standard}).}
 
-\item{overwrite}{If \code{TRUE}, deletes all existing
-\code{source = 'gnaf'} rows before loading.  Defaults to \code{FALSE}.}
+\item{state}{One or more G-NAF state file prefixes to load, e.g.
+\code{"QLD"} or \code{c("QLD", "NSW")}. Defaults to \code{"QLD"}. States
+are loaded one at a time. Use \code{\link{gnaf_build_db}} to load every
+state present in \code{gnaf_dir} without listing them by hand.}
+
+\item{overwrite}{If \code{TRUE}, deletes existing \code{source = 'gnaf'}
+rows for the state(s) being loaded before loading — other states already
+in the database are left untouched. Defaults to \code{FALSE}.}
 
 \item{load_aliases}{If \code{TRUE} (default), loads locality and street
 alias address variants in addition to the standard records.}
 }
 \value{
 Invisibly, the total number of GNAF rows in the database after
-  loading.
+  loading (across all states, not just the one(s) just loaded).
 }
 \description{
 Reads directly from the raw G-NAF pipe-separated (PSV) files distributed by
@@ -34,14 +45,19 @@ bounded by DuckDB's internal buffers regardless of how many rows are loaded.
 Three categories of address records are loaded:
 \enumerate{
   \item \strong{Standard addresses} — every active record from
-    \code{ADDRESS_DETAIL} joined to its geocode, street, and locality.
-    Records with \code{ALIAS_PRINCIPAL = 'A'} are included and flagged
-    (e.g. \code{alias_type = "ADDRESS:RA"}).
+    \code{ADDRESS_DETAIL} joined to its geocode, street, and locality, plus
+    \code{PRIMARY_SECONDARY} (main dwelling vs. sub-dwelling linkage),
+    \code{ADDRESS_SITE} (site name), and mesh block (via
+    \code{ADDRESS_MESH_BLOCK_2021} / \code{MB_2021}). Records with
+    \code{ALIAS_PRINCIPAL = 'A'} are included and flagged (e.g.
+    \code{alias_type = "ADDRESS:RA"}), with \code{principal_pid} pointing
+    back at the real (principal) \code{address_detail_pid}.
   \item \strong{Locality alias addresses} — for each address in a locality
     that has a \code{LOCALITY_ALIAS} entry, a duplicate record is created
     carrying the alias locality name and its postcode (when different).
     These allow matching when a person writes a recognised alternative
-    suburb name.  Tagged \code{"LOCALITY:SYN"} or \code{"LOCALITY:SR"}.
+    suburb name or postcode. Tagged \code{"LOCALITY:SYN"} or
+    \code{"LOCALITY:SR"}.
   \item \strong{Street alias addresses} — for each address on a street that
     has a \code{STREET_LOCALITY_ALIAS} entry, a duplicate record is created
     with the alias street name / type.  Tagged \code{"STREET:SYN"} or
@@ -50,5 +66,9 @@ Three categories of address records are loaded:
 
 The \code{alias_type} column in \code{gnaf_match} results is \code{NA} for
 standard principal records and a short code (e.g. \code{"LOCALITY:SYN"})
-for alias variants.
+for alias variants. Every alias row (official \code{ADDRESS_ALIAS} records
+and the locality/street synonyms derived here) carries \code{principal_pid}
+pointing back at the real \code{address_detail_pid} it was derived from, so
+an alias match can always be resolved to its canonical address — see
+\code{resolve_principal} on \code{\link{gnaf_match}}.
 }

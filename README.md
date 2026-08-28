@@ -177,7 +177,7 @@ addresses <- c(
   "77 broadwater rd mount gravatt east 4122"
 )
 
-gnaf_match(c("10 110-120 musgrave Road red hill 4000 QLD", "unit 10a 110-120 musgrave Road red hill 4000 QLD", "unit 10 120 musgrave Road red hill 4059 QLD", "10 120 musgrave Road red hill 4059 QLD"), con, max_results = 2)
+gnaf_match(c("10 110-120 musgrave Road red hill 4000 QLD", "unit 10a 110-120 musgrave Road red hill 4000 QLD", "unit 10 120 musgrave Road red hill 4059 QLD", "10 120 musgrave Road red hill 4059 QLD"), con, max_results = 1)
 gnaf_match(c("10 St James Ct, Tamborine Mountain QLD 4272"), con, max_results = 2)
 ```
 
@@ -247,6 +247,22 @@ input_id  input_raw                           match_rank  total_score  score_pos
 | `date_created` | Date the address record was created in GNAF |
 | `legal_parcel_id` | Cadastral lot/plan identifier |
 | `mb_code` | ABS Mesh Block code |
+| `principal_address_label` / `principal_longitude` / `principal_latitude` / `principal_locality_name` / `principal_postcode` | Only present when `resolve_principal = TRUE`. For alias matches, the real/canonical GNAF record's fields (resolved via `principal_pid`); `NA` for non-alias matches and for aliases with no `principal_pid` (e.g. `street_only`) |
+
+### Including or excluding alias records
+
+By default `gnaf_match()` matches against every row in the database, including locality/street synonyms and official GNAF `ALIAS` records. Two arguments give you control over this:
+
+```r
+# Exclude every alias/synonym row - only core GNAF (and custom) addresses
+results <- gnaf_match(addresses, con, include_aliases = FALSE)
+
+# Resolve alias matches back to the real/canonical address
+results <- gnaf_match(addresses, con, resolve_principal = TRUE)
+results[!is.na(alias_type), .(address_label, principal_address_label)]
+```
+
+`include_aliases = FALSE` is a shortcut for `alias_types = NA`; for finer-grained control (e.g. street-only aliases but not locality synonyms), use `alias_types` directly — see `?gnaf_match`. The two arguments can't be combined.
 
 ### Inputs with no match
 
@@ -619,16 +635,27 @@ Returns a `data.table` with row counts for each table.
 ```r
 gnaf_load(con, path, overwrite = FALSE)
 ```
-Loads one or more GNAF CSV files into `gnaf_addresses`. Uses DuckDB's native `read_csv` for speed — does not pull data into R first. Duplicate PIDs are silently skipped unless `overwrite = TRUE`.
+Loads one or more GNAF Core CSV files into `gnaf_addresses`. Uses DuckDB's native `read_csv` for speed — does not pull data into R first. Duplicate PIDs are silently skipped unless `overwrite = TRUE`.
+
+```r
+gnaf_build_db(con, gnaf_dir, states = "QLD", overwrite = FALSE, load_aliases = TRUE, build_street_aliases = TRUE)
+```
+One-call builder for the raw G-NAF Standard PSV product: runs `gnaf_init()`, `gnaf_load_psv()` and `gnaf_build_street_aliases()` in sequence. `states` accepts a single code, a vector (`c("QLD", "NSW")`), or `"all"` (every state found in `gnaf_dir`). Prints a `gnaf_status()` summary and returns it invisibly.
+
+```r
+gnaf_load_psv(con, gnaf_dir, state = "QLD", overwrite = FALSE, load_aliases = TRUE)
+```
+Loads the raw G-NAF Standard PSV files directly (no CSV conversion step) — captures every column the extract publishes, including mesh block code, primary/secondary dwelling linkage, address site name, legal parcel ID and geocode type. `state` accepts a vector to load multiple states in one call; `overwrite = TRUE` only clears the state(s) being loaded, leaving other states untouched.
 
 ---
 
 ### Matching
 
 ```r
-gnaf_match(addresses, con, max_results = 1, min_score = 60, include_custom = TRUE)
+gnaf_match(addresses, con, max_results = 1, min_score = 60, include_custom = TRUE,
+           include_aliases = TRUE, alias_types = NULL, resolve_principal = FALSE)
 ```
-Matches a character vector of address strings. Returns a `data.table` with matched GNAF fields and score columns. Set `include_custom = FALSE` to exclude custom addresses.
+Matches a character vector of address strings. Returns a `data.table` with matched GNAF fields and score columns. Set `include_custom = FALSE` to exclude custom addresses, `include_aliases = FALSE` to exclude locality/street synonyms and official GNAF alias records, and `resolve_principal = TRUE` to add `principal_*` columns resolving alias matches back to their real/canonical address. See [Including or excluding alias records](#including-or-excluding-alias-records).
 
 ---
 
@@ -724,7 +751,30 @@ gnaf_load(con, "C:/temp/gnaf.qld.csv")
 
 ### Loading the raw G-NAF Standard PSV files
 
-If you are working from the Geoscape G-NAF Standard distribution rather than a pre-built CSV, point `gnaf_load_psv()` at the `Standard` directory:
+If you are working from the Geoscape G-NAF Standard distribution rather than a pre-built CSV, `gnaf_build_db()` is the one-call way to go from a fresh database straight to match-ready — it runs `gnaf_init()`, `gnaf_load_psv()` and `gnaf_build_street_aliases()` in sequence, and captures every column the raw extract publishes (mesh block code, primary/secondary dwelling linkage, address site name, legal parcel ID, geocode type, and more — not just the fields needed for string matching):
+
+```r
+con <- gnaf_connect("C:/temp/gnafx.duckdb")
+
+gnaf_build_db(
+  con,
+  gnaf_dir = "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard",
+  states = "QLD"     # default; also accepts a vector or "all"
+)
+
+gnaf_status(con)
+```
+
+`states` defaults to `"QLD"`. Pass a vector to load several states in one call, or `"all"` to load every state present in `gnaf_dir` (detected automatically — whichever `<STATE>_ADDRESS_DETAIL_psv.psv` files you've actually downloaded):
+
+```r
+gnaf_build_db(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard", states = c("QLD", "NSW"))
+gnaf_build_db(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard", states = "all")
+```
+
+`overwrite = TRUE` only clears the state(s) being (re)loaded — other states already in the database are left untouched, so you can rebuild one state without disturbing the rest.
+
+For more control over each stage (or to load states one at a time with checkpoints in between), call the underlying functions directly — `gnaf_build_db()` is just a wrapper around them:
 
 ```r
 con <- gnaf_connect("C:/temp/gnaf.duckdb")
@@ -732,7 +782,8 @@ gnaf_init(con)
 
 gnaf_load_psv(
   con,
-  gnaf_dir = "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard"
+  gnaf_dir = "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard",
+  state = "QLD"       # or a vector, e.g. c("QLD", "NSW")
 )
 
 gnaf_status(con)

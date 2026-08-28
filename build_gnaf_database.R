@@ -151,29 +151,51 @@ sample_gnaf(con, n = 5)
 gnaf_disconnect(con)
 
 # =============================================================================
-# Alternative ingestion path (not run here): gnaf_load_psv()
+# Alternative ingestion path (not run here): the raw G-NAF PSV product
 #
 # Everything above starts from the GNAF Core CSV, which is the simplified,
 # single-file product Geoscape publishes. If you instead have the full raw
 # G-NAF PSV product (the "Standard" directory with ADDRESS_DETAIL,
-# ADDRESS_ALIAS, STREET_LOCALITY_ALIAS, LOCALITY_ALIAS, etc.), gnaf_load_psv()
-# is a richer alternative to Steps 1 and 3 combined: it derives real locality-
-# name and street-name alias records (alias_type "LOCALITY:SYN"/"STREET:SYN")
-# directly from GNAF's own official alias tables, rather than the
-# number-stripped street_only aliases Step 3 builds. That catches inputs that
-# use a *recognised alternative suburb or street name* GNAF itself records as
-# a synonym — something Step 3's street-only derivation can't do, since it
-# only ever drops the house number, never substitutes a different name.
+# ADDRESS_ALIAS, STREET_LOCALITY_ALIAS, LOCALITY_ALIAS, PRIMARY_SECONDARY,
+# ADDRESS_SITE, ADDRESS_MESH_BLOCK_2021, MB_2021, etc.), it's a richer source
+# than the CSV: every column the raw extract publishes is captured (mesh
+# block code, primary/secondary dwelling linkage, address site name, legal
+# parcel ID, geocode type, ...), and it derives real locality-name and
+# street-name alias records (alias_type "LOCALITY:SYN"/"STREET:SYN") directly
+# from GNAF's own official alias tables, rather than the number-stripped
+# street_only aliases Step 3 builds. That catches inputs that use a
+# *recognised alternative suburb or street name* GNAF itself records as a
+# synonym — something Step 3's street-only derivation can't do, since it only
+# ever drops the house number, never substitutes a different name.
 #
-# The two paths are alternatives, not complements — each loads its own
-# complete set of source = 'gnaf' rows, so pick one:
+# The two paths (GNAF Core CSV above vs. the raw PSV product here) are
+# alternatives, not complements — each loads its own complete set of
+# source = 'gnaf' rows, so pick one.
 #
-   gnaf_load_psv(con, "C:\\temp\\gnaf\\G-NAF\\G-NAF MAY 2026\\Standard")
+# gnaf_build_db() is the one-call way to go from a fresh database straight to
+# match-ready against the raw PSV product: it runs gnaf_init(), gnaf_load_psv()
+# (every column, every alias type) and gnaf_build_street_aliases() in one go.
+# `states` defaults to "QLD"; pass a vector (c("QLD", "NSW")) or "all" to load
+# every state present in the extract directory.
 #
-# Prefer gnaf_load() (Steps 1+3 above) when the simplified CSV is all you
-# have, or you don't need locality/street synonym coverage. Prefer
-# gnaf_load_psv() when you have the full raw product and want that extra
-# alias coverage out of the box.
+   gnaf_build_db(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard", states = "QLD")
+#
+# Equivalent to running the stages by hand, for when you want more control
+# over each step (e.g. skipping street-only aliases, or loading states one at
+# a time with progress checkpoints in between):
+#
+#   gnaf_init(con)
+#   gnaf_load_psv(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard", state = "QLD")
+#   gnaf_build_street_aliases(con)
+#
+# To load every state in one database:
+#
+#   gnaf_build_db(con, "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard", states = "all")
+#
+# Prefer gnaf_load() (Steps 1-6 above, from the GNAF Core CSV) when the
+# simplified CSV is all you have, or you don't need the extra raw-extract
+# columns / synonym coverage. Prefer gnaf_build_db()/gnaf_load_psv() when you
+# have the full raw product and want everything it publishes.
 # =============================================================================
 
 
