@@ -3,14 +3,14 @@
 devtools::load_all(".", quiet = TRUE)
 library(data.table)
 
-db_path <- Sys.getenv("GNAFR_BENCH_DB")
+db_path <- "C:\\temp\\gnafx.duckdb"
 if (!nzchar(db_path)) {
   message("GNAFR_BENCH_DB is not set; skipping the database benchmark.")
   quit(save = "no", status = 0L)
 }
 
 run_benchmark <- function() {
-n <- as.integer(Sys.getenv("GNAFR_MATCH_BENCH_N", "1000"))
+n <- as.integer(Sys.getenv("GNAFR_MATCH_BENCH_N", "100000"))
 seed <- as.integer(Sys.getenv("GNAFR_MATCH_BENCH_SEED", "42"))
 con <- gnaf_connect(db_path, read_only = TRUE)
 on.exit(gnaf_disconnect(con), add = TRUE)

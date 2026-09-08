@@ -155,7 +155,7 @@ You can launch an interactive geocoding app against the same DuckDB database:
 ```r
 library(gnafr)
 
-gnaf_app(db_path = "C:/temp/gnaf.duckdb")
+gnaf_app(db_path = "C:/temp/gnafx.duckdb")
 # or reuse an existing connection:
 gnaf_app(con = con)
 ```

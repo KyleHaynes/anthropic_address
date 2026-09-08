@@ -1,0 +1,1870 @@
+---
+title: "gnafr"
+subtitle: "Fast, fuzzy Australian address matching against the G-NAF"
+author: "Kyle Haynes"
+date: today
+date-format: "D MMMM YYYY"
+format:
+  revealjs:
+    theme: [default, custom.scss]
+    slide-number: c/t
+    show-slide-number: all
+    width: 1360
+    height: 800
+    margin: 0.06
+    center-title-slide: true
+    incremental: false
+    code-line-numbers: true
+    code-copy: true
+    code-overflow: wrap
+    highlight-style: arrow
+    link-external-newwindow: true
+    preview-links: false
+    menu:
+      side: left
+      numbers: true
+    mermaid:
+      theme: neutral
+mermaid-format: js
+---
+
+<!--
+All R code in this deck is shown, never executed — every code block is a plain
+```r fence, so the deck renders with no G-NAF database present. Run the code live
+in RStudio at the five demo slides instead.
+-->
+
+
+# Where this is going {background-color="#12405c"}
+
+::: {.notes}
+Quick framing before I start. This is a walkthrough, not a pitch — I want you to
+leave knowing enough about the internals to decide whether it fits your pipeline,
+and to debug it when it doesn't. I'll stop at five points to jump into RStudio and
+run things live, so shout if you want me to try something specific on the way
+through.
+:::
+
+## The one-sentence version
+
+> Give it a character vector of messy free-text Australian addresses.
+> Get back the best-matching **G-NAF record**, its **coordinates**, and a
+> **transparent 0–100 confidence score broken down by component** — for a few rows
+> or a few million.
+
+::: {.fragment}
+```r
+results <- gnaf_match(dt$address_string, con)
+```
+:::
+
+::: {.fragment}
+That is the whole API surface for the common case. Everything else in this deck is
+about what happens *inside* that call, and which knobs matter for **your** use case.
+:::
+
+::: {.notes}
+If you take one slide away, take this one. The interface is deliberately boring:
+a character vector in, a data.table out, one row per match. No per-address loop,
+no REST calls, no service to stand up, no API key.
+
+The reason I am doing forty slides about a one-line API is that the defaults are
+tuned for a middle-of-the-road use case, and I know at least two teams in this room
+are not middle-of-the-road.
+:::
+
+## Why we keep rebuilding this
+
+Real address data is human-typed:
+
+::: {.columns}
+::: {.column width="50%"}
+- `RD` vs `ROAD` vs `Rd.`
+- `MT GRAVATT` vs `MOUNT GRAVATT EAST`
+- Unit numbers in four notations: `U110`, `110/120`, `UNIT 110 120`, `110 120`
+- Building names where the street number should be
+- Postcodes off by a digit — or absent
+- Suburbs spelt phonetically
+:::
+::: {.column width="50%"}
+::: {.fragment}
+An exact string join to G-NAF fails on a large fraction of real input.
+
+A naive fuzzy join over 15M rows does not finish.
+
+The interesting work is in the middle: **block cheaply, score honestly, fall back
+deliberately.**
+:::
+:::
+:::
+
+::: {.notes}
+Everyone here who has done address matching has written some version of this.
+The failure mode is always the same: the exact join gets you 60 to 70 percent and
+then you spend three weeks on the tail.
+
+The point I want to land is that the hard part is not the string similarity metric.
+Jaro-Winkler is one function call. The hard part is candidate generation: how you
+get from fifteen million rows down to the twenty you are willing to score, without
+throwing away the right answer on the way. That is what most of match.R is.
+:::
+
+## Two audiences in this room
+
+::: {.columns}
+::: {.column width="48%"}
+### [High precision]{.precision}
+
+"I need to know **this exact dwelling**."
+
+- Unit-level correctness matters
+- A wrong match is worse than no match
+- Downstream: record linkage, service delivery, counts by address
+- Wants: high `min_score`, flat weight up, alias resolution, a review queue
+:::
+::: {.column width="48%"}
+### [Normalisation]{.normalise}
+
+"I need a **clean consistent string** — and roughly the right spot."
+
+- Street or suburb level is fine
+- Coverage matters more than precision
+- Downstream: dedupe, aggregation, mapping, tidy display
+- Wants: low `min_score`, street-only fallback, aliases on, `address_label` as the output
+:::
+:::
+
+::: {.fragment}
+gnafr is **one engine with different settings**, not two packages. I will flag
+[precision]{.precision} / [normalisation]{.normalise} implications as we go, and put
+both recipes side by side at the end.
+:::
+
+::: {.notes}
+This is the thread through the whole deck, so I want it explicit up front.
+
+Some of you are doing high-precision work where a wrong unit number is a real error
+with consequences. Others are doing normalisation, where you mostly want the messy
+string turned into something canonical, and being one house number off is annoying
+but survivable.
+
+The design decision I made — and the one I most want feedback on today — is that
+these should be the same code path with different arguments, not two modes. The
+reason is the score breakdown: if you can see which component agreed, you can set
+your own bar. A single opaque confidence number would have forced me to pick a
+philosophy on your behalf.
+:::
+
+## What is G-NAF, quickly
+
+The **Geocoded National Address File** — Australia's authoritative address dataset,
+published by Geoscape. Around 15M records, each with a persistent identifier,
+structured components, and a geocoded lat/long.
+
+| Format | What it is | When to use it |
+|---|---|---|
+| **Core CSV** | One flattened, simplified CSV per state | Default. Smaller, simpler. |
+| **Standard PSV** | The raw product: dozens of pipe-delimited tables (`ADDRESS_DETAIL`, `ADDRESS_ALIAS`, `STREET_LOCALITY_ALIAS`, `LOCALITY_ALIAS`, …) | When you want the **official alias records** and the full column set |
+
+::: {.fragment}
+gnafr loads either — `gnaf_load()` for Core CSV, `gnaf_load_psv()` for raw PSV.
+**Use the PSV if you can**: you get official suburb/street synonyms, mesh block
+codes, primary/secondary dwelling linkage, and geocode reliability type.
+:::
+
+::: {.notes}
+Some of you already have G-NAF loaded somewhere — a SQL Server table, Postgres, a
+folder of CSVs. This is not asking you to change your source of truth; it builds a
+local, query-optimised copy.
+
+The Core versus Standard distinction matters more than people expect. Core is what
+most pipelines use because it is one file. But the alias tables in the Standard
+product are the single biggest coverage win available: about a quarter of the rows
+in my loaded database are alias rows. I will come back to that in detail.
+:::
+
+## The package, in layers
+
+```{mermaid}
+%%{init: {'themeVariables': {'fontSize': '15px'}}}%%
+flowchart LR
+  subgraph BUILD["One-off build"]
+    direction TB
+    L1["G-NAF Core CSV<br/>or Standard PSV"] --> L2["gnaf_load()<br/>gnaf_load_psv()"]
+    L2 --> L3[("gnaf.duckdb<br/>persists on disk")]
+    L3 --> L4["gnaf_build_street_aliases()<br/>gnaf_rebuild_locality_index()"]
+    L4 --> L3
+  end
+
+  subgraph RUN["Every run"]
+    direction TB
+    R1["character vector<br/>of addresses"] --> R2["address_parse()"]
+    R2 --> R3["gnaf_match()<br/>score + rank + fall back<br/><i>inside DuckDB</i>"]
+    R3 --> R4["data.table:<br/>scores, coords, PIDs"]
+  end
+
+  L3 -.-> R3
+  R4 --> S1["spatial_lookup()<br/>plot_boundaries_heatmap()"]
+  R4 --> S2["gnaf_app()<br/>Shiny review"]
+```
+
+::: {.notes}
+Two phases. The build is a one-off measured in minutes, and the artefact is a
+single DuckDB file you can copy onto a network drive and share read-only across a
+team. The run phase never re-reads the source data.
+
+Note the dotted line: matching queries the database directly. The address table
+never comes into R memory. That is the whole reason this scales, and I will unpack
+it properly when I get to the DuckDB slide.
+:::
+
+## Source layout {.smaller}
+
+| File | Responsibility | Lines |
+|---|---|---|
+| `db.R` | Connection, schema, locality index, alias derivation, status | 407 |
+| `load.R` / `load_psv.R` | Core CSV loader / raw PSV loader | 93 / 497 |
+| `parse.R` | Free text into structured components (`address_parse`) | 1,338 |
+| `score.R` | The scoring formula — **in both R and generated SQL** | 282 |
+| `match.R` | `gnaf_match()`: orchestration, cache, matching paths | 1,696 |
+| `cache.R` | Persistent match cache: status, sampling, rollback | 378 |
+| `custom.R` | Non-G-NAF addresses you add yourself | 163 |
+| `app.R` | The Shiny geocoder | 729 |
+| `simulate.R` | Synthetic messy-address generation for QA | 214 |
+| `spatial_helpers.R` | `sf` point-in-polygon joins and heatmaps | 241 |
+
+::: {.notes}
+I am showing this because this audience will want to read the source, and it is
+worth knowing where the weight sits. Parsing and matching are three thousand of the
+six thousand three hundred lines, and that ratio is about right — those are the two
+places real-world messiness actually lives.
+
+The one worth a second look is score.R being small. The scoring rules are
+deliberately simple; all the sophistication is in deciding which pairs get scored
+at all.
+:::
+
+# Part 1 — Building the database {background-color="#12405c"}
+
+::: {.notes}
+Four parts: build, parse, score, match. Then the extras — aliases, cache,
+performance, spatial, the app — and then the two recipes.
+
+Part one is the shortest, because it is the part you do once.
+:::
+
+## Setup is a one-off
+
+```r
+library(gnafr)
+
+con <- gnaf_connect("C:/temp/gnaf.duckdb")
+
+gnaf_build_db(
+  con,
+  gnaf_dir = "C:/temp/gnaf/G-NAF/G-NAF MAY 2026/Standard",
+  states   = "QLD"          # a single code, c("QLD","NSW"), or "all"
+)
+
+gnaf_status(con)
+#>              table    rows
+#>     gnaf_addresses 3305035
+#>   custom_addresses       0
+```
+
+::: {.fragment}
+`gnaf_build_db()` is a wrapper that runs, in order:
+
+1. `gnaf_init()` — create tables, indexes, run any schema migrations
+2. `gnaf_load_psv()` — read the raw PSV files straight into DuckDB
+3. `gnaf_build_street_aliases()` — derive number-free street records
+:::
+
+::: {.notes}
+Three lines to a match-ready database. The file persists — you never call init or
+load again, you just reconnect.
+
+The states argument takes a vector, or the string "all", which detects whichever
+state files you actually downloaded. And overwrite equals TRUE only clears the
+states you are reloading, so you can refresh Queensland without disturbing New
+South Wales.
+
+Worth saying out loud: DuckDB reads the PSV files itself. The data does not pass
+through R. On my laptop, Queensland is a couple of minutes.
+:::
+
+## What `gnaf_init()` actually creates
+
+Two structurally identical tables — `gnaf_addresses` and `custom_addresses` — plus:
+
+| Object | Purpose |
+|---|---|
+| `idx_gnaf_pc` | Index on `postcode` — supports the state and locality paths |
+| `idx_gnaf_pcnum` | Compound `(postcode, number_first)` — **the index the hot path relies on** |
+| `idx_gnaf_label` | Index on `address_label` — backs the exact-label fast path |
+| `gnaf_locality_index` | Deduplicated `(locality_name, postcode, state)` — about 3,000 rows per state |
+| `gnaf_match_cache` | `input_standardised` → PID plus all six score components |
+
+::: {.fragment}
+Every statement is `CREATE ... IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`, so
+`gnaf_init()` is always safe to re-run — including on a database built by an older
+version of the package.
+:::
+
+::: {.notes}
+The compound postcode-plus-number index is the one that matters. It is what makes
+the primary matching path an indexed equi-join rather than a scan.
+
+The locality index deserves a mention because it is a small design decision with a
+big payoff. When the postcode is wrong, I need a fuzzy scan over suburb names.
+Doing that against three million address rows is expensive; doing it against a
+deduplicated three thousand row lookup is basically free. It gets rebuilt whenever
+you load, and you can force it with gnaf_rebuild_locality_index.
+:::
+
+## Every column comes along
+
+Not just the fields needed for string matching:
+
+::: {.columns}
+::: {.column width="50%"}
+- `address_detail_pid` — the persistent G-NAF ID
+- `address_label` — the canonical formatted string
+- `longitude` / `latitude`
+- `mb_code` — ABS Mesh Block
+- `legal_parcel_id` — cadastral lot/plan
+:::
+::: {.column width="50%"}
+- `geocode_type` — e.g. `PROPERTY CENTROID`
+- `alias_principal` / `principal_pid`
+- `primary_secondary` / `primary_pid`
+- `address_site_name`
+- `date_created`
+:::
+:::
+
+::: {.fragment}
+[Precision work]{.precision}: `primary_secondary` and `geocode_type` are how you tell
+"the building" from "unit 4 in the building", and how you tell a surveyed point from
+a street-centreline approximation.
+:::
+
+::: {.notes}
+This is one of the reasons to prefer the PSV loader. The Core CSV drops a lot of
+this.
+
+Geocode type in particular is underused. A property-centroid geocode and a
+street-locality-centroid geocode are wildly different in accuracy, and if you are
+doing anything spatial downstream — catchment assignment, distance calculations —
+you want to filter or at least flag on it. gnafr does not do that for you, but it
+hands you the column.
+:::
+
+## Reconnecting later
+
+```r
+library(gnafr)
+con <- gnaf_connect("C:/temp/gnaf.duckdb")
+
+# Multiple R processes reading the same file at once:
+con <- gnaf_connect("C:/temp/gnaf.duckdb", read_only = TRUE)
+```
+
+::: {.fragment}
+Keep **one connection open** across many `gnaf_match()` calls — reconnecting per
+call is measurably slower. In Shiny or a service, hold it at module level.
+:::
+
+::: {.fragment}
+::: {.callout-warning}
+## DuckDB storage format
+If you upgrade the `duckdb` package across a storage-format change, the file must be
+rebuilt. Pin `duckdb` in production, or keep the build script handy.
+:::
+:::
+
+::: {.notes}
+The read-only flag is how a team shares one database. Put the file on a network
+drive, everyone connects read-only, no locking problems. One caveat: the match cache
+can still be read, but writes are silently skipped on a read-only connection — so a
+shared copy only benefits from whatever was cached when it was built. That is by
+design, not an error; the write is caught and swallowed.
+
+The DuckDB version thing has bitten me. It is not corruption; it is a deliberate
+refusal to open a file written by a different storage format. Rebuild and move on.
+:::
+
+## {background-color="#0b3d5c"}
+
+### Live demo 1 — connect and look around {.dim}
+
+```r
+con <- gnaf_connect("C:/temp/gnafx.duckdb")
+gnaf_status(con)
+
+DBI::dbGetQuery(con, "SELECT * FROM gnaf_addresses LIMIT 5")
+
+DBI::dbGetQuery(con, "
+  SELECT COALESCE(alias_type, 'core') AS alias_type, COUNT(*) AS n
+  FROM gnaf_addresses GROUP BY 1 ORDER BY n DESC")
+```
+
+::: {.notes}
+Switch to RStudio here.
+
+Show: the status table, a raw row so people see the real column set, and the alias
+breakdown so the quarter-of-the-rows claim is not just an assertion.
+
+If someone asks how big the file is, check it on disk — it is smaller than people
+expect because DuckDB compresses columnar storage well.
+:::
+
+# Part 2 — Parsing {background-color="#12405c"}
+
+::: {.notes}
+This is the part I would most like technical feedback on, because it is where the
+Australian-specific knowledge is baked in, and several of you have probably solved
+the same problems differently.
+:::
+
+## `address_parse()` — free text to fields
+
+```r
+address_parse(c(
+  "unit 110 120 musgrave Road red hill 4000 QLD",
+  "Cambridge on the hill 110/120 musgrave road red hill QLD 4000"
+))
+```
+
+```
+   input_id in_postcode in_state in_locality in_street_name in_street_type
+1      4000         QLD  RED HILL       MUSGRAVE           ROAD
+2      4000         QLD  RED HILL       MUSGRAVE           ROAD
+
+   in_number_first in_flat_type in_flat_number in_building_name
+1              120         UNIT            110               NA
+2              120         UNIT            110   CAMBRIDGE ON THE HILL
+```
+
+::: {.fragment}
+Standalone and database-free. Use it for **data profiling and debugging** before you
+match anything.
+:::
+
+::: {.notes}
+This is exported deliberately. When a match looks wrong, this is always the first
+thing to run — nine times out of ten the parse explains it, and you have not learned
+anything by staring at the score.
+
+Full field list: postcode, state, locality, street name, street type, street suffix,
+number first, number last, number suffix, flat type, flat number, building name.
+:::
+
+## The parse pipeline
+
+```{mermaid}
+%%{init: {'themeVariables': {'fontSize': '15px'}}}%%
+flowchart TB
+  A["Raw string"] --> B["Uppercase, trim,<br/>collapse whitespace"]
+  B --> C["Strip trailing postcode + state<br/><i>either order</i>"]
+  C --> D{"Comma present?"}
+  D -- yes --> E["Token before the LAST comma<br/>is a strong street-type hint<br/><i>fuzzy, Jaro-Winkler</i>"]
+  D -- no --> F["Rightmost street-type token"]
+  E --> G["Anchor found"]
+  F --> G
+  G --> H{"Matches a<br/>vectorised fast path?"}
+  H -- "yes (~95%)" --> I["4a slash · 4b flat-prefix<br/>4b2 attached letter · 4c simple"]
+  H -- no --> J[".parse_single()<br/>row-by-row fallback"]
+  I --> K["Normalise abbreviations"]
+  J --> K
+  K --> L["Structured components"]
+```
+
+::: {.notes}
+Two tiers, and the split is a performance decision, not a correctness one.
+
+Tier one is four stringi regex patterns applied across the entire input vector at
+once. They cover about 95 percent of well-formed Australian addresses. Tier two is
+a row-by-row fallback for everything else — misspelt street types, unusual
+structures, addresses with no identifiable type at all.
+
+If your data is dominated by tier two, matching will be slower. Profiling with
+address_parse first tells you that before you commit to a big run.
+:::
+
+## The comma hint
+
+::: {.callout-tip}
+## Why the last comma matters
+`"123 St James Rode, Tamborine Mountain QLD 4272"`
+
+A plain rightmost-token scan finds `St` inside `St James` and calls it `STREET` —
+hiding the real, misspelt type `Rode`.
+
+The token before the **last comma** is checked against the known type list
+**fuzzily** (Jaro-Winkler), so `RODE` resolves to `ROAD`.
+:::
+
+::: {.fragment}
+Two failure modes fixed at once:
+
+1. **Coincidental abbreviation collisions** inside multi-word street names
+2. **Misspelt types** a pure rightmost scan would miss entirely
+:::
+
+::: {.notes}
+This is my favourite bit of the parser, because it is a case where the punctuation
+people leave in their data is actually informative rather than noise.
+
+Most cleaning pipelines strip commas first thing. This one uses the last comma as a
+structural signal: in Australian convention it separates the street part from the
+locality part, so the token immediately before it is almost always the street type.
+
+For the normalisation crowd — if you are pre-stripping punctuation before you hand
+data to gnafr, stop. You are throwing away a signal it uses.
+:::
+
+## The four fast paths
+
+| Path | Shape | Example |
+|---|---|---|
+| **4a** | `FLAT/NUMBER STREET` | `110/120 Musgrave Rd` |
+| **4b** | `TYPE N N STREET` | `Unit 3 120 Musgrave Rd` |
+| **4b2** | attached single letter | `F8 536 …`  (`F`=Flat, `A`=Apartment, `U`=Unit; anything else defaults to Unit) |
+| **4c** | `NUMBER[-NUMBER] STREET` | `18-20 Drift Cl` — plus the *implied pair* sub-case |
+
+::: {.fragment}
+The **implied pair** is the one to know: `"10 120 Musgrave Rd"` — two bare numbers,
+no `UNIT` keyword. Australian convention says that is unit 10 at number 120, and the
+parser reads it that way.
+:::
+
+::: {.notes}
+Implied pair is the one that surprises people, and it is worth a discussion.
+
+Two bare numbers in a row is genuinely ambiguous — it could be unit ten at one
+twenty, or it could be a typo, or a range written without the dash. The parser
+commits to the Australian convention because that is overwhelmingly what it means
+in practice.
+
+If your data source is one where that assumption is wrong, tell me, because that is
+exactly the sort of thing worth making configurable.
+:::
+
+## Flat, level, and lot are separate fields
+
+::: {.columns}
+::: {.column width="55%"}
+**Flat prefixes recognised**
+
+`UNIT`, `U` (attached, `U12`), `APARTMENT`, `APT`, `FLAT`, `FL`, `FLT`, `SUITE`,
+`STE`, `SHOP`, `SH`, `VILLA`, `VLA`, `TENANCY`, `TNY`
+:::
+::: {.column width="45%"}
+**Parsed into their own fields**
+
+`LEVEL`, `LVL`, `FLOOR`, `FLR` → `level_type` / `level_number`
+
+`LOT` → `lot_number`
+:::
+:::
+
+::: {.fragment}
+```r
+address_parse("level 5 300 ann st brisbane 4000")
+#> level_type = LEVEL, level_number = 5, number_first = 300
+```
+Level and lot are **not** folded into the flat component — a level 5 office and unit
+5 are different things.
+:::
+
+::: {.notes}
+Earlier versions did fold level into flat, and it caused a specific bug class:
+"level 5, 300 Ann Street" matching "unit 5, 300 Ann Street" at full confidence.
+In a CBD office tower those are completely different tenancies.
+
+Lot numbers are stored and parsed, and lot-to-lot matching earns number credit, but
+lot addressing in general — the "Lot 5 DP 12345" rural style — is not something I
+would claim this handles well.
+:::
+
+## Normalisation (`normalize = TRUE`)
+
+Applied to `in_locality` and `in_street_name` **after** structural parsing:
+
+| Pattern | Expands to |
+|---|---|
+| `MNT`, `MT` | `MOUNT` |
+| `ST` (whole word, after the street type is already extracted) | `SAINT` |
+| `NTH`, `STH`, leading `N`/`S`/`E`/`W` | `NORTH` / `SOUTH` / `EAST` / `WEST` |
+| `CK` | `CREEK` |
+| `&` | `AND` |
+| Ordinals `1ST`…`20TH` | `FIRST`…`TWENTIETH` (street name only) |
+
+::: {.fragment}
+`MT GRAVATT EAST` would still *score* well on Jaro-Winkler similarity. Expanding it
+first turns a near-miss into a **perfect** component score — which matters when you
+are thresholding at 90.
+:::
+
+::: {.notes}
+Order matters here and it is easy to get wrong. ST is expanded to SAINT only after
+the street type has been pulled out, otherwise every Smith Street becomes Smith
+Saint.
+
+The reason to bother at all, when Jaro-Winkler would have scored it in the high
+nineties anyway: those small deficits accumulate. Lose a bit on suburb, lose a bit
+on street name, and a genuinely correct match lands at 88 instead of 100 — below the
+fallback threshold, so you pay for an extra query pass, and possibly below a
+precision team's cutoff.
+:::
+
+## What the parser will not do
+
+- **PO Box / GPO Box / Locked Bag** — no street component to anchor on
+- **Rural lot addressing** (`Lot 5 DP 12345`) — lot numbers are stored, but this style is not matched
+- **Non-standard street types** absent from the lookup table — the address still matches, but `score_street_type` is 0
+
+::: {.fragment}
+The full official type table lives in `inst/extdata/street_types.csv`. If your data
+has a local abbreviation that is missing, **add it there** — that is the intended
+extension point.
+:::
+
+::: {.notes}
+Be honest about limits. PO boxes are the big one: if a meaningful share of your
+input is postal addresses, filter them out before matching rather than letting them
+come back unmatched and pollute your rate.
+
+The street types CSV being a data file, not hard-coded, is deliberate. If someone
+here has a corpus with local abbreviations I have not seen, send them to me and I
+will add them upstream.
+:::
+
+## {background-color="#0b3d5c"}
+
+### Live demo 2 — parse anything you throw at it {.dim}
+
+```r
+address_parse(c(
+  "unit 110 120 musgrave Road red hill 4000 QLD",
+  "U110 1120 musgrave rd red hill 4000",
+  "Cambridge on the hill 110/120 musgrave road red hill QLD 4000",
+  "18-20 drift cl goldsborough QLD 4865",
+  "F8 536 example parade brisbane 4000",
+  "123 St James Rode, Tamborine Mountain QLD 4272",
+  "level 5 300 ann st brisbane 4000",
+  "lot 7 kreis rd westbrook QLD 4350"
+))
+
+address_parse("Mt Gravatt East", normalize = TRUE)[, .(in_locality)]
+address_parse("Mt Gravatt East", normalize = FALSE)[, .(in_locality)]
+```
+
+::: {.notes}
+This is the best demo in the deck — take audience suggestions here. Ask people to
+call out a genuinely horrible address from their own data and parse it live.
+
+Have the normalize TRUE versus FALSE comparison ready as a fallback if nobody offers
+anything. And if a suggestion parses badly, do not skip past it — that is the most
+useful thing that can happen in this session.
+:::
+
+# Part 3 — Scoring {background-color="#12405c"}
+
+::: {.notes}
+Now the bit everyone actually argues about. I want to be very concrete, because
+"confidence score" means nothing until you know what is in it.
+:::
+
+## Six components, one total
+
+```
+total_score = score_postcode + score_suburb + score_street_name
+            + score_street_type + score_number + score_flat
+```
+
+| Component | Default weight | How it is computed |
+|---|---|---|
+| `postcode` | **20** | Exact, with near-miss partial credit |
+| `suburb` | **15** | `round(15 × jaro_winkler(input, candidate))` |
+| `street_name` | **40** | `round(40 × jaro_winkler(input, candidate))` |
+| `street_type` | **10** | Three-tier exact comparison |
+| `number` | **10** | Exact / in-range / none |
+| `flat` | **5** | Composite flat + level identifier |
+
+::: {.fragment}
+Street name carries the largest single weight — it is the strongest discriminator
+between genuinely different addresses that share a postcode and a house number.
+:::
+
+::: {.notes}
+Every one of these numbers came out of the source, not out of a slide I wrote from
+memory.
+
+The weighting philosophy: postcode and street name together are sixty of the
+hundred, because those two agreeing is most of the evidence. Flat is only five,
+which is the single most contentious choice in the package and the one the precision
+people in the room should push back on. I will show you how to change it.
+:::
+
+## Postcode (20) — the only component with near-miss credit
+
+::: {.spec}
+Exact → **20**  ·  off by 1 → **14** (70%)  ·  by 2 → **8** (40%)  ·  by 3 → **4** (20%)  ·  further → **0**
+:::
+
+::: {.fragment}
+But: the **primary path joins on `g.postcode = i.in_postcode`**. By construction,
+every row it scores already has full postcode credit.
+
+The partial-credit branches only become reachable on the **locality fallback**,
+which widens the join to nearby postcodes (±3) or to whatever postcode a fuzzy
+suburb match points at.
+:::
+
+::: {.fragment}
+```r
+# 4058 typed, 4059 correct — number and street match exactly, so the
+# locality fallback finds it and awards 14 instead of rejecting it.
+gnaf_match("10 Musgrave Road, Red Hill QLD 4058", con)[
+  , .(matched, total_score, score_postcode, address_label)]
+```
+:::
+
+::: {.notes}
+This is a good example of scoring rules and candidate generation being tangled
+together, which is the thing people get wrong when they read scoring code in
+isolation.
+
+You can read the near-miss branches in score.R and assume near-miss postcodes are
+routinely retrieved. They are not. The primary path is a strict equi-join. Those
+branches are dead code until the locality fallback widens the net — and that only
+fires when the best score so far is at or below ninety.
+:::
+
+## Suburb (15) and street name (40)
+
+Both are `round(weight × jaro_winkler_similarity(input, candidate))`.
+
+::: {.fragment}
+Computed by **DuckDB's built-in `jaro_winkler_similarity()`** for every path except
+the exact-label fast path, which uses `stringdist::stringdist(method = "jw", p = 0.1)`
+in R.
+:::
+
+::: {.fragment}
+Same metric — evaluated on whichever side of the SQL/R boundary that path happens to
+run on.
+:::
+
+::: {.fragment}
+::: {.callout-note}
+## Why this matters for reproducibility
+Two implementations of one formula is a maintenance risk. It is deliberate — the
+exact-label path never touches the join machinery, so it scores in R — but it is the
+first place to look if a score ever disagrees with itself.
+:::
+:::
+
+::: {.notes}
+For the technical crowd: the scoring logic genuinely exists twice in the source.
+Once as generated DuckDB SQL CASE expressions, once as data.table vector operations.
+They are kept in step by the test suite.
+
+If I were starting again I would probably push everything through SQL and drop the R
+copy, but the exact-label path is fast precisely because it avoids the join, so it
+earns its exception.
+:::
+
+## Street type (10) — not a similarity score
+
+::: {.spec}
+Both agree, or both absent → **10**  ·  exactly one side has a type → **5**  ·  both have a type but they disagree → **4**
+:::
+
+Abbreviations are already canonicalised at parse time *and* at load time, so by the
+time scoring runs "same type" should mean **string-equal**, not merely similar.
+
+| Abbreviations | Canonical |
+|---|---|
+| `RD`, `RDS` | `ROAD` |
+| `ST`, `STR` | `STREET` |
+| `CT`, `CRT` | `COURT` |
+| `CCT` | `CIRCUIT` |
+| `TCE`, `TER`, `TERR` | `TERRACE` |
+
+::: {.fragment}
+The **40% floor for disagreement** is deliberate: typing `Avenue` where G-NAF has
+`Drive` is a common, low-stakes user error and should not cancel out an otherwise
+strong match.
+:::
+
+::: {.notes}
+Note the asymmetry, because it is counter-intuitive: a missing street type scores
+five out of ten, and a wrong street type scores four. Missing beats wrong, but only
+just.
+
+The reasoning is that people omit the type constantly and get it wrong occasionally,
+and neither should be fatal when the number, street name and postcode all agree.
+
+If you disagree with that four, it is a weight away from being whatever you want.
+:::
+
+## Street number (10) — and the gate
+
+::: {.spec}
+Exact match to `number_first` → **10**  ·  within `number_first`–`number_last` → **7**  ·  no match → **0**
+:::
+
+A parsed **suffix** (`190A`) is layered on top: it only earns credit when the
+candidate's `address_label` literally starts with `"190A "` — so `190A` never matches
+`190B` just because they share a numeric prefix.
+
+::: {.fragment}
+::: {.callout-warning}
+## The number filter is a gate, not a soft score
+In most paths, candidates whose number fails the pre-filter are **excluded from the
+join entirely** and never reach scoring.
+
+An input with a house number that is not in G-NAF for that street comes back
+`matched = FALSE`, `match_status = "no_candidate"` — **not** a low-scoring row you
+can rescue by lowering `min_score`.
+:::
+:::
+
+::: {.notes}
+This is the single most important slide for anyone debugging an unmatched address,
+so do not rush it.
+
+The intuition people bring is that every component is a soft score and lowering the
+threshold surfaces more. That is true for five of the six components. It is not
+true for number, because number is used as a pre-filter to keep the joined table
+small — that is the performance trade.
+
+So if you set min score to zero and something still does not match, the number gate
+is the usual culprit. The escape hatch is the street-only fallback, which I will get
+to.
+:::
+
+## Flat / level (5) — composite
+
+::: {.spec}
+Both sides have no flat, or identifiers match with no conflicting type → **5**
+·  identifiers match but the supplied types conflict → **2** (50%)  ·  otherwise → **0**
+:::
+
+::: {.fragment}
+A flat number on the input that the candidate does not have **at all** is treated as
+a mismatch, not a "cannot tell" — a different unit at the same street number is a
+meaningfully different physical address.
+:::
+
+::: {.fragment}
+[Precision teams]{.precision}: five points out of a hundred means a **completely wrong
+unit** costs you a drop from 100 to 95. If unit-level correctness is your job,
+either raise the flat weight or filter on `score_flat == 5` explicitly.
+:::
+
+::: {.notes}
+This is the slide where I expect an argument, and I want the argument.
+
+The default of five reflects the median use case: most inputs do not have a unit
+number at all, and weighting it heavily would punish every house address.
+
+But for a precision workflow it is arguably wrong. A match at 95 that has the wrong
+unit looks excellent on total score and is a real error. Two options: raise the
+weight, or ignore total score for that check and filter on score flat directly. I
+lean towards the filter, because it is explicit and it does not disturb the cache.
+:::
+
+## Rebalancing the weights
+
+```r
+results <- gnaf_match(
+  addresses, con,
+  weights = list(
+    postcode    = 20,
+    suburb      = 18,
+    street_name = 25,
+    street_type = 10,
+    number      = 20,   # numbers matter more than postcode here
+    flat        =  7
+  )
+)
+```
+
+Must be a **named list summing to 100**.
+
+::: {.fragment}
+::: {.callout-important}
+## Custom weights disable the match cache for that call
+Cached scores were computed under the default weights. Reusing them under different
+weights would silently misreport, so gnafr bypasses the cache entirely rather than
+mix them.
+:::
+:::
+
+::: {.notes}
+Full control, with one consequence worth planning around.
+
+If you run a nightly job with custom weights, you get no cache benefit ever, and
+your cache tables stay empty. That is expected, not a bug — but it means the
+performance numbers I show later do not apply to you.
+
+My advice: settle on one weight set per pipeline and stick to it. If your custom
+weights are stable and you want caching, tell me and I will key the cache on a
+weight hash. It is not hard, I just have not needed it.
+:::
+
+## Reading the scores
+
+| Range | Typical meaning |
+|---|---|
+| **90–100** | Near-certain. All components agree. |
+| **75–89** | High confidence; minor spelling variation in suburb or street |
+| **60–74** | Reasonable; one significant discrepancy |
+| **40–59** | Low confidence — review manually |
+| **< 60** | Filtered out by default (`min_score = 60`) |
+
+::: {.fragment}
+::: {.columns}
+::: {.column width="50%"}
+[Precision]{.precision}: `min_score = 90`, and inspect components — a strong total
+built from postcode plus a lucky number match is not the same as one built from
+street name.
+:::
+::: {.column width="50%"}
+[Normalisation]{.normalise}: `min_score = 40` with `street_only_fallback = TRUE`.
+A right-street, wrong-number match is a perfectly good normalisation result.
+:::
+:::
+:::
+
+::: {.notes}
+These bands are guidance, not law. Calibrate on your own labelled data — the
+distribution depends heavily on how messy your source is.
+
+The point of the two-column split is that the same run can serve both teams. Match
+once at a low threshold, keep every row, and let each downstream consumer apply its
+own bar. You do not need two pipelines, and you do not want to re-run matching just
+to change a cutoff.
+:::
+
+## {background-color="#0b3d5c"}
+
+### Live demo 3 — score components, one at a time {.dim}
+
+```r
+# Wrong street type: Avenue typed, Drive in G-NAF
+gnaf_match("13 Fairway Avenue, Clear Island Waters QLD 4226",
+           con, min_score = 0)[, .(total_score, score_street_type, address_label)]
+
+# Number inside a G-NAF range record (13-27)
+gnaf_match("15 Fairway Drive, Clear Island Waters QLD 4226",
+           con)[, .(total_score, score_number, address_label)]
+
+# The gate: a number that is simply not in G-NAF
+gnaf_match("999 Musgrave Road, Red Hill QLD 4059",
+           con, min_score = 0)[, .(matched, match_status, total_score)]
+
+# Full breakdown for one input
+gnaf_match("unit 110 120 musgrave Road red hill 4000 QLD",
+           con, max_results = 5, min_score = 20)
+```
+
+::: {.notes}
+Walk these one at a time and read the numbers out loud against the rules from the
+last few slides.
+
+The third one is the money shot: min score zero and it still comes back unmatched.
+That is the gate, made visible. Pause there and make sure everyone has it.
+:::
+
+# Part 4 — The matching cascade {background-color="#12405c"}
+
+::: {.notes}
+Everything so far has been about a single input-candidate pair. This part is about
+which candidates get generated in the first place — the part I said earlier is the
+actual hard problem.
+:::
+
+## Six paths, tried in order
+
+```{mermaid}
+%%{init: {'themeVariables': {'fontSize': '14px'}}}%%
+flowchart LR
+  A["gnaf_match(addresses)"] --> B{"Exact label<br/>match?"}
+  B -- yes --> Z["Result"]
+  B -- no --> C{"In match<br/>cache?"}
+  C -- yes --> Z
+  C -- no --> D["address_parse()"]
+  D --> E{"Postcode<br/>parsed?"}
+  E -- yes --> F["3 · Postcode path<br/><i>equi-join, hot path</i>"]
+  E -- no --> G["4 · State path<br/><i>state-wide scan</i>"]
+  F --> H{"Best score ≤<br/>fallback_threshold<br/>or unmatched?"}
+  G --> H
+  H -- no --> Z
+  H -- "yes, locality parsed" --> I["5 · Locality fallback<br/>fuzzy suburb → postcode"]
+  I --> J{"Still unmatched and<br/>street_only_fallback?"}
+  J -- no --> Z
+  J -- yes --> K["6 · Street-only fallback"]
+  K --> Z
+```
+
+::: {.notes}
+This is the central diagram of the whole talk. Everything else is detail hanging
+off it.
+
+The shape to notice: it is a cascade, and each input drops out as soon as it is
+satisfied. In a typical batch the vast majority never get past path three. The
+expensive paths — locality, street-only — only ever run on the residue.
+
+That is also why the timing is nonlinear in your data quality rather than your row
+count. A hundred thousand clean addresses are much faster than ten thousand awful
+ones.
+:::
+
+## 1. Exact label match
+
+If the uppercased, trimmed input equals a G-NAF `address_label` exactly, it is scored
+and returned immediately — no parse-driven join at all.
+
+::: {.fragment}
+Built for **re-processing addresses that gnafr (or G-NAF) already standardised**.
+:::
+
+::: {.fragment}
+Implemented as a **hash join against a registered temporary table**, not a giant
+SQL `IN (...)` list — so it stays fast at tens of thousands of inputs.
+:::
+
+::: {.fragment}
+[Normalisation workflows]{.normalise}: this is why round-tripping is cheap. Emit
+`address_label`, feed it back next month, and it comes straight down this path.
+:::
+
+::: {.notes}
+The registered-temp-table detail is worth calling out to this audience because it is
+a trap people fall into. The obvious implementation is to build a huge IN list of
+literals. That works at a hundred and dies at fifty thousand — the SQL parser itself
+becomes the bottleneck.
+
+duckdb_register lets DuckDB hash-join directly against an R data.table. Same idea as
+a temp table, none of the round-trip cost.
+:::
+
+## 2. The match cache
+
+`gnaf_match_cache` stores `input_standardised → (address_detail_pid, six scores)` for
+every result that scored at or above `cache_threshold` (default **95**).
+
+::: {.fragment}
+Lookups join on `input_standardised` — the building/flat/number/street/locality string
+gnafr derives from the **parsed** input. So a *differently worded but equivalently
+parsed* address still hits the cache.
+:::
+
+::: {.fragment}
+```r
+"unit 110 120 musgrave rd red hill 4000"   # cached last month
+"U110 120 Musgrave Road, RED HILL QLD 4000"  # different string, same parse → hit
+```
+:::
+
+::: {.fragment}
+Only consulted and written when `weights` are exactly the package defaults.
+
+Every entry is stamped with an **algorithm version**, and lookups filter on the
+current one — so a scoring or parser change invalidates stale entries automatically
+rather than silently serving them.
+:::
+
+::: {.notes}
+This is my favourite optimisation in the package because it is cheap and it
+compounds.
+
+Keying on the standardised parse rather than the raw string is what makes it more
+than a memoised lookup. Two records that a human would call the same address, written
+differently, collapse to the same key. In administrative data where the same address
+arrives repeatedly in slightly different forms, the hit rate climbs fast.
+
+Threshold of ninety-five is deliberately high. I only want to cache things I am
+confident about — a cached mediocre match is a mediocre match forever.
+
+The version stamp is the safety net for that. It is a constant in cache.R; bump it
+and every pre-existing entry stops being eligible on the next lookup, without anyone
+having to remember to clear the cache after an upgrade.
+:::
+
+## 3. The postcode path — the hot path
+
+```sql
+FROM gnaf_addresses g
+JOIN parsed_inputs i ON g.postcode = i.in_postcode
+WHERE <number pre-filter>
+  AND jaro_winkler_similarity(g.street_name, i.in_street_name) >= 0.3
+```
+
+::: {.fragment}
+Two filters, both there purely to **keep the intermediate join small**:
+
+- the **number pre-filter** (exact / in-range / suffix rule) — the gate from earlier
+- a coarse **0.3 Jaro-Winkler floor** on street name, evaluated in `WHERE`, *before* scoring
+:::
+
+::: {.fragment}
+Deliberately a cheap exact equi-join. Near-miss postcodes are **not retrieved here**
+— that is the locality fallback's job.
+:::
+
+::: {.notes}
+The zero-point-three floor is a nice illustration of the design. It is not a
+correctness rule — nothing real scores below zero point three on street name. It
+exists to eliminate the bulk of irrelevant rows before the more expensive full
+scoring expression runs.
+
+Cheap filter in WHERE, expensive formula only on survivors. Standard database
+thinking, applied to fuzzy matching.
+
+This path plus the compound postcode-number index is where the throughput comes
+from.
+:::
+
+## 4. The state path
+
+Same query shape, joined on `g.state = i.in_state` instead.
+
+::: {.fragment}
+For inputs with **no parseable postcode at all**.
+:::
+
+::: {.fragment}
+Necessarily slower and noisier — a state-wide scan instead of a postcode-blocked one.
+:::
+
+::: {.fragment}
+::: {.callout-tip}
+## Practical implication
+If a meaningful share of your input has no postcode, that share drives your runtime.
+Recovering postcodes upstream — even imperfectly — is the highest-leverage thing you
+can do for performance.
+:::
+:::
+
+::: {.notes}
+Worth a moment because it changes what "make it faster" means.
+
+If ten percent of your input has no postcode, that ten percent can be most of your
+wall clock. The fix is not in gnafr — it is upstream. If you have any other field
+that implies a postcode, a suburb lookup, anything, fill it in before matching.
+:::
+
+## 5. The locality fallback
+
+Fires when the best score so far is **≤ `fallback_threshold`** (default 90) — including
+inputs with no result at all — provided a locality was parsed.
+
+Two sources of alternative postcodes, unioned:
+
+::: {.columns}
+::: {.column width="50%"}
+**Fuzzy locality match**
+
+`jaro_winkler(g.locality_name, parsed) >= 0.85` against `gnaf_locality_index`
+(~3,000 rows).
+
+Finds the right postcode regardless of *how* wrong the stated one was.
+:::
+::: {.column width="50%"}
+**Postcode offset**
+
+Stated postcode ± 1, 2, 3.
+
+Catches near-miss typos whose locality did not fuzzy-match — misspelt, or simply
+absent.
+:::
+:::
+
+::: {.notes}
+Why ninety and not ninety-nine? Because a clean correct match typically scores
+ninety-five plus, but a coincidental match — same postcode, same house number,
+completely unrelated street — can still reach the low-to-mid eighties. Twenty for
+postcode, partial suburb and street credit, and a lucky number match.
+
+Ninety leaves enough margin to catch those coincidences and let the locality scan
+find the real candidate, without re-triggering on matches that are already correct.
+
+That number is a judgement call from watching real results. If your data behaves
+differently, it is an argument.
+:::
+
+## 5. Locality fallback — in practice
+
+```r
+# Postcode is wildly wrong (9999). After MT -> MOUNT normalisation,
+# the suburb name alone is enough to find it.
+gnaf_match("77 Broadwater Road, Mt Gravatt East QLD 9999", con, min_score = 0)[
+  , .(matched, match_status, total_score, score_postcode, score_suburb, address_label)]
+```
+
+::: {.fragment}
+Note what cooperates here: **normalisation** (`MT` → `MOUNT`) makes the suburb
+fuzzy-match; the **locality index** makes that scan cheap; the **near-miss postcode
+rule** then scores what it finds.
+:::
+
+::: {.fragment}
+Turn it off with `locality_fallback = FALSE` if you would rather have a fast, strict
+run and handle the residue yourself.
+:::
+
+::: {.notes}
+Nine-nine-nine-nine is not even a real postcode, and it still resolves. Nice demo
+value.
+
+The wider point is that the features are not independent. Normalisation earns its
+keep here, three stages later, by making the fuzzy suburb match succeed. If you had
+turned normalisation off for speed, this address would not resolve.
+:::
+
+## 6. Street-only fallback (opt-in)
+
+```r
+gnaf_match(addresses, con, street_only_fallback = TRUE)
+```
+
+Matches against `alias_type = 'street_only'` rows — synthetic, **number-free** address
+records derived by `gnaf_build_street_aliases()`.
+
+::: {.fragment}
+Numbered inputs can never reach these rows through the ordinary paths — the number
+pre-filter requires `number_first IS NULL` on the candidate side — so this path exists
+precisely to give those inputs *something* once everything number-aware has failed.
+:::
+
+::: {.fragment}
+Typical causes: a **brand-new subdivision** G-NAF has not published numbers for yet,
+or an input that genuinely has no street number.
+:::
+
+::: {.fragment}
+[Normalisation]{.normalise}: turn this **on**. [Precision]{.precision}: leave it
+**off** — a street-level match is a false positive for you.
+:::
+
+::: {.notes}
+This is the clearest single fork between the two audiences in the whole package, and
+it is one argument.
+
+For normalisation, a right-street wrong-number result is a win — you get a canonical
+street, suburb, postcode and an approximate coordinate. For precision it is exactly
+the kind of plausible-looking wrong answer you most want to avoid, because it scores
+respectably and it is not the dwelling you asked about.
+
+Default is off, which is the conservative choice. If you are in the normalisation
+camp, switch it on and remember to check alias_type on the way out.
+:::
+
+## When nothing matches
+
+Unmatched inputs **stay in the output** with `matched = FALSE` and a `match_status`
+explaining why.
+
+```r
+results[matched == FALSE, .N, by = match_status]
+#> match_status         N
+#> no_candidate       412   # number gate — nothing on that street with that number
+#> below_min_score     87   # candidates found, none cleared min_score
+```
+
+::: {.fragment}
+Two very different problems:
+
+- `no_candidate` → **candidate generation** failed. Lowering `min_score` will not help.
+- `below_min_score` → candidates existed. Lower the threshold, or inspect components.
+:::
+
+::: {.notes}
+This distinction is the most practically useful thing in the deck for day-to-day
+debugging, and it is why I kept unmatched rows in the output rather than dropping
+them.
+
+No candidate means the join found nothing — usually the number gate, sometimes a
+postcode not in your loaded states. Below min score means candidates existed and
+none were good enough, which is a threshold conversation.
+
+Two different fixes. Split your unmatched pile on this column before you do anything
+else.
+:::
+
+## {background-color="#0b3d5c"}
+
+### Live demo 4 — watch the cascade {.dim}
+
+```r
+# verbose = TRUE (the default) narrates every path, with timings
+gnaf_match(c(
+  "unit 110 120 musgrave Road red hill 4000 QLD",
+  "77 broadwater rd mount gravatt east 4122",
+  "10 St James Ct, Tamborine Mountain QLD 4272",
+  "77 Broadwater Road, Mt Gravatt East QLD 9999",   # locality fallback
+  "999 Musgrave Road, Red Hill QLD 4059"            # no_candidate
+), con, max_results = 2, min_score = 20, verbose = TRUE)
+```
+
+::: {.notes}
+This is the demo that makes the cascade concrete. Verbose is on by default, and it
+prints which path ran, how many inputs it handled, and how long each took.
+
+Point at the timings as they scroll: exact label and cache are milliseconds, the
+postcode path is where the work is, and the fallbacks handle a handful of rows.
+
+Then re-run the identical call so everyone sees the cache hit on the second pass.
+:::
+
+# The rest of the package {background-color="#12405c"}
+
+::: {.notes}
+Core walkthrough is done. What follows is the surrounding machinery, and there is at
+least one slide here for each of the workflows I know are running in this office.
+:::
+
+## Aliases — a quarter of the rows
+
+Three independent mechanisms, all tagged by `alias_type`:
+
+| `alias_type` | Source | What it gives you |
+|---|---|---|
+| `street_only` | Derived locally by `gnaf_build_street_aliases()` | One number-free row per unique street/locality combination |
+| `LOCALITY:SYN` | G-NAF's own alias tables via `gnaf_load_psv()` | A recognised alternative **suburb** name |
+| `STREET:SYN` | Same | A recognised alternative **street** name |
+
+::: {.fragment}
+Plus two column pairs on *every* row, capturing G-NAF's own relationships:
+
+- `alias_principal` / `principal_pid` — is this the canonical record, or an alias of one
+- `primary_secondary` / `primary_pid` — main dwelling, or a sub-dwelling/unit
+:::
+
+::: {.notes}
+The distinction that matters: street_only aliases are derived locally by dropping
+the house number. They can never substitute a different name. The G-NAF synonym
+tables genuinely record that this suburb is also known by that name — knowledge I
+cannot derive, only load.
+
+That is the argument for the PSV product in one line.
+:::
+
+## Controlling aliases
+
+```r
+# Everything, including synonyms and official aliases  (default)
+gnaf_match(addresses, con)
+
+# Core G-NAF and custom rows only — no synonyms at all
+gnaf_match(addresses, con, include_aliases = FALSE)
+
+# Resolve alias matches back to the canonical record
+res <- gnaf_match(addresses, con, resolve_principal = TRUE)
+res[!is.na(alias_type), .(address_label, principal_address_label)]
+```
+
+::: {.fragment}
+`resolve_principal = TRUE` adds `principal_address_label`, `principal_longitude`,
+`principal_latitude`, `principal_locality_name`, `principal_postcode` — `NA` for
+non-alias matches.
+:::
+
+::: {.fragment}
+[Precision]{.precision}: match **with** aliases (coverage) and **resolve** to the
+principal (correctness). Best of both.
+:::
+
+::: {.notes}
+This is the recommendation I would most like the precision people to take away.
+
+The instinct is to switch aliases off because they feel like noise. That throws away
+real coverage — a quarter of the rows — for no benefit.
+
+The better move is to leave them on so the alias gets you the hit, then set
+resolve_principal so you report the canonical record. You match on the synonym and
+you output the real address.
+
+For finer control there is an alias_types argument if you want, say, street-only but
+not locality synonyms. It cannot be combined with include_aliases.
+:::
+
+## A genuine tie, broken deterministically
+
+`6 Parkland Boulevard` and `6A Parkland Boulevard` are **separate G-NAF records**,
+each with its own locality aliases.
+
+::: {.fragment}
+An input with no unit or letter suffix gives `gnaf_match()` two real, tied candidates.
+It picks one **deterministically — by `address_detail_pid`, not by relevance**.
+:::
+
+::: {.fragment}
+So `"6 Parkland Blvd"` can resolve to `6A`. Nothing is broken; it is a genuine tie.
+:::
+
+::: {.fragment}
+[Precision]{.precision}: run with `max_results = 3` and check for ties in
+`total_score` before you trust rank 1.
+:::
+
+::: {.notes}
+I am including this because it looks like a bug the first time you see it, and
+someone in this room will hit it and file it.
+
+Determinism is the right property — the same input gives the same answer every run,
+which you need for reproducibility — but PID order carries no meaning, so a tie is
+broken arbitrarily even though it is broken consistently.
+
+The defensive pattern for precision work is max_results three and check whether rank
+one and rank two share a total score. If they do, that is a human decision, not a
+matcher decision.
+:::
+
+## Custom addresses
+
+```r
+custom <- data.table(
+  address_label = "LEVEL 2 123 CUSTOM STREET, BRISBANE QLD 4000",
+  flat_type = "LEVEL", flat_number = "2",
+  number_first = 123L,
+  street_name = "CUSTOM", street_type = "STREET",
+  locality_name = "BRISBANE", state = "QLD", postcode = 4000L,
+  longitude = 153.0234, latitude = -27.4698
+)
+
+gnaf_add(con, custom)
+#> Inserted 1 custom address(es). Total custom: 1.
+```
+
+Only six columns are required: `number_first`, `street_name`, `street_type`,
+`locality_name`, `state`, `postcode`.
+
+::: {.fragment}
+Matched **alongside** G-NAF transparently; `source` tells you which table a result
+came from. `gnaf_add(..., upsert = TRUE)` to replace; `gnaf_remove_custom(con, pids)`
+to delete; `include_custom = FALSE` to ignore them for a call.
+:::
+
+::: {.notes}
+This exists for the addresses G-NAF does not have or gets wrong: new subdivisions,
+internal site codes, depots, known corrections.
+
+They live in a structurally identical table in the same file, so they persist and
+they participate in every matching path. The source column is your audit trail —
+always keep it in anything you hand on, so a reviewer can see the match came from
+your local table rather than the national dataset.
+:::
+
+## Bulk matching
+
+```r
+dt_in   <- fread("C:/data/my_addresses.csv")
+results <- gnaf_match(dt_in$address_string, con, max_results = 1, min_score = 60)
+
+dt_in[, input_id := .I]
+dt_out <- results[dt_in, on = "input_id"]
+```
+
+**Pass the whole vector in one call.** Internally:
+
+1. **Parse once** — unique normalised inputs parsed with vectorised regex, expanded back
+2. **Deduplicate signatures** — equivalent parsed inputs enter DuckDB only once
+3. **Exact component stage** — postcode, street name, number branches before any fuzzy work
+4. **Fuzzy fallback** — only weak or unmatched inputs go wider
+5. **Narrow ranking** — score and rank on PIDs, fetch wide columns only for top rows
+
+::: {.notes}
+The instruction that matters is the first line: one call, whole vector. If you
+lapply over rows you lose every one of those five optimisations, and it will be
+orders of magnitude slower.
+
+Step two is worth dwelling on for anyone with administrative data. Duplicate
+addresses collapse before they reach the database, so a hundred thousand rows
+containing twenty thousand distinct addresses costs about twenty thousand rows of
+work.
+
+Step five is a classic late-materialisation trick: rank on the narrow columns, join
+back for the wide ones only on the rows that survived.
+:::
+
+## Performance
+
+| Input size | Estimated time |
+|---|---|
+| 1,000 | < 1 second |
+| 10,000 | 2–5 seconds |
+| 100,000 | 15–45 seconds |
+| 500,000 | 2–5 minutes (chunk recommended) |
+
+<p class="dim">Laptop with SSD, ~3M G-NAF records (QLD). Varies with CPU, postcode spread, and the share of inputs with no postcode.</p>
+
+::: {.fragment}
+```r
+chunk_size <- 50000L
+ids    <- seq_len(nrow(dt_in))
+chunks <- split(ids, ceiling(ids / chunk_size))
+
+results <- rbindlist(lapply(chunks, function(idx)
+  gnaf_match(dt_in$address_string[idx], con, max_results = 1)))
+```
+:::
+
+::: {.notes}
+Be honest that these are estimates from my machine, not a benchmark suite. The
+distribution of your input matters more than the row count.
+
+The specific pathology to know: if a hundred thousand addresses all share one
+postcode and their numbers do not parse, the broad fallback join is a hundred
+thousand times two thousand G-NAF records — two hundred million pairs. Peak memory,
+not CPU, is what bites.
+
+Chunking is the pressure valve. Above roughly five hundred thousand rows, or
+anything with a heavy postcode concentration, chunk it.
+:::
+
+## Round-trip benchmarking
+
+`benchmark_match.R` samples real records, perturbs them, and measures recovery:
+
+```r
+inputs  <- address_perturb_sample(source_rows, n = 100000, seed = 42, max_changes = 2L)
+matches <- gnaf_match(inputs$simulated_address, con, cache = FALSE, verbose = FALSE)
+```
+
+Reports `inputs_per_second`, `matched_rate`, `exact_pid_rate`, and `resolved_pid_rate`.
+
+::: {.fragment}
+Because the inputs were **generated from known PIDs**, this measures **accuracy**, not
+just throughput — you know the right answer.
+:::
+
+::: {.fragment}
+`resolved_pid_rate` counts an alias match as correct once resolved to its principal —
+which is the number that matters if you are using `resolve_principal = TRUE`.
+:::
+
+::: {.notes}
+This is how I evaluate changes to the parser or the weights, and I would recommend
+the same approach if you are comparing gnafr against whatever you use now.
+
+It is a fair-ish test with one honest caveat: the perturbations are my model of
+messiness, not your data's actual messiness. If you have a hand-labelled set, that
+beats this. If you do not, this is a repeatable regression check that costs nothing
+to run.
+
+The seed makes it reproducible, so a change in the rate is a change in the code, not
+in the sample.
+:::
+
+## Synthetic messy addresses
+
+```r
+synthetic <- address_perturb_sample(
+  sample_gnaf(con, n = 100), n = 5, seed = 42, max_changes = 2L
+)
+synthetic[, .(address_label, simulated_address, perturbations)]
+```
+
+Perturbations: typos, abbreviation swaps, dropped components. `max_changes` caps how
+many per address; `keep_original = TRUE` (default) keeps the clean label alongside.
+
+::: {.fragment}
+Round-trip it straight back through `gnaf_match()` — a repeatable regression check
+after changing weights or parser logic, with no hand-labelling required.
+:::
+
+::: {.notes}
+Useful beyond gnafr, incidentally. If you are evaluating any address matcher, this
+gives you a labelled test set out of data you already have.
+
+The perturbations column tells you exactly what was done to each address, so when
+something fails to recover you can see whether it was the typo, the dropped suburb,
+or the abbreviation swap that broke it.
+:::
+
+## Spatial helpers
+
+```r
+sa2     <- read_shapefile("C:/temp/sa2/SA2_2021_AUST_GDA2020.shp")
+sa2_qld <- subset_shapefile(sa2, var = "STE_NAME21", values = "Queensland")
+
+geo <- spatial_lookup(
+  matched[matched == TRUE], sa2_qld,
+  lat = "latitude", lon = "longitude",
+  return_cols = c("SA2_CODE21", "SA2_NAME21")
+)
+
+plot_boundaries_heatmap(sa2_qld, points_dt = geo, bins = 200)
+plot_boundaries_heatmap(sa2_qld, points_dt = geo, use_leaflet = TRUE)
+```
+
+::: {.fragment}
+`spatial_lookup()` chunks points (`chunk_size`, default 100,000) to bound memory, and
+supports `multiple = "all"` for overlapping polygons.
+:::
+
+::: {.notes}
+These exist to close the loop, not to replace your GIS tooling. If you already have
+an sf workflow you are happy with, use it — the coordinates are just columns in a
+data.table.
+
+The chunking matters on big batches. A point-in-polygon join over a million points
+and a fine polygon set will happily exhaust memory if you do it in one go.
+
+The heatmap is genuinely useful as a QA step: match density that does not look like
+population density usually means something went wrong upstream.
+:::
+
+## The Shiny geocoder
+
+```r
+gnaf_app(db_path = "C:/temp/gnaf.duckdb")
+gnaf_app(con = con)                    # reuse an open connection
+app <- gnaf_app(con = con, run = FALSE)  # embed in a larger app
+```
+
+Paste one address per line. Runs the same `gnaf_match()` — nothing in the app does its
+own matching.
+
+::: {.fragment}
+Adds two review-oriented diagnostics on top of the usual columns: full-string
+**Jaro-Winkler** and **Jaccard** similarity between the raw input and the matched
+`address_label`, with gradient highlighting.
+:::
+
+::: {.fragment}
+A structurally perfect match that is *textually* distant from the input is a signal
+the parse went down an unexpected path — visible at a glance.
+:::
+
+::: {.notes}
+The app is for ad hoc lookups and for manual review, not for volume.
+
+The two extra similarity columns are the interesting part. The structured score
+tells you the components agreed. The full-string similarity tells you whether the
+result still looks like what the user typed. When those two disagree — high
+structured score, low lexical similarity — it is nearly always worth a human look.
+
+That combination is a decent triage rule for a review queue even outside the app.
+:::
+
+## The match cache, day to day
+
+```r
+gnaf_cache_status(con)                       # how many entries, how old
+gnaf_cache_history(con, by = "day")          # growth and score distribution
+gnaf_cache_sample(con, n = 10)               # eyeball what is in there
+gnaf_cache_rollback(con, after = "2026-06-05 14:00:00")
+gnaf_cache_clear(con)
+```
+
+::: {.fragment}
+- **Slower than expected?** Check `gnaf_cache_status()` first — an empty cache means everything went through the full pipeline
+- **`avg_score` dropped for a day?** Usually harder input, not a regression
+- **Bad batch?** `rollback` re-matches exactly that window and keeps everything else
+:::
+
+::: {.notes}
+Rollback over clear, wherever you can scope it. Clearing throws away everything the
+cache has learned, and rebuilding it costs a full pass over your input.
+
+The history function is a quiet monitoring tool. If the average cached score drops
+sharply on a given day, go and look at what you loaded that day. It is usually a
+messier source, occasionally a genuine upstream data problem — either way you want to
+know.
+
+And remember: custom weights mean these tables stay empty. That is expected.
+:::
+
+## {background-color="#0b3d5c"}
+
+### Live demo 5 — the app, and anything you want to try {.dim}
+
+```r
+gnaf_app(con = con)
+```
+
+::: {.dim}
+Paste in some real (de-identified) addresses. Watch the score breakdown and the
+lexical similarity columns disagree.
+:::
+
+::: {.notes}
+Last demo, and the open-ended one. Have a handful of deliberately awful addresses
+ready in the clipboard, but the point is to take suggestions.
+
+Good things to demonstrate if nobody offers anything: an address with the wrong
+postcode, one with a building name in front, one with a unit in each of the four
+notations, and one that genuinely fails.
+
+Then leave the app open while you do the last few slides — people will keep thinking
+of things to try.
+:::
+
+# Choosing your settings {background-color="#12405c"}
+
+::: {.notes}
+This is the payoff slide for the thread I started at the beginning. If people
+remember nothing else after the demo, I want them to leave with the right argument
+set for their team.
+:::
+
+## Two recipes
+
+::: {.columns}
+::: {.column width="48%"}
+### [High precision]{.precision}
+
+```r
+gnaf_match(
+  addresses, con,
+  max_results          = 3,
+  min_score            = 90,
+  street_only_fallback = FALSE,
+  include_aliases      = TRUE,
+  resolve_principal    = TRUE,
+  weights = list(
+    postcode = 18, suburb = 12,
+    street_name = 35, street_type = 8,
+    number = 17, flat = 10
+  )
+)
+```
+
+Then: check ties, filter `score_flat`, review `score_number < 10`.
+:::
+::: {.column width="48%"}
+### [Normalisation]{.normalise}
+
+```r
+gnaf_match(
+  addresses, con,
+  max_results          = 1,
+  min_score            = 40,
+  street_only_fallback = TRUE,
+  include_aliases      = TRUE,
+  resolve_principal    = TRUE
+)
+```
+
+Then: take `address_label` as your canonical string, keep `alias_type` and
+`total_score` as caveat columns.
+:::
+:::
+
+::: {.notes}
+Talk through the differences rather than reading the code.
+
+Precision: three results so you can see ties. Ninety cutoff. Street-only off,
+because a street-level match is a false positive for you. Number and flat weighted
+up, street name and postcode down to make room. Aliases on for coverage, resolved to
+the principal for correctness.
+
+Normalisation: one result, forty cutoff, street-only on. You want an answer for
+nearly everything, and a right-street wrong-number answer is still useful. Take
+address_label as your canonical string and carry the score and alias type through as
+caveats.
+
+Both are the same engine and the same database file.
+:::
+
+## One run can serve both
+
+```{mermaid}
+%%{init: {'themeVariables': {'fontSize': '15px'}}}%%
+flowchart LR
+  A["Your addresses"] --> B["gnaf_match(<br/>min_score = 0,<br/>max_results = 3,<br/>street_only_fallback = TRUE)"]
+  B --> C[("All candidates<br/>with full score<br/>breakdown")]
+  C --> D["total_score >= 90<br/>score_flat == 5<br/>no ties"]
+  C --> E["rank 1, any score<br/>keep alias_type<br/>keep address_label"]
+  D --> F["Precision consumers"]
+  E --> G["Normalisation consumers"]
+```
+
+::: {.fragment}
+Match **once**, permissively. Keep every candidate and every component. Let each
+downstream consumer apply its own bar — filtering is free, re-matching is not.
+:::
+
+::: {.notes}
+This is the architectural suggestion I would actually make to this office.
+
+Rather than each area running its own matcher with its own settings, run one
+permissive pass, store the full candidate set with the score breakdown, and let each
+team filter. Filtering is a data.table subset. Re-matching is minutes to hours.
+
+It also means the awkward conversations — is a street-level match acceptable, is a
+tie a match — happen in explicit filter code that someone can read and review,
+rather than being buried in whatever arguments a script happened to use.
+:::
+
+## What gnafr is not
+
+- **Not a geocoder for non-Australian addresses** — the parser is built around Australian conventions
+- **Not a PO Box resolver** — no street component to anchor on
+- **Not a full GIS toolkit** — the `sf`/`leaflet` helpers make results usable, not a replacement for real spatial tooling
+- **Not a source of truth** — it matches against whatever G-NAF release you loaded
+
+::: {.fragment}
+It is also **version 0.1.0** and in active development. The API for `gnaf_match()` has
+been stable; the internals have not.
+:::
+
+::: {.notes}
+Closing honestly matters more than closing strongly.
+
+The last point is the important one for anyone considering this for production: it
+is early, it is one maintainer, and the internals move. The mitigations are that the
+test suite covers parse, score and match, and that the database file is just DuckDB
+— if the package disappeared tomorrow, your data is still queryable with SQL.
+
+Do not let me talk anyone into ripping out something that works. The interesting
+question is whether this is better for the specific thing you are struggling with.
+:::
+
+## Where to get it
+
+```r
+install.packages(c("data.table", "DBI", "duckdb", "stringdist"))
+install.packages(c("shiny", "reactable"))   # for gnaf_app()
+
+devtools::install_github("KyleHaynes/gnafr")
+```
+
+- **Docs:** [kylehaynes.github.io/gnafr](https://kylehaynes.github.io/gnafr) — About, Quick guide, Theory, Building a good lookup table, Function reference, Alias matching, Troubleshooting
+- **G-NAF download:** [geoscape.com.au/data/g-naf](https://geoscape.com.au/data/g-naf/) — free and open
+- **Source:** `R/parse.R`, `R/score.R`, `R/match.R` are the three worth reading
+
+::: {.notes}
+The theory chapter in the docs is essentially this deck with the code chunks
+actually executed, so it is the right thing to send anyone who missed today.
+
+The alias chapter is the one that runs against a real full-size database rather than
+a synthetic one, so its numbers are real.
+:::
+
+## {background-color="#12405c"}
+
+::: {style="text-align: center; margin-top: 1.4em;"}
+### Questions — and what should I build next? {.dim}
+
+::: {.dim}
+Weights that suit your data · a cache keyed on custom weights · configurable
+implied-pair handling · your local street-type abbreviations
+:::
+:::
+
+::: {.notes}
+Genuinely open. The four things listed are ones I know are wanted or easy, and any
+of them would move quickly with a real use case behind it.
+
+The most useful thing anyone can give me is a handful of addresses from their own
+data that this handles badly. That is worth more than any feature request.
+:::

@@ -1,0 +1,71 @@
+/*-- scss:defaults --*/
+
+$font-family-sans-serif: "Noto Sans", "Segoe UI", system-ui, sans-serif !default;
+$presentation-font-size-root: 30px !default;
+
+$body-bg: #fbfbfd !default;
+$body-color: #1d2733 !default;
+$link-color: #2a6f97 !default;
+$code-color: #b1436a !default;
+
+$presentation-heading-color: #12405c !default;
+$presentation-heading-font-weight: 600 !default;
+
+/*-- scss:rules --*/
+
+.reveal h1, .reveal h2 { letter-spacing: -0.01em; }
+
+.reveal .slide-number { font-size: 0.5em; opacity: 0.5; }
+
+/* Tighter, more readable code on slides */
+.reveal pre code {
+  font-size: 0.72em;
+  line-height: 1.35;
+  padding: 0.6em 0.8em;
+}
+.reveal pre { box-shadow: none; border: 1px solid #e2e6ec; border-radius: 6px; }
+
+/* Tables: quieter borders, tighter rows */
+.reveal table { font-size: 0.75em; border-collapse: collapse; }
+.reveal table th {
+  border-bottom: 2px solid #12405c;
+  text-align: left;
+  font-weight: 600;
+}
+.reveal table td, .reveal table th { padding: 0.25em 0.6em; }
+.reveal table tr { border-bottom: 1px solid #eceff3; }
+
+/* The two audiences running through the deck */
+.precision { color: #b3541e; font-weight: 600; }
+.normalise { color: #1e6f5c; font-weight: 600; }
+
+.reveal .callout { font-size: 0.85em; }
+
+/* Key/value "spec" list used on component slides */
+.spec {
+  font-size: 0.8em;
+  border-left: 4px solid #2a6f97;
+  padding-left: 0.8em;
+  margin: 0.4em 0;
+}
+
+/* Live-demo slides */
+.reveal section[data-background-color] h2,
+.reveal section[data-background-color] h3,
+.reveal section[data-background-color] p,
+.reveal section[data-background-color] li,
+.reveal section[data-background-color] code {
+  color: #f4f8fb;
+}
+.reveal section[data-background-color] pre code { color: #dbe6ef; }
+
+.big-number {
+  font-size: 2.4em;
+  font-weight: 700;
+  color: #12405c;
+  line-height: 1.1;
+}
+
+.dim { color: #6a7686; }
+
+.reveal .mermaid-js { font-size: 0.8em; }
