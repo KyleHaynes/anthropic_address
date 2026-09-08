@@ -14,9 +14,11 @@
 "_PACKAGE"
 
 utils::globalVariables(c(
-  "%>%", ".", "..return_cols", ".point_id", "address_detail_pid",
+  ".", "address_detail_pid",
   "address_label", "alt_postcode", "best_score", "candidate_count",
-  "comparison", "date_created", "flat_number", "has_diff", "i.input_id",
+  "comparison", "complete", "date_created", "flat_number", "has_diff", "i.input_id",
+  "i.principal_address_label", "i.principal_longitude", "i.principal_latitude",
+  "i.principal_locality_name", "i.principal_postcode",
   "in_building_name", "in_flat_number", "in_flat_type", "in_locality",
   "in_number_first", "in_number_last", "in_postcode", "in_state",
   "in_street_name", "in_street_type", "input_id", "input_raw",

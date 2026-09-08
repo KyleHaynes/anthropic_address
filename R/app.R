@@ -26,10 +26,6 @@ gnaf_app <- function(con = NULL, db_path = NULL,
     stop("'db_path' must be a single character string")
   }
 
-  app_state <- new.env(parent = emptyenv())
-  app_state$con <- con
-  app_state$owns_connection <- FALSE
-
   ui <- shiny::fluidPage(
     shiny::tags$head(
       shiny::tags$script(shiny::HTML(
@@ -184,13 +180,18 @@ gnaf_app <- function(con = NULL, db_path = NULL,
   )
 
   server <- function(input, output, session) {
+    # Each session owns its connection state. Reactive values also invalidate
+    # current_con() when the user connects or replaces a connection.
+    app_state <- shiny::reactiveValues(con = con, owns_connection = FALSE)
     connection_info <- shiny::reactiveVal(list(connected = !is.null(con), path = db_path, status = NULL))
     results_rv <- shiny::reactiveVal(.gnaf_empty_app_results())
     parsed_rv <- shiny::reactiveVal(.gnaf_empty_parsed())
 
     release_connection <- function() {
-      if (isTRUE(app_state$owns_connection) && !is.null(app_state$con)) {
-        try(gnaf_disconnect(app_state$con), silent = TRUE)
+      owned <- shiny::isolate(app_state$owns_connection)
+      connection <- shiny::isolate(app_state$con)
+      if (isTRUE(owned) && !is.null(connection)) {
+        try(gnaf_disconnect(connection), silent = TRUE)
       }
       app_state$con <- NULL
       app_state$owns_connection <- FALSE
@@ -216,6 +217,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
           status = gnaf_status(app_state$con)
         ))
       }, error = function(e) {
+        release_connection()
         connection_info(list(connected = FALSE, path = trimws(db_path), status = conditionMessage(e)))
       })
     }
@@ -234,6 +236,7 @@ gnaf_app <- function(con = NULL, db_path = NULL,
         ))
         shiny::showNotification("Connected to DuckDB database.", type = "message")
       }, error = function(e) {
+        release_connection()
         connection_info(list(connected = FALSE, path = trimws(input$db_path), status = conditionMessage(e)))
         shiny::showNotification(conditionMessage(e), type = "error", duration = NULL)
       })

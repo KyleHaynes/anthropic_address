@@ -1,6 +1,8 @@
 ^\.claude$
 ^\.github$
 ^docs$
+^slides$
+^CODE_REVIEW\.md$
 ^scratch$
 ^gnafr$
 ^gnafr\.Rcheck$

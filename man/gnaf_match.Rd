@@ -83,7 +83,8 @@ Weights must sum to 100.}
 
 \item{cache}{If \code{TRUE} (default), checks \code{gnaf_match_cache} for
 previously matched addresses and stores new high-confidence results. The
-one-result cache is bypassed when \code{max_results > 1}.}
+one-result cache requires default weights, normalisation, candidate filters
+and fallback settings, and is bypassed when \code{max_results > 1}.}
 
 \item{cache_threshold}{Minimum score for a new result to be cached.
 Default 95.}

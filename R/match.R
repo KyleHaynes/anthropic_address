@@ -61,7 +61,8 @@
 #' @param normalize Passed to \code{address_parse}; defaults to \code{TRUE}.
 #' @param cache If \code{TRUE} (default), checks \code{gnaf_match_cache} for
 #'   previously matched addresses and stores new high-confidence results. The
-#'   one-result cache is bypassed when \code{max_results > 1}.
+#'   one-result cache requires default weights, normalisation, candidate filters
+#'   and fallback settings, and is bypassed when \code{max_results > 1}.
 #' @param cache_threshold Minimum score for a new result to be cached.
 #'   Default 95.
 #' @param verbose If \code{TRUE}, prints colored progress, timings, and match
@@ -106,12 +107,25 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   }
   min_score <- as.integer(min_score)
 
+  for (arg in c("fallback_threshold", "cache_threshold")) {
+    value <- get(arg)
+    if (!is.numeric(value) || length(value) != 1L || !is.finite(value) ||
+        value < 0 || value > 100)
+      stop("'", arg, "' must be one number between 0 and 100", call. = FALSE)
+  }
+  for (arg in c("include_custom", "include_aliases", "resolve_principal",
+                "locality_fallback", "street_only_fallback", "normalize", "cache", "verbose")) {
+    value <- get(arg)
+    if (!is.logical(value) || length(value) != 1L || is.na(value))
+      stop("'", arg, "' must be TRUE or FALSE", call. = FALSE)
+  }
+
   weights <- .validate_match_weights(weights)
 
   if (!isTRUE(include_aliases)) {
     if (!is.null(alias_types))
       stop("'include_aliases = FALSE' cannot be combined with an explicit ",
-           "'alias_types' — pass alias_types = NA directly instead, or ",
+           "'alias_types'; pass alias_types = NA directly instead, or ",
            "leave include_aliases at its default (TRUE).", call. = FALSE)
     alias_types <- NA_character_
   }
@@ -126,6 +140,9 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
     "algorithm_version" %in% DBI::dbListFields(con, "gnaf_match_cache")
   cache_usable <- isTRUE(cache) && cache_schema_current &&
     max_results == 1L &&
+    isTRUE(include_custom) && is.null(alias_types) && isTRUE(normalize) &&
+    isTRUE(locality_fallback) && !isTRUE(street_only_fallback) &&
+    identical(as.numeric(fallback_threshold), 90) &&
     identical(weights, .validate_match_weights(.default_match_weights()))
 
   total_timer <- proc.time()[["elapsed"]]
@@ -187,8 +204,11 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   verbose_stats$exact_elapsed <- proc.time()[["elapsed"]] - exact_timer
   if (!is.null(exact_path) && nrow(exact_path) > 0L) {
     results[["exact"]] <- exact_path
-    skip_ids <- unique(exact_path$input_id)
-    verbose_stats$exact_inputs <- length(skip_ids)
+    # An exact label can still score poorly, or leave requested alternatives
+    # unfilled. Those inputs must continue through component matching.
+    skip_ids <- exact_path[, .(complete = sum(total_score == 100L) >= max_results),
+                            by = input_id][complete == TRUE, input_id]
+    verbose_stats$exact_inputs <- uniqueN(exact_path$input_id)
     .cli_match_detail(verbose, sprintf(
       "%s input(s) matched via exact label lookup in %s.",
       cli::col_green(format(length(skip_ids), big.mark = ",")),
@@ -210,7 +230,7 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   if (isTRUE(cache) && !cache_usable)
     .cli_match_detail(
       verbose,
-      "Match cache bypassed: it requires default weights and max_results = 1."
+      "Match cache bypassed: it requires a current schema, default matching settings and max_results = 1."
     )
   if (cache_usable && DBI::dbExistsTable(con, "gnaf_match_cache")) {
     remaining_stds <- unique(stats::na.omit(
@@ -474,7 +494,8 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   # ------------------------------------------------------------------
   # Path 4: street-only fallback for inputs still unmatched after all paths
   # ------------------------------------------------------------------
-  if (isTRUE(street_only_fallback)) {
+  if (isTRUE(street_only_fallback) &&
+      (is.null(alias_types) || "street_only" %in% alias_types)) {
     matched_so_far <- unique(unlist(lapply(
       results,
       function(r) if (!is.null(r) && nrow(r) > 0L) r$input_id else integer(0L)
@@ -539,10 +560,10 @@ gnaf_match <- function(addresses, con, max_results = 1L, min_score = 60L,
   setcolorder(out, c(cols_first, setdiff(names(out), cols_first)))
   setorder(out, input_id, -matched, match_rank)
   # Store newly matched high-confidence results in the cache.
-  # ON CONFLICT DO NOTHING means cache/exact-path hits are silently skipped.
   if (cache_usable && is.null(alias_types) &&
       DBI::dbExistsTable(con, "gnaf_match_cache") && nrow(out) > 0L)
-    .cache_store(con, out[matched == TRUE], cache_threshold)
+    .cache_store(con, out[matched == TRUE & !input_id %in% results[["cache"]]$input_id],
+                 cache_threshold)
 
   verbose_stats$wrangle_elapsed <- proc.time()[["elapsed"]] - wrangle_timer
   slow_path_matches <- out[

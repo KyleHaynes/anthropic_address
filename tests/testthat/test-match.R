@@ -210,3 +210,43 @@ test_that("con-first compatibility order warns for one cycle", {
   )
   expect_equal(out$address_detail_pid, "RANGE")
 })
+
+test_that("exact labels still return requested alternative matches", {
+  con <- new_fixture_connection()
+  on.exit(gnaf_disconnect(con), add = TRUE)
+  out <- gnaf_match("10 SMITH STREET, ST LUCIA QLD 4067", con,
+                    max_results = 2L, cache = FALSE, verbose = FALSE)
+  expect_equal(nrow(out), 2L)
+  expect_equal(out$address_detail_pid, c("A2", "A"))
+})
+
+test_that("custom-excluded matches do not populate the shared default cache", {
+  con <- new_fixture_connection()
+  on.exit(gnaf_disconnect(con), add = TRUE)
+  DBI::dbExecute(con, "INSERT INTO gnaf_addresses SELECT * FROM custom_addresses WHERE address_detail_pid = 'A'")
+  DBI::dbExecute(con, "UPDATE gnaf_addresses SET source = 'gnaf'")
+  input <- "10 Smith St, St Lucia QLD 4067"
+  out <- gnaf_match(input, con, include_custom = FALSE,
+                    cache_threshold = 0, verbose = FALSE)
+  expect_equal(out$address_detail_pid, "A")
+  expect_equal(gnaf_cache_status(con)$rows, 0)
+  cached <- gnaf_match(input, con, verbose = FALSE)
+  uncached <- gnaf_match(input, con, cache = FALSE, verbose = FALSE)
+  expect_equal(cached$address_detail_pid, uncached$address_detail_pid)
+  expect_equal(cached$address_detail_pid, "A2")
+})
+
+test_that("street-only fallback respects alias exclusions", {
+  con <- gnaf_connect(":memory:")
+  on.exit(gnaf_disconnect(con), add = TRUE)
+  gnaf_init(con)
+  DBI::dbExecute(con, "INSERT INTO gnaf_addresses
+    (address_detail_pid, street_name, street_type, locality_name, state, postcode, source, alias_type)
+    VALUES ('SO', 'SMITH', 'ROAD', 'BRISBANE', 'QLD', 4000, 'gnaf', 'street_only')")
+  included <- gnaf_match("Smith Rd, Brisbane QLD 4000", con,
+    street_only_fallback = TRUE, cache = FALSE, verbose = FALSE)
+  excluded <- gnaf_match("Smith Rd, Brisbane QLD 4000", con,
+    include_aliases = FALSE, street_only_fallback = TRUE, cache = FALSE, verbose = FALSE)
+  expect_true(included$matched)
+  expect_false(excluded$matched)
+})

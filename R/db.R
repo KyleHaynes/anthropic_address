@@ -62,6 +62,10 @@ gnaf_init <- function(con) {
 
   # Migration: add columns to tables created before they existed
   migration_cols <- c(
+    address_site_name = "VARCHAR",
+    level_type        = "VARCHAR",
+    level_number      = "VARCHAR",
+    lot_number        = "VARCHAR",
     alias_type        = "VARCHAR",
     date_created      = "DATE",
     legal_parcel_id   = "VARCHAR",
@@ -73,13 +77,10 @@ gnaf_init <- function(con) {
     geocode_type      = "VARCHAR"
   )
   for (tbl in c("gnaf_addresses", "custom_addresses")) {
-    for (col in names(migration_cols)) {
-      tryCatch(
-        DBI::dbExecute(con, sprintf(
-          "ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s %s", tbl, col, migration_cols[[col]]
-        )),
-        error = function(e) NULL
-      )
+    for (col in setdiff(names(migration_cols), DBI::dbListFields(con, tbl))) {
+      DBI::dbExecute(con, sprintf(
+        "ALTER TABLE %s ADD COLUMN %s %s", tbl, col, migration_cols[[col]]
+      ))
     }
   }
 
@@ -119,13 +120,12 @@ gnaf_init <- function(con) {
       cached_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   ")
-  tryCatch(
+  if (!"algorithm_version" %in% DBI::dbListFields(con, "gnaf_match_cache")) {
     DBI::dbExecute(con, "
       ALTER TABLE gnaf_match_cache
-      ADD COLUMN IF NOT EXISTS algorithm_version INTEGER NOT NULL DEFAULT 1
-    "),
-    error = function(e) NULL
-  )
+      ADD COLUMN algorithm_version INTEGER DEFAULT 1
+    ")
+  }
 
   # Address label indexes — used by the exact-label first-pass in gnaf_match()
   DBI::dbExecute(con,

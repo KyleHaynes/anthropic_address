@@ -12,7 +12,7 @@
   if (!is.list(weights) || is.null(names(weights))) {
     stop("'weights' must be a named list")
   }
-  if (!setequal(names(weights), required_names)) {
+  if (anyDuplicated(names(weights)) || !setequal(names(weights), required_names)) {
     stop(
       "'weights' must be a named list with exactly these entries: ",
       paste(required_names, collapse = ", ")
@@ -20,6 +20,11 @@
   }
 
   weights <- weights[required_names]
+  if (!all(vapply(weights, function(x) {
+    is.numeric(x) && length(x) == 1L && is.finite(x)
+  }, logical(1L)))) {
+    stop("'weights' values must each be one finite number", call. = FALSE)
+  }
   weight_values <- unlist(weights, use.names = TRUE)
   if (!is.numeric(weight_values) || anyNA(weight_values)) {
     stop("'weights' values must all be numeric and non-missing")
@@ -71,20 +76,21 @@
     )
   }
 
+  # Match R rounding, including ties to even and fractional postcode weights.
   list(
     score_postcode = sprintf(
-      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 1 THEN CAST(ROUND(%d * 0.7) AS INTEGER) WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 2 THEN CAST(ROUND(%d * 0.4) AS INTEGER) WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 3 THEN CAST(ROUND(%d * 0.2) AS INTEGER) ELSE 0 END",
+      "CASE WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND %s.in_postcode = %s.postcode THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 1 THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 2 THEN %d WHEN %s.in_postcode IS NOT NULL AND %s.postcode IS NOT NULL AND ABS(CAST(%s.in_postcode AS INTEGER) - CAST(%s.postcode AS INTEGER)) = 3 THEN %d ELSE 0 END",
       i, g, i, g, w_pc,
-      i, g, i, g, w_pc,
-      i, g, i, g, w_pc,
-      i, g, i, g, w_pc
+      i, g, i, g, as.integer(round(weights$postcode * 0.7)),
+      i, g, i, g, as.integer(round(weights$postcode * 0.4)),
+      i, g, i, g, as.integer(round(weights$postcode * 0.2))
     ),
     score_suburb = sprintf(
-      "CASE WHEN %s.in_locality IS NOT NULL AND %s.locality_name IS NOT NULL THEN CAST(ROUND(%g * %s) AS INTEGER) ELSE 0 END",
+      "CASE WHEN %s.in_locality IS NOT NULL AND %s.locality_name IS NOT NULL THEN CAST(ROUND_EVEN(%g * %s, 0) AS INTEGER) ELSE 0 END",
       i, g, w_sub, suburb_similarity
     ),
     score_street_name = sprintf(
-      "CASE WHEN %s.in_street_name IS NOT NULL AND %s.street_name IS NOT NULL THEN CAST(ROUND(%g * %s) AS INTEGER) ELSE 0 END",
+      "CASE WHEN %s.in_street_name IS NOT NULL AND %s.street_name IS NOT NULL THEN CAST(ROUND_EVEN(%g * %s, 0) AS INTEGER) ELSE 0 END",
       i, g, w_sn, street_similarity
     ),
     score_street_type = sprintf(

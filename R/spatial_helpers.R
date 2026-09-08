@@ -14,7 +14,7 @@
 read_shapefile <- function(path = "C:/temp/sa2/SA2_2021_AUST_GDA2020.shp", quiet = FALSE, ...) {
   if (!requireNamespace("sf", quietly = TRUE)) stop("Package 'sf' is required; please install it.")
   if (!file.exists(path)) stop(sprintf("Shapefile not found: %s", path))
-  sf_obj <- sf::st_read(path, quiet = !quiet, ...)
+  sf_obj <- sf::st_read(path, quiet = quiet, ...)
   attrs <- sf::st_drop_geometry(sf_obj)
   cols <- names(attrs)
   classes <- vapply(attrs, function(x) paste(class(x), collapse = "/"), character(1))
@@ -62,93 +62,71 @@ spatial_lookup <- function(points_dt, shapes, lat = "latitude", lon = "longitude
                            multiple = c("first", "all"), verbose = TRUE) {
   if (!requireNamespace("sf", quietly = TRUE)) stop("Package 'sf' is required; please install it.")
   multiple <- match.arg(multiple)
-  # ensure data.table
-  if (!data.table::is.data.table(points_dt)) points_dt <- data.table::as.data.table(points_dt)
-  n <- nrow(points_dt)
-  if (n == 0L) return(data.table::data.table())
-  if (!(lat %in% names(points_dt) && lon %in% names(points_dt))) stop("Latitude/longitude columns not found in points_dt")
+  chunk_size <- .as_positive_integer(chunk_size, "chunk_size")
+  points_dt <- data.table::as.data.table(points_dt)
+  if (length(lat) != 1L || length(lon) != 1L ||
+      !is.character(lat) || !is.character(lon) ||
+      is.na(lat) || is.na(lon) || lat == lon ||
+      !all(c(lat, lon) %in% names(points_dt)))
+    stop("Latitude/longitude columns not found or not distinct in points_dt", call. = FALSE)
+  if (!is.numeric(points_dt[[lat]]) || !is.numeric(points_dt[[lon]]))
+    stop("Latitude/longitude columns must be numeric", call. = FALSE)
+  if (!inherits(shapes, "sf") || is.na(sf::st_crs(shapes)))
+    stop("'shapes' must be an sf object with a known CRS", call. = FALSE)
 
-  shapes_attr <- sf::st_drop_geometry(shapes)
-  shapes_dt <- data.table::as.data.table(shapes_attr)
+  shapes_dt <- data.table::as.data.table(sf::st_drop_geometry(shapes))
   if (is.null(return_cols)) return_cols <- names(shapes_dt)
-  stopifnot(all(return_cols %in% names(shapes_dt)))
+  if (!is.character(return_cols) || anyNA(return_cols) ||
+      anyDuplicated(return_cols) || !all(return_cols %in% names(shapes_dt)))
+    stop("'return_cols' must name distinct columns in shapes", call. = FALSE)
+  if (any(return_cols %in% names(points_dt)))
+    stop("Requested shape columns already exist in points_dt: ",
+         paste(intersect(return_cols, names(points_dt)), collapse = ", "), call. = FALSE)
+  if (length(return_cols) == 0L && multiple == "first")
+    return(data.table::copy(points_dt))
+  n <- nrow(points_dt)
+  if (n == 0L)
+    return(cbind(data.table::copy(points_dt), shapes_dt[0L, return_cols, with = FALSE]))
 
-  out_list <- vector("list", ceiling(n / chunk_size))
   chunk_starts <- seq.int(1L, n, by = chunk_size)
+  out_list <- vector("list", length(chunk_starts))
   shapes_crs <- sf::st_crs(shapes)
 
   for (i in seq_along(chunk_starts)) {
     start <- chunk_starts[i]
-    end <- min(n, start + chunk_size - 1L)
+    end <- min(n, as.double(start) + chunk_size - 1L)
     chunk <- points_dt[start:end]
-    chunk_copy <- data.table::copy(chunk)
-    chunk_copy[, .point_id := seq.int(start, end)]
-
-    # identify rows with complete coordinates (no NA lon/lat)
-    complete_idx <- which(!is.na(chunk_copy[[lon]]) & !is.na(chunk_copy[[lat]]))
-
-    # If there are no valid coordinates in this chunk, attach NA attrs and continue
-    if (length(complete_idx) == 0L) {
-      na_attrs <- as.list(stats::setNames(rep(NA, length(return_cols)), return_cols))
-      attrs_dt <- data.table::as.data.table(na_attrs)[rep(1L, nrow(chunk_copy)), ]
-      res_dt <- cbind(chunk_copy, attrs_dt)
-      out_list[[i]] <- res_dt
-      if (isTRUE(verbose)) message(sprintf("Processed points %d..%d (no valid coords)", start, end))
-      next
+    valid <- which(is.finite(chunk[[lon]]) & is.finite(chunk[[lat]]) &
+                     abs(chunk[[lon]]) <= 180 & abs(chunk[[lat]]) <= 90)
+    intersections <- vector("list", nrow(chunk))
+    if (length(valid) > 0L) {
+      coordinates <- data.frame(lng = chunk[[lon]][valid], lat = chunk[[lat]][valid])
+      pts_sf <- sf::st_as_sf(coordinates, coords = c("lng", "lat"), crs = 4326)
+      if (!identical(sf::st_crs(pts_sf), shapes_crs))
+        pts_sf <- sf::st_transform(pts_sf, shapes_crs)
+      intersections[valid] <- sf::st_intersects(pts_sf, shapes, sparse = TRUE)
     }
 
-    pts_sf <- sf::st_as_sf(chunk_copy[complete_idx], coords = c(lon, lat), crs = 4326)
-    if (!identical(sf::st_crs(pts_sf), shapes_crs)) pts_sf <- sf::st_transform(pts_sf, shapes_crs)
-
-    ints <- sf::st_intersects(pts_sf, shapes, sparse = TRUE)
-
+    # Index the original attribute columns so NA rows retain character, Date,
+    # factor and integer types. Chunks already follow input order, so no
+    # temporary point-ID column or final sort is necessary.
     if (multiple == "first") {
-      map_idx <- vapply(ints, function(x) if (length(x)) x[1L] else NA_integer_, integer(1))
-
-      # build attribute table aligned with pts_sf (NAs where no intersection)
-      attrs_rows <- data.table::as.data.table(lapply(return_cols, function(x) rep(NA, length(map_idx))))
-      setnames(attrs_rows, return_cols)
-      non_na <- which(!is.na(map_idx))
-      if (length(non_na) > 0L) attrs_rows[non_na, (return_cols) := shapes_dt[map_idx[non_na], ..return_cols]]
-
-      # expand to full chunk length and attach
-      attrs_full <- data.table::as.data.table(lapply(return_cols, function(x) rep(NA, nrow(chunk_copy))))
-      setnames(attrs_full, return_cols)
-      attrs_full[complete_idx, (return_cols) := attrs_rows]
-      res_dt <- cbind(chunk_copy, attrs_full)
-      out_list[[i]] <- res_dt
+      shape_rows <- vapply(intersections,
+        function(hits) if (length(hits)) hits[1L] else NA_integer_, integer(1L))
+      point_rows <- seq_len(nrow(chunk))
     } else {
-      # multiple == "all": expand each original point to its matches
-      rows <- vector("list", nrow(chunk_copy))
-      pos_map <- integer(nrow(chunk_copy))
-      pos_map[complete_idx] <- seq_along(complete_idx)
-      na_attrs_row <- as.list(stats::setNames(rep(NA, length(return_cols)), return_cols))
-      for (j in seq_len(nrow(chunk_copy))) {
-        pos <- pos_map[j]
-        base <- chunk_copy[j, , drop = FALSE]
-        if (is.na(pos)) {
-          rows[[j]] <- cbind(base, data.table::as.data.table(na_attrs_row))
-        } else {
-          hits <- ints[[pos]]
-          if (length(hits) == 0L) {
-            rows[[j]] <- cbind(base, data.table::as.data.table(na_attrs_row))
-          } else {
-            base_rep <- base[rep(1L, length(hits)), ]
-            attrs <- shapes_dt[hits, ..return_cols]
-            rows[[j]] <- cbind(base_rep, attrs)
-          }
-        }
-      }
-      out_list[[i]] <- data.table::rbindlist(rows, use.names = TRUE, fill = TRUE)
+      intersections[lengths(intersections) == 0L] <- list(NA_integer_)
+      point_rows <- rep(seq_len(nrow(chunk)), lengths(intersections))
+      shape_rows <- unlist(intersections, use.names = FALSE)
     }
-
+    out_list[[i]] <- if (length(return_cols)) {
+      cbind(chunk[point_rows], shapes_dt[shape_rows, return_cols, with = FALSE])
+    } else {
+      chunk[point_rows]
+    }
     if (isTRUE(verbose)) message(sprintf("Processed points %d..%d", start, end))
   }
-
-  res <- data.table::rbindlist(out_list, use.names = TRUE, fill = TRUE)
-  data.table::setorder(res, .point_id)
-  res[, .point_id := NULL]
-  res
+  data.table::rbindlist(out_list, use.names = TRUE)
 }
 
 #' Plot polygon boundaries and a heatmap of latitude/longitude points
@@ -192,8 +170,8 @@ plot_boundaries_heatmap <- function(shapes, points_dt = NULL, lat = "latitude", 
 
     # prepare points
     if (is.null(points_dt)) {
-      m <- leaflet::leaflet() %>% leaflet::addTiles() %>%
-        leaflet::addPolygons(data = shp_plot, fill = FALSE, color = "black", weight = 1)
+      m <- leaflet::addTiles(leaflet::leaflet())
+      m <- leaflet::addPolygons(m, data = shp_plot, fill = FALSE, color = "black", weight = 1)
       return(m)
     }
 
@@ -203,8 +181,8 @@ plot_boundaries_heatmap <- function(shapes, points_dt = NULL, lat = "latitude", 
     # drop NA coords
     pts_df2 <- pts_df2[!is.na(get(lat)) & !is.na(get(lon))]
     if (nrow(pts_df2) == 0L) {
-      m <- leaflet::leaflet() %>% leaflet::addTiles() %>%
-        leaflet::addPolygons(data = shp_plot, fill = FALSE, color = "black", weight = 1)
+      m <- leaflet::addTiles(leaflet::leaflet())
+      m <- leaflet::addPolygons(m, data = shp_plot, fill = FALSE, color = "black", weight = 1)
       return(m)
     }
 
@@ -215,12 +193,12 @@ plot_boundaries_heatmap <- function(shapes, points_dt = NULL, lat = "latitude", 
     hm_def <- list(radius = 15, blur = 20, max = 1, minOpacity = 0.5)
     hm <- utils::modifyList(hm_def, heatmap_options)
 
-    m <- leaflet::leaflet(data = pts_df2) %>%
-      leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) %>%
-      leaflet::addPolygons(data = shp_plot, fill = FALSE, color = "black", weight = 1)
+    m <- leaflet::leaflet(data = pts_df2)
+    m <- leaflet::addProviderTiles(m, leaflet::providers$CartoDB.Positron)
+    m <- leaflet::addPolygons(m, data = shp_plot, fill = FALSE, color = "black", weight = 1)
 
     # use addHeatmap from leaflet.extras
-    m <- m %>% leaflet.extras::addHeatmap(lng = ~lng, lat = ~lat,
+    m <- leaflet.extras::addHeatmap(m, lng = ~lng, lat = ~lat,
                                          blur = hm$blur, max = hm$max,
                                          radius = hm$radius, minOpacity = hm$minOpacity)
     return(m)

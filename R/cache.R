@@ -2,7 +2,7 @@
 # Match cache: fast lookup for previously-matched high-confidence addresses
 # ---------------------------------------------------------------------------
 
-.CACHE_ALGORITHM_VERSION <- 2L
+.CACHE_ALGORITHM_VERSION <- 3L
 
 #' Show the current state of the match cache
 #'
@@ -241,6 +241,8 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   clauses <- character()
 
   if (!is.null(cached_on)) {
+    if (length(cached_on) != 1L)
+      stop("'cached_on' must be a single value coercible to Date", call. = FALSE)
     cached_on_date <- tryCatch(
       as.Date(cached_on),
       error = function(e) stop("'cached_on' must be coercible to Date: ", conditionMessage(e))
@@ -258,6 +260,8 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
     to_str <- .cache_timestamp_string(to, arg = "to")
     clauses <- c(clauses, sprintf("c.cached_at <= '%s'", to_str))
   }
+  if (!is.null(from) && !is.null(to) && from_str > to_str)
+    stop("'from' must be on or before 'to'", call. = FALSE)
 
   if (length(clauses) == 0L) {
     return("")
@@ -278,10 +282,10 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
            conditionMessage(e), call. = FALSE)
     }
   )
-  if (is.na(ts)) {
+  if (!is.finite(as.numeric(ts))) {
     stop("'", arg, "' must be coercible to POSIXct", call. = FALSE)
   }
-  format(ts, "%Y-%m-%d %H:%M:%S")
+  format(ts, "%Y-%m-%d %H:%M:%S", tz = "UTC")
 }
 
 .cache_lookup <- function(con, standardised_vec, include_custom, alias_types = NULL,
@@ -325,11 +329,12 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
   to_cache <- result_dt[
     match_rank == 1L &
       !is.na(total_score) & total_score >= threshold &
-      !is.na(input_standardised) & !is.na(address_detail_pid),
+      !is.na(input_standardised) & nzchar(input_standardised) & !is.na(address_detail_pid),
     c("input_standardised", "address_detail_pid", "total_score", score_cols),
     with = FALSE
   ]
   if (nrow(to_cache) == 0L) return(invisible(NULL))
+  to_cache <- unique(to_cache, by = "input_standardised")
 
   duckdb::duckdb_register(con, "__gnafr_cache_ins__", to_cache, overwrite = TRUE)
   on.exit(try(duckdb::duckdb_unregister(con, "__gnafr_cache_ins__"), silent = TRUE))
@@ -370,9 +375,6 @@ gnaf_cache_sample <- function(con, n = 10L, cached_on = NULL,
 
 .invalidate_match_cache <- function(con) {
   if (!DBI::dbExistsTable(con, "gnaf_match_cache")) return(invisible(NULL))
-  tryCatch(
-    DBI::dbExecute(con, "DELETE FROM gnaf_match_cache"),
-    error = function(e) NULL
-  )
+  DBI::dbExecute(con, "DELETE FROM gnaf_match_cache")
   invisible(NULL)
 }

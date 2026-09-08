@@ -26,3 +26,7 @@ GNAF Core columns are captured, including \code{DATE_CREATED},
 sub-dwelling mapping), stored as \code{alias_principal}, \code{principal_pid},
 \code{primary_secondary} and \code{primary_pid}.
 }
+\details{
+The complete CSV batch, locality index and match cache are updated in one
+transaction. If a file fails to load, the previous database contents remain.
+}

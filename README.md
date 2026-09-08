@@ -269,7 +269,7 @@ results[!is.na(alias_type), .(address_label, principal_address_label)]
 Inputs with no candidate above `min_score` remain in the output with `matched = FALSE` and a `match_status` explaining why.
 
 ```r
-unmatched_ids <- setdiff(seq_along(addresses), results$input_id)
+unmatched_ids <- results[matched == FALSE, input_id]
 addresses[unmatched_ids]
 ```
 
@@ -398,7 +398,7 @@ The full official type table and accepted abbreviations are in
 ### What the parser cannot handle
 
 - **PO Box / GPO Box / Locked Bag** addresses — no street component to anchor on
-- **Rural addressing** (`Lot 5 DP 12345`) — lot numbers are stored in GNAF but not matched
+- **Survey-plan references** (`Lot 5 DP 12345`) — explicit lot identifiers are matched, but plan references are not parsed
 - **Non-standard street types** not in the abbreviation table — the address will still match but the street type score component will be 0
 
 Use `address_parse()` directly to inspect how an address is being interpreted:
@@ -427,11 +427,12 @@ con <- gnaf_connect("C:/data/gnaf.duckdb")
 
 # Load your addresses from any source
 dt_in <- fread("C:/data/my_addresses.csv")
+dt_in[, input_id := .I]
 
 results <- gnaf_match(dt_in$address_string, con, max_results = 1, min_score = 60)
 
 # Join back to your original data
-dt_out <- results[dt_in, on = c("input_id" = "row_id")]
+dt_out <- results[dt_in, on = "input_id"]
 ```
 
 ### How bulk matching works internally
@@ -452,7 +453,9 @@ ids <- seq_len(nrow(dt_in))
 chunks <- split(ids, ceiling(ids / chunk_size))
 
 results_list <- lapply(chunks, function(idx) {
-  gnaf_match(dt_in$address_string[idx], con, max_results = 1, min_score = 60)
+  result <- gnaf_match(dt_in$address_string[idx], con, max_results = 1, min_score = 60)
+  result[, input_id := idx[input_id]]
+  result
 })
 
 results <- rbindlist(results_list)
@@ -471,8 +474,8 @@ library(data.table)
 
 custom <- data.table(
   address_label  = "LEVEL 2 123 CUSTOM STREET, BRISBANE QLD 4000",
-  flat_type      = "LEVEL",
-  flat_number    = "2",
+  level_type     = "LEVEL",
+  level_number   = "2",
   number_first   = 123L,
   street_name    = "CUSTOM",
   street_type    = "STREET",
@@ -541,7 +544,7 @@ results[, needs_review := total_score < 60]
 ### Identifying unmatched inputs
 
 ```r
-matched_ids   <- unique(results$input_id)
+matched_ids   <- unique(results[matched == TRUE, input_id])
 unmatched_ids <- setdiff(seq_along(addresses), matched_ids)
 
 cat(sprintf("%d of %d inputs had no match above min_score\n",

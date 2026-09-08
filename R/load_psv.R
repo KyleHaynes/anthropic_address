@@ -43,6 +43,8 @@
 #'   \code{"QLD"} or \code{c("QLD", "NSW")}. Defaults to \code{"QLD"}. States
 #'   are loaded one at a time. Use \code{\link{gnaf_build_db}} to load every
 #'   state present in \code{gnaf_dir} without listing them by hand.
+#'   Each state's addresses, locality index and match cache are committed in
+#'   one transaction; a failed state load leaves that state's old data intact.
 #' @param overwrite If \code{TRUE}, deletes existing \code{source = 'gnaf'}
 #'   rows for the state(s) being loaded before loading — other states already
 #'   in the database are left untouched. Defaults to \code{FALSE}.
@@ -98,14 +100,17 @@ gnaf_load_psv <- function(con, gnaf_dir, state = "QLD", overwrite = FALSE,
     stop("Missing G-NAF files for state '", state, "' in '", gnaf_dir, "':\n  ",
          paste(missing, collapse = "\n  "))
 
+  DBI::dbBegin(con)
+  committed <- FALSE
+  on.exit(if (!committed) DBI::dbRollback(con), add = TRUE)
+
   # Ensure alias_type column exists for databases created before this feature
   for (tbl in c("gnaf_addresses", "custom_addresses")) {
-    tryCatch(
+    if (!"alias_type" %in% DBI::dbListFields(con, tbl)) {
       DBI::dbExecute(con, sprintf(
-        "ALTER TABLE %s ADD COLUMN IF NOT EXISTS alias_type VARCHAR", tbl
-      )),
-      error = function(e) NULL
-    )
+        "ALTER TABLE %s ADD COLUMN alias_type VARCHAR", tbl
+      ))
+    }
   }
 
   if (overwrite) {
@@ -149,6 +154,8 @@ gnaf_load_psv <- function(con, gnaf_dir, state = "QLD", overwrite = FALSE,
   DBI::dbExecute(con, "ANALYZE gnaf_addresses")
   DBI::dbExecute(con, "ANALYZE gnaf_locality_index")
   .invalidate_match_cache(con)
+  DBI::dbCommit(con)
+  committed <- TRUE
 
   invisible(total)
 }
@@ -159,7 +166,8 @@ gnaf_load_psv <- function(con, gnaf_dir, state = "QLD", overwrite = FALSE,
 
 # Returns a DuckDB read_csv(...) expression for a given PSV path.
 .psv_csv <- function(path) {
-  sprintf("read_csv('%s', delim='|', header=true, ignore_errors=true)", path)
+  sprintf("read_csv('%s', delim='|', header=true, ignore_errors=true)",
+          gsub("'", "''", path, fixed = TRUE))
 }
 
 # Builds the address label SQL expression.

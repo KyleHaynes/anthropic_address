@@ -27,25 +27,31 @@ export(sample_gnaf)
 export(spatial_lookup)
 export(subset_shapefile)
 import(data.table)
-importFrom(DBI,dbConnect)
-importFrom(DBI,dbDisconnect)
-importFrom(DBI,dbExecute)
-importFrom(DBI,dbExistsTable)
-importFrom(DBI,dbGetQuery)
-importFrom(DBI,dbWriteTable)
-importFrom(cli,cli_alert_danger)
-importFrom(cli,cli_alert_info)
-importFrom(cli,cli_alert_success)
-importFrom(cli,cli_alert_warning)
-importFrom(cli,cli_h1)
-importFrom(cli,cli_li)
-importFrom(cli,cli_text)
-importFrom(cli,col_blue)
-importFrom(cli,col_cyan)
-importFrom(cli,col_green)
-importFrom(cli,col_magenta)
-importFrom(cli,col_yellow)
-importFrom(duckdb,duckdb)
-importFrom(duckdb,duckdb_register)
-importFrom(duckdb,duckdb_unregister)
+importFrom(DBI,
+  dbConnect,
+  dbDisconnect,
+  dbExecute,
+  dbExistsTable,
+  dbGetQuery,
+  dbWriteTable
+)
+importFrom(cli,
+  cli_alert_danger,
+  cli_alert_info,
+  cli_alert_success,
+  cli_alert_warning,
+  cli_h1,
+  cli_li,
+  cli_text,
+  col_blue,
+  col_cyan,
+  col_green,
+  col_magenta,
+  col_yellow
+)
+importFrom(duckdb,
+  duckdb,
+  duckdb_register,
+  duckdb_unregister
+)
 importFrom(stringdist,stringdist)

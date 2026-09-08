@@ -9,6 +9,9 @@
 #' sub-dwelling mapping), stored as \code{alias_principal}, \code{principal_pid},
 #' \code{primary_secondary} and \code{primary_pid}.
 #'
+#' The complete CSV batch, locality index and match cache are updated in one
+#' transaction. If a file fails to load, the previous database contents remain.
+#'
 #' @param con DBI connection from \code{gnaf_connect}.
 #' @param path Character vector of one or more paths to GNAF CSV files.
 #' @param overwrite If \code{TRUE}, deletes existing GNAF rows before loading.
@@ -21,6 +24,10 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
   missing <- path[!file.exists(path)]
   if (length(missing) > 0L)
     stop("File(s) not found:\n  ", paste(missing, collapse = "\n  "))
+
+  DBI::dbBegin(con)
+  committed <- FALSE
+  on.exit(if (!committed) DBI::dbRollback(con), add = TRUE)
 
   if (overwrite) {
     DBI::dbExecute(con, "DELETE FROM gnaf_addresses WHERE source = 'gnaf'")
@@ -67,7 +74,7 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
         TRY_CAST(LATITUDE  AS DOUBLE)          AS latitude,
         'gnaf'                                 AS source,
         NULL::VARCHAR                          AS alias_type,
-        CAST(TRY_STRPTIME(CAST(DATE_CREATED AS VARCHAR), '%%d-%%m-%%Y') AS DATE) AS date_created,
+        CAST(TRY_STRPTIME(DATE_CREATED, ['%%d-%%m-%%Y', '%%Y-%%m-%%d']) AS DATE) AS date_created,
         LEGAL_PARCEL_ID                        AS legal_parcel_id,
         CAST(MB_CODE AS VARCHAR)               AS mb_code,
         ALIAS_PRINCIPAL                        AS alias_principal,
@@ -75,9 +82,9 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
         PRIMARY_SECONDARY                      AS primary_secondary,
         PRIMARY_PID                            AS primary_pid,
         GEOCODE_TYPE                           AS geocode_type
-      FROM read_csv('%s', header = true, ignore_errors = true)
+      FROM read_csv(?, header = true, all_varchar = true, ignore_errors = true)
       ON CONFLICT DO NOTHING
-    ", st_case_sql, p_fwd))
+    ", st_case_sql), params = list(p_fwd))
 
     message("Done: ", p)
   }
@@ -89,5 +96,7 @@ gnaf_load <- function(con, path, overwrite = FALSE) {
   DBI::dbExecute(con, "ANALYZE gnaf_addresses")
   DBI::dbExecute(con, "ANALYZE gnaf_locality_index")
   .invalidate_match_cache(con)
+  DBI::dbCommit(con)
+  committed <- TRUE
   invisible(n)
 }

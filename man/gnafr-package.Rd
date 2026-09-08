@@ -13,4 +13,9 @@ algorithm, DuckDB-backed storage, and custom address additions.
 \author{
 \strong{Maintainer}: Kyle Haynes \email{kyle@kylehaynes.com.au}
 
+Authors:
+\itemize{
+  \item Kyle Haynes \email{kyle@kylehaynes.com.au}
+}
+
 }

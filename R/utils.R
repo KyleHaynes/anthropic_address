@@ -87,14 +87,15 @@
 }
 
 .as_positive_integer <- function(x, arg) {
-  if (length(x) != 1L) {
+  if (length(x) != 1L || !(is.numeric(x) || is.character(x))) {
     stop("'", arg, "' must be a single positive integer", call. = FALSE)
   }
-  value <- suppressWarnings(as.integer(x))
-  if (is.na(value) || value < 1L) {
+  value <- suppressWarnings(as.numeric(x))
+  if (!is.finite(value) || value < 1 || value > .Machine$integer.max ||
+      value != trunc(value)) {
     stop("'", arg, "' must be a single positive integer", call. = FALSE)
   }
-  value
+  as.integer(value)
 }
 
 #' Normalize a raw address string for parsing

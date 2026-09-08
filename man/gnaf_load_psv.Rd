@@ -22,7 +22,9 @@ the \code{<STATE>_*_psv.psv} files (e.g. \file{G-NAF MAY 2026/Standard}).}
 \item{state}{One or more G-NAF state file prefixes to load, e.g.
 \code{"QLD"} or \code{c("QLD", "NSW")}. Defaults to \code{"QLD"}. States
 are loaded one at a time. Use \code{\link{gnaf_build_db}} to load every
-state present in \code{gnaf_dir} without listing them by hand.}
+state present in \code{gnaf_dir} without listing them by hand.
+Each state's addresses, locality index and match cache are committed in
+one transaction; a failed state load leaves that state's old data intact.}
 
 \item{overwrite}{If \code{TRUE}, deletes existing \code{source = 'gnaf'}
 rows for the state(s) being loaded before loading — other states already

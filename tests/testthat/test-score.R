@@ -235,3 +235,24 @@ test_that("total_score is sum of component scores", {
                out$score_postcode + out$score_suburb + out$score_street_name +
                out$score_street_type + out$score_number + out$score_flat)
 })
+
+test_that("custom weights use the same rounding in R and DuckDB", {
+  pairs <- rbindlist(list(
+    make_pair("ROAD", "ROAD", in_postcode = 4000L, postcode = 4001L),
+    make_pair("ROAD", "ROAD")
+  ))
+  con <- gnaf_connect(":memory:")
+  on.exit(gnaf_disconnect(con), add = TRUE)
+  duckdb::duckdb_register(con, "rounding_pairs", pairs)
+  on.exit(duckdb::duckdb_unregister(con, "rounding_pairs"), add = TRUE)
+  for (weights in list(
+    list(postcode = 15, suburb = 20, street_name = 40, street_type = 10, number = 10, flat = 5),
+    list(postcode = 21.5, suburb = 14.5, street_name = 39, street_type = 10, number = 10, flat = 5)
+  )) {
+    expressions <- gnafr:::.score_sql_exprs(weights, i = "p", g = "p")
+    sql <- paste(sprintf("%s AS %s", expressions, names(expressions)), collapse = ", ")
+    actual <- as.data.table(DBI::dbGetQuery(con, paste("SELECT", sql, "FROM rounding_pairs p")))
+    expected <- gnafr:::.score_pairs(copy(pairs), weights)
+    expect_equal(actual, expected[, names(expressions), with = FALSE])
+  }
+})
